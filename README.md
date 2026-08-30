@@ -1,28 +1,31 @@
-# Mintlify Starter Kit
+# The A11y Fixer — CMU Agentic AI Capstone
 
-Use the starter kit to get your docs deployed and ready to customize.
+Documentation site for **The A11y Fixer**: an autonomous multi-agent system for WCAG 2.2 AA remediation in Angular Single Page Applications.
 
-Click the green **Use this template** button at the top of this repo to copy the Mintlify starter kit. The starter kit contains examples with
+**Live site:** https://mdrmtz.mintlify.site
 
-- Guide pages
-- Navigation
-- Customizations
-- API reference pages
-- Use of popular components
+## What's documented
 
-**[Follow the full quickstart guide](https://starter.mintlify.com/quickstart)**
+| Section | Pages |
+|---|---|
+| **Capstone Checkpoints** | Agent Scoping, Agent Design, RAG & Retrieval, Tree-of-Thought, Multi-Agent Architecture |
+| **Demos** | Basic RAG Retrieval, Hybrid Retrieval Router |
+
+## MCP servers
+
+| Server | URL | Purpose |
+|---|---|---|
+| Docs search | `https://mdrmtz.mintlify.site/mcp` | Search and read published pages (no auth) |
+| Mintlify admin | `https://mcp.mintlify.com` | Edit content, manage navigation, open PRs |
+| WCAG data | `https://wcag-mcp.netlify.app/mcp` | Query WCAG 2.2 criteria, techniques, and glossary |
 
 ## AI-assisted writing
-
-Set up your AI coding tool to work with Mintlify:
 
 ```bash
 npx skills add https://mintlify.com/docs
 ```
 
-This command installs Mintlify's documentation skill for your configured AI tools like Claude Code, Cursor, Windsurf, and others. The skill includes component reference, writing standards, and workflow guidance.
-
-See the [AI tools guides](/ai-tools) for tool-specific setup.
+Agent instructions for this project live in [`AGENTS.md`](./AGENTS.md).
 
 ## Development
 
