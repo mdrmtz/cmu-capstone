@@ -1,47 +1,71 @@
 ---
 title: "Quickstart"
-description: "Begin with a guide on the fastest path to a successful outcome"
+description: "Understand The A11y Fixer in five minutes — what it does, how the agents interact, and where to go next."
 ---
 
-Describe how someone begins using your product. What is the first thing they need to do? Are there any prerequisites?
+**The A11y Fixer** automates WCAG 2.2 AA remediation in Angular codebases. It takes an `axe-core` audit report as input and delivers a verified, regression-free Pull Request as output — no manual code editing required.
 
-A quickstart should take someone from zero to using your product. They'll get a quick win and a sense of what they can accomplish.
-
-## Prerequisites
-
-Before you begin, you must have:
-
-- Requirement one (for example, Node.js 18+, a free account, an API key)
-- Requirement two (for example, a compatible device, a compatible browser, a compatible operating system)
-
-## Get started
+## How it works in three steps
 
 <Steps>
-  <Step title="Install">
-    Describe how to install your product or sign up.
+  <Step title="Audit — detect violations">
+    Run `axe-core` against your Angular app to generate a structured JSON violation report. The A11y Fixer reads this report to identify the failing DOM node, its CSS selector, and the specific WCAG criterion it violates.
 
     ```bash
-    npm install your-package
+    npx axe --save audit.json https://localhost:4200
     ```
   </Step>
-  <Step title="Configure">
-    Describe any setup or configuration needed before first use.
+  <Step title="Retrieve — fetch authoritative context">
+    The **Compliance Planner Agent** routes each violation through the Hybrid RAG pipeline:
 
-    ```bash
-    your-cli init
-    ```
+    - **Known `axe-core` error codes** (e.g. `button-name`, `color-contrast`) → deterministic LLM Wiki lookup — zero vector search, zero hallucination risk
+    - **Exploratory queries** → Stateless Semantic Search with MMR reranking (λ=0.5, k=3 diverse chunks)
+
+    Output: a structured compliance manifest with exact ARIA attributes, Angular template patterns, and remediation constraints.
   </Step>
-  <Step title="Run it">
-    Show the first thing a user does to see it working.
+  <Step title="Remediate — patch, verify, and deliver">
+    The **Codebase Compiler Agent** applies Tree-of-Thought DFS search (k=3 branches, depth T=3) to generate candidate AST patches. Each patch is scored by the **QA Critic Agent** on a 0–20 rubric:
 
-    ```bash
-    your-cli start
-    ```
+    | Metric | Weight |
+    |---|---|
+    | Angular Ivy compile safety | 8 pts |
+    | AST structural validity | 4 pts |
+    | WCAG semantic compliance | 5 pts |
+    | Visual layout stability (≤2% shift) | 3 pts |
+
+    Patches scoring >5 with clean compilation are merged into a Pull Request. Patches scoring ≤5 trigger Adaptive Sibling Inflation (k→5) and contrastive backtracking.
   </Step>
 </Steps>
 
-<Tip>
-  Give people a way to get help. This could be a link to a support page, a chat with a customer support agent, or a forum for your product.
+## Explore the architecture
 
-  Example: Need help? Reach out to us at [support@yourcompany.com](mailto:support@yourcompany.com).
+<CardGroup cols={2}>
+  <Card title="Checkpoint 1 — Agent Scoping" icon="crosshairs" href="/checkpoints/checkpoint-1-agent-scoping">
+    Environment, tools, ReAct action loop, and feedback guardrails
+  </Card>
+  <Card title="Checkpoint 3 — RAG & Retrieval" icon="database" href="/checkpoints/checkpoint-3-rag-retrieval">
+    Hybrid RAG: LLM Wiki + MMR Stateless Semantic Search
+  </Card>
+  <Card title="Checkpoint 4 — Tree of Thought" icon="sitemap" href="/checkpoints/checkpoint-4-tree-of-thought">
+    DFS search, adaptive sibling inflation, and the scoring rubric
+  </Card>
+  <Card title="Checkpoint 5 — Multi-Agent System" icon="users" href="/checkpoints/checkpoint-5-multi-agent-architecture">
+    LangGraph coordination, schema-backed A2A communication
+  </Card>
+</CardGroup>
+
+## Key concepts
+
+| Term | Meaning |
+|---|---|
+| `axe-core` | Open-source accessibility auditing engine — produces the violation report the agent consumes |
+| LLM Wiki | Deterministic, pre-vetted markdown registry indexed by `axe-core` error code |
+| Stateless Semantic Search | Stateless vector RAG — identical queries always return identical chunks |
+| Tree-of-Thought (ToT) | Search strategy that proposes, evaluates, and backtracks across k=3 AST patch branches |
+| Angular Ivy compiler | The compilation target used to validate every patch before scoring |
+| Git transactional sandbox | Each ToT branch runs in a pristine workspace (`git checkout -f && git clean -fd`) |
+
+<Tip>
+  To query this documentation from an AI agent, connect to `https://mdrmtz.mintlify.site/mcp`. The search MCP exposes all pages as searchable, readable Markdown — no auth required.
 </Tip>
+
