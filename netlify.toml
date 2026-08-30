@@ -1,0 +1,7 @@
+[build]
+  command = "npm run build"
+  publish = "dist" # (change this to your actual build/output folder)
+
+[build.environment]
+  GIT_SUBMODULE_STRATEGY = "recursive"
+
