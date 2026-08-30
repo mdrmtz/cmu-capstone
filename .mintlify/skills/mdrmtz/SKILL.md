@@ -7,7 +7,7 @@ description: Use when working with The A11y Fixer — an autonomous multi-agent 
 
 Autonomous WCAG 2.2 AA remediation agent for Angular Single Page Applications. Takes `axe-core` audit violations as input and delivers verified, regression-free Pull Requests as output via a three-agent LangGraph pipeline.
 
-**Live docs:** https://mdrmtz.mintlify.site  
+**Live docs:** https://mdrmtz.mintlify.site
 **Docs MCP:** https://mdrmtz.mintlify.site/mcp (tools: `search_the_a11y_fixer`, `query_docs_filesystem_the_a11y_fixer`, `submit_feedback`)
 
 ## Agents
