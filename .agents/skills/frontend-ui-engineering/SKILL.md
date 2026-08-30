@@ -162,9 +162,16 @@ Don't skip heading levels. Don't use heading styles for non-heading content.
 - Ensure sufficient contrast (4.5:1 for normal text, 3:1 for large text)
 - Don't rely solely on color to convey information (use icons, text, or patterns too)
 
-## Accessibility (WCAG 2.1 AA)
+## Accessibility (WCAG 2.2 AA)
 
-Every component must meet these standards:
+Every component must meet these standards.
+
+### WCAG MCP
+
+Use the `wcag` MCP server to get authoritative criterion details before implementing or reviewing accessibility. Do not guess at requirements — call the tool.
+
+See the **`wcag-mcp` skill** for the full tool reference and workflow.
+
 
 ### Keyboard Navigation
 
@@ -294,7 +301,8 @@ function useToggleTask() {
 
 ## See Also
 
-For detailed accessibility requirements and testing tools, see `../../references/accessibility-checklist.md`.
+- **WCAG MCP server** (`wcag`): call `get-criterion`, `get-full-criterion-context`, `get-failures-for-criterion`, or `search-wcag` for authoritative criterion details at any point during implementation.
+- **Deployed endpoint**: `https://wcag-mcp.netlify.app/mcp` (20 tools covering all WCAG 2.2 SCs, techniques, and glossary)
 
 ## Common Rationalizations
 
@@ -326,3 +334,4 @@ After building UI:
 - [ ] Loading, error, and empty states all handled
 - [ ] Follows the project's design system (spacing, colors, typography)
 - [ ] No accessibility warnings in dev tools or axe-core
+- [ ] For any criterion you're unsure about, called `get-failures-for-criterion` to check known failure patterns
