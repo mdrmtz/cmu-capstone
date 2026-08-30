@@ -16,6 +16,23 @@
           "index",
           "quickstart"
         ]
+      },
+      {
+        "group": "Capstone Checkpoints",
+        "pages": [
+          "checkpoints/checkpoint-1-agent-scoping",
+          "checkpoints/checkpoint-2-agent-design",
+          "checkpoints/checkpoint-3-rag-retrieval",
+          "checkpoints/checkpoint-4-tree-of-thought",
+          "checkpoints/checkpoint-5-multi-agent-architecture"
+        ]
+      },
+      {
+        "group": "Demos",
+        "pages": [
+          "demos/rag-basic-retrieval",
+          "demos/rag-hybrid-retrieval"
+        ]
       }
     ],
     "global": {

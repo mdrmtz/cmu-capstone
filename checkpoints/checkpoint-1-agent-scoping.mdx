@@ -1,0 +1,80 @@
+---
+title: "Checkpoint 1.1 — Agent Scoping"
+description: "The A11y Fixer: autonomous web accessibility remediation agent — initial scoping, problem definition, environment, actions, and feedback architecture."
+---
+
+# Capstone Project Scoping: The A11y Fixer
+
+## 1. The Agent, the Problem, and the Intended User
+
+**The Agent:** The A11y Fixer is an autonomous, multi-modal software remediation agent developed to eliminate web accessibility technical debt. It is engineered to navigate technical documentation, inspect live browser states, modify abstract syntax trees, and generate verified code remediation pull requests.
+
+**The Problem:** Modern front-end codebases—particularly complex single-page applications built with frameworks like Angular—accumulate massive accessibility (A11y) technical debt. While automated detection tools like axe-core and Lighthouse readily identify WCAG compliance failures, manually hunting down and remediating hundreds of repetitive, context-dependent DOM and template violations creates a severe engineering bottleneck.
+
+**The Intended User:** Front-end developers, software engineering teams, and quality assurance (QA) automation engineers who need to automate the execution ("doing") layer of web accessibility compliance directly within their CI/CD pipelines without risking regressions in UI layouts or core business logic.
+
+---
+
+## 2. Why a Standalone LLM or Simple Prompting is Insufficient
+
+A standalone language model or simple prompting approach is structurally insufficient for web remediation due to three technical realities:
+
+**The Static-to-Dynamic Compilation Gap:** Standalone LLMs operate in a static vacuum. They cannot predict how compiled Angular structural directives, encapsulated styles, or dynamic data bindings render into the live browser's computed accessibility tree.
+
+**High Risk of Hallucination and Visual Regressions:** Simple prompting cannot guarantee that a suggested code modification will move an audit metric from "Fail" to "Pass." Unmonitored LLM code generation frequently introduces syntax errors, breaks adjacent TypeScript event handlers, or "fixes" screen-reader compliance by causing severe visual layout shifts.
+
+**The Need for an Agentic Execution Loop:** Reliable remediation requires an autonomous agent capable of deterministic execution: driving a live browser via debugging protocols, bridging runtime DOM nodes to static source code, capturing runtime exception logs, and iteratively self-correcting when a hypothesis fails in a rendered environment.
+
+---
+
+## 3. The Environment — Documents, Data Sources, Tools, and Users
+
+The agent operates within a sandboxed, multi-layered software engineering environment:
+
+**Documents:** A Retrieval-Augmented Generation (RAG) vector store containing Web Content Accessibility Guidelines (WCAG 2.1/2.2 Level AA standards), WAI-ARIA Authoring Practices, and official framework documentation (Angular template syntax and accessibility best practices).
+
+**Data Sources:** Structured JSON audit reports from axe-core and Lighthouse, live computed browser accessibility trees, runtime JavaScript/TypeScript console logs, and element bounding-box layout coordinates.
+
+**Tools & Infrastructure:**
+
+| Tool | Purpose |
+|---|---|
+| Chrome DevTools MCP Server | Dynamic browser control — inspect rendered DOMs, evaluate contrast ratios, query the accessibility tree |
+| AST & Template Parsers | `@angular/compiler` and Parse5 for non-destructive programmatic manipulation of HTML5 templates and TypeScript structures |
+| Localization & Bridging | Angular Source Maps + ripgrep to map runtime DOM selectors back to static component source files |
+| Execution Sandboxing | Isolated Docker containers running local build toolchains (`ng serve`, `ng test`) |
+| Version Control APIs | Octokit / GitHub REST APIs for automated branch creation and Pull Request generation |
+
+**Users (Human-in-the-Loop):** Software developers and repository maintainers who interact via CLI triggers or automated GitHub Actions, acting as the final review gate before merging pull requests.
+
+---
+
+## 4. The Actions the Agent Needs to Take
+
+To achieve its objective without introducing regressions, the agent executes a structured ReAct (Reasoning + Acting) loop across six chronological phases:
+
+1. **Inspect & Analyze:** Connects to the Chrome DevTools MCP server to evaluate the live rendered page and computed accessibility tree. Parses structured JSON audit reports to isolate the exact failing DOM node, its CSS selector, and the specific WCAG violation rule.
+
+2. **Trace & Locate:** Leverages Source Maps and workspace pattern-matching tools (ripgrep) to bridge the runtime browser selector (e.g., `app-user-card > div.profile > button`) back to the exact file and line number in the static source code (`user-card.component.html`).
+
+3. **Formulate Hypothesis:** Cross-references the violation with retrieved WCAG documentation and formulates a targeted code modification strategy designed to resolve the compliance failure while preserving existing component architecture.
+
+4. **Modify Source Code (AST Manipulation):** Programmatically parses the target component into an Abstract Syntax Tree (AST), injects the necessary remediations (e.g., binding `[attr.aria-label]`, adding semantic HTML tags, or fixing ARIA role hierarchies), and regenerates the source file non-destructively.
+
+5. **Validate & Verify (Dual-Verification):** Triggers a containerized hot-reload. Directs the DevTools MCP to re-audit the live page to verify the metric is resolved, checks runtime console logs for newly introduced exceptions, and runs existing unit/E2E test suites to ensure zero functional regressions.
+
+6. **Deliver or Roll Back:** Once all verification checks pass, uses Git APIs to branch, commit, and open a Pull Request detailing the root cause and verification proof. If validation fails, initiates an immediate file revert (`git checkout -- <file>`) before attempting a new loop.
+
+---
+
+## 5. How Feedback Guides Behavior Across Steps
+
+The agent operates within a closed-loop architecture governed by multi-dimensional feedback and strict termination guardrails:
+
+**Metric Feedback (Binary Outcomes):** The primary behavioral driver is the deterministic Pass/Fail metric returned by axe-core. A "Fail" result blocks the agent from progressing to the delivery phase.
+
+**Runtime Stability Feedback:** During validation, the DevTools MCP monitors network exceptions and browser console logs. If an accessibility fix passes the audit but throws an `Uncaught TypeError` or breaks an Angular lifecycle hook, the system flags the state as unstable and rejects the diff.
+
+**Layout Regression Guardrails:** Rather than relying on brittle pixel diffs, the agent evaluates DOM bounding-box dimensions (`getBoundingClientRect`). If an injected fix alters button dimensions, shifts layout alignment, or breaks container boundaries beyond a **2% tolerance threshold**, the visual feedback invalidates the attempt.
+
+**Iterative Self-Correction & Termination Guardrails:** When any feedback vector reports a failure, the agent rejects the modification and ingests the diagnostic error log as new short-term context to refine its hypothesis. To prevent infinite looping on unfixable third-party violations, the system enforces a **hard 3-iteration retry limit**. If a violation cannot be resolved within three attempts, the agent reverts all changes, logs a technical blocker report, and escalates the issue for human review.

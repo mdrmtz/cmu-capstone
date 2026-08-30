@@ -1,0 +1,156 @@
+---
+title: "Checkpoint 5.1 — Multi-Agent Architecture"
+description: "Role-decomposed multi-agent system: Compliance Planner, Codebase Compiler, and QA Critic agents coordinated by LangGraph with schema-backed two-way validation."
+---
+
+# Required Capstone Checkpoint 5.1: Multi-Agent Architecture and Coordination Plan
+
+**Project Name:** The A11y Fixer
+**System Role:** Autonomous Web Accessibility Remediation Agent for Angular Single Page Applications  
+**Date:** August 24, 2026
+**Architectural Framework:** Role-Decomposed Multi-Agent System (Compliance Planner + Codebase Compiler + QA Critic)
+
+---
+
+## 1. Problem Definition & Justification for a Multi-Agent Architecture
+
+**The A11y Fixer** is designed to solve a highly specialized, technically constrained software engineering problem: the autonomous remediation of WCAG 2.2 AA violations within dynamic, component-driven Angular codebases.
+
+Relying on a single, monolithic agent introduces severe cognitive and operational limitations. Software remediation requires bridging the gap between high-level, unstructured regulatory specifications (e.g., WCAG definitions) and low-level, deterministic compilation constraints (e.g., Angular Abstract Syntax Trees and TypeScript typing structures).
+
+A single agent attempting to manage this entire process suffers from **domain-concern entanglement**. If the same agent is responsible for retrieving compliance regulations, parsing repository files, generating source code, compiling modules, and running headless browser layout audits, the context window quickly becomes saturated with noisy, irrelevant data. This state pollution leads to cascading hallucinations, syntactic regressions, and a failure to satisfy overlapping accessibility constraints.
+
+By decomposing this task into a **multi-agent system**, we enforce a strict **separation of concerns**:
+
+1. **Isolate High-Level Reasoning from Execution:** Separate the non-deterministic interpretation of WCAG policies from the precise, deterministic execution of codebase compilation.
+2. **Mitigate Compounding Errors:** Specialized validation agents can rigorously challenge proposed solutions, preventing the system from over-optimizing for a naive "happy path."
+3. **Optimize the Token Economy:** Route specific sub-tasks to smaller, specialized context windows, reducing token waste and overall system latency.
+
+---
+
+## 2. Multi-Agent Architecture: Agent Profiles, Roles & Responsibilities
+
+The A11y Fixer utilizes a lean, highly optimized team of **three specialized agents** — the architectural "sweet spot" for balancing task coverage with communication overhead.
+
+```
+                ┌──────────────────────────────────────────────────┐
+                │             THE A11Y FIXER TEAM                  │
+                └───────────────────────┬──────────────────────────┘
+                                        │
+         ┌──────────────────────────────┼──────────────────────────────┐
+         ▼                              ▼                              ▼
+┌──────────────────┐           ┌──────────────────┐           ┌──────────────────┐
+│[1] COMPLIANCE    │           │[2] CODEBASE      │           │[3] QUALITY       │
+│    PLANNER AGENT │           │    COMPILER AGENT│           │    ASSURANCE     │
+│  (Retrieval Tier)│           │  (Answering Tier)│           │    CRITIC AGENT  │
+└──────────────────┘           └──────────────────┘           └──────────────────┘
+```
+
+### Agent 1: The Compliance Planner Agent (Retrieval Tier)
+
+- **Role & Persona:** Senior Accessibility Compliance Architect and Policy Analyst.
+- **Backstory:** Expert in digital inclusion legislation, W3C WAI-ARIA standards, and assistive technology behaviors. Zero knowledge of physical codebase paths but complete mastery over policy requirements.
+- **Primary Responsibility:** Interprets raw accessibility audit violations (e.g., `axe-core` JSON logs) and queries the Stateless Semantic Search database using MMR and HyDE query expansion to retrieve authoritative WCAG clauses and official W3C remediation templates.
+- **Key Deliverable:** A structured, codebase-agnostic compliance manifest containing the explicit ARIA attributes, semantic fallback text requirements, and focus behavior rules required to clear the violation.
+
+### Agent 2: The Codebase Compiler Agent (Answering Tier / Thought Generator)
+
+- **Role & Persona:** Angular Frontend Core Engineer and AST Specialist.
+- **Backstory:** Highly proficient in Angular Ivy compiler directives, TypeScript module resolution, and template syntax. Entirely non-semantic; sole concern is code correctness, AST syntax, and component relationships.
+- **Primary Responsibility:** Ingests the compliance manifest from Agent 1 and locates the physical template files in the repository using PageRank call graphs. Uses Tree-sitter parsers to generate ASTs, executes targeted code modifications ("thoughts"), and serializes patches back to the local workspace.
+- **Key Deliverable:** A set of candidate code-modification diffs applied to a short-lived, isolated Git transactional branch.
+
+### Agent 3: The Quality Assurance Critic Agent (Evaluator / Controller)
+
+- **Role & Persona:** Principal QA Automation Lead and Release Manager.
+- **Backstory:** A highly skeptical verifier whose primary directive is to protect the production codebase from breaking regressions. Strict execution tools but no generation capabilities.
+- **Primary Responsibility:** Orchestrates the local testing harness inside a containerized sandbox. Executes the Angular Ivy compiler, runs unit test suites, and evaluates live layouts via Chrome DevTools MCP to score the patch against the quantitative 0-to-20 rubric (Compile Safety, AST Validity, and Visual Layout Shifts).
+- **Key Deliverable:** A composite evaluation score. If score is >5 and compile checks pass, approves and merges the Pull Request. If score is ≤5 or compilation fails, triggers the backtracking protocol.
+
+---
+
+## 3. Coordination Strategy: Sequential Stacking & LangGraph Control
+
+The coordination of **The A11y Fixer** is governed by a **Sequential Stacking Pattern** implemented as a directed, stateful pipeline using **LangGraph**.
+
+```
+                          [ Inbound Audit Violation ]
+                                       │
+                                       ▼
+                           ┌───────────────────────┐
+                           │  1. COMPLIANCE        │
+                           │     PLANNER AGENT     │
+                           └───────────┬───────────┘
+                                       │ Structured Policy Manifest
+                                       ▼
+                           ┌───────────────────────┐
+             ┌────────────➔│  2. CODEBASE          │
+             │             │     COMPILER AGENT    │
+             │             └───────────┬───────────┘
+             │                         │ Candidate AST Patches (k=3)
+             │                         ▼
+             │             ┌───────────────────────┐
+             │             │  3. QUALITY ASSURANCE │
+             │             │     CRITIC AGENT      │
+             │             └───────────┬───────────┘
+             │                         │
+             │             { Evaluate Composite Score }
+             │              /                       \
+     [Score ≤ 5]           /                         \  [Score > 5 & Tests Pass]
+             │            /                           \
+             │           ▼                             ▼
+             └────[Backtrack & Inflate]                [ Approve & Merge PR ]
+                  (k=5 + Negative Feedback)
+```
+
+1. **State Initialization:** The incoming `axe-core` violation report is injected into the shared LangGraph `WorkflowState` dictionary.
+2. **Retrieval Step:** The **Compliance Planner** executes first, compiling its fetched policy requirements into the shared state.
+3. **Generation Step:** The **Codebase Compiler** reads the state, parses the files, and proposes a branch of k=3 candidate AST modifications under Tree-of-Thought (ToT) search.
+4. **Evaluation Loop:** The **QA Critic** executes local compilation and browser audits, computing the composite score.
+5. **Conditional Backtracking (ToT Controller):** LangGraph conditional edges evaluate the QA Critic's score:
+   - **Success Edge:** Score >5 and all test suites clear → graph exits to a success node, creating a Pull Request.
+   - **Backtrack Edge:** Compilation fails or score ≤5 → graph triggers a backtrack edge returning execution to the Codebase Compiler with Adaptive Sibling Inflation (scaling k to 5 with contrastive negative constraints).
+
+---
+
+## 4. Communication Approach: Schema-Backed Two-Way Validation
+
+Agents communicate using compact, structured **Agent-to-Agent (A2A)** JSON-RPC envelopes, which standardize capability cards and task transitions.
+
+- **Upstream Feed-Forward:** The Compliance Planner transmits policy requirements as a rigid JSON schema, ensuring the Codebase Compiler has clear boundaries for attribute injection.
+- **Downstream Feedback (Contrastive Backpropagation):** When the QA Critic rejects a branch, it compiles a detailed **Contrastive Error Payload** containing:
+  - The precise line number and syntax location that triggered the compilation warning.
+  - The standard error string output from the Angular Ivy compiler.
+  - The percentage of visual layout shift registered during browser layout bounding-box audits.
+
+This two-way validation ensures corrections are made immediately at each step of the tree, keeping the Codebase Compiler fully grounded in the empirical constraints of the local container sandbox.
+
+---
+
+## 5. Architectural Trade-offs & Rationale
+
+### Trade-off 1: Reliability vs. Latency & Compute Costs
+
+- **Decision:** Prioritize strict output reliability and codebase safety over immediate execution latency.
+- **Rationale:** Running containerized compilation checks and browser layout audits introduces ~3.5 seconds of overhead per agent interaction. However, in software engineering, a single compilation error or layout regression can bring down a production deployment. We mitigate latency cost by **caching compilation hashes** to prevent redundant test executions.
+
+### Trade-off 2: Tight LangGraph Coordination vs. Loose Swarm Orchestration
+
+- **Decision:** Rigid, graph-based LangGraph pipeline over a loose, decentralized swarm.
+- **Rationale:** While decentralized swarms offer high flexibility, they suffer from compounding errors and lack of auditability. Code remediation demands absolute predictability; a developer reviewing an automated Pull Request must see the exact, step-by-step lineage of why a code change was made.
+
+### Trade-off 3: Role Decomposition vs. Token Economy
+
+- **Decision:** Three specialized roles instead of a single monolithic agent.
+- **Rationale:** By restricting each agent's system instructions to its specific concern (policy analyst vs. AST parser vs. tester), we keep context sizes small and highly relevant, reducing overall token spend.
+
+---
+
+## References
+
+- Yao, S. et al. (2023). _Tree of Thoughts: Deliberate Problem Solving with Large Language Models._ NeurIPS 2023.
+- Yao, S. et al. (2022). _ReAct: Synergizing Reasoning and Acting in Language Models._ ICLR 2023.
+- Long, J. (2023). _Large Language Model Guided Tree-of-Thought._ arXiv:2305.08291.
+- Shinn, N. et al. (2023). _Reflexion: Language Agents with Systematic Self-Reflection._
+- Schluntz, E. & Zhang, C. (2024). _Building Effective Agents._ Anthropic Engineering.
+- Surapaneni et al. (2025). _Announcing the Agent-to-Agent Protocol (A2A)._

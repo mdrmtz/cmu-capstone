@@ -1,0 +1,151 @@
+---
+title: "Checkpoint 3.1 — RAG & Retrieval Design"
+description: "Hybrid RAG architecture: Stateless Semantic Search (MMR) + Deterministic Context Compilation (LLM Wiki) for zero-hallucination WCAG violation resolution."
+---
+
+# Required Capstone Checkpoint 3.1: RAG and Retrieval Design Integration (v5)
+
+**Project Name:** The A11y Fixer
+**System Role:** Autonomous Web Accessibility Remediation Agent for Angular Single Page Applications  
+**Date:** August 10, 2026
+**Architectural Framework:** Hybrid RAG (Stateless Semantic Search + Deterministic Context Compilation)
+
+---
+
+## 1. The Architectural Pivot: Hybrid Retrieval Strategy
+
+In software engineering agents performing automated code remediation, naive or purely conversational Retrieval-Augmented Generation (RAG) is insufficient. The **A11y Fixer** pivots to a hybrid retrieval architecture (the **Enterprise Stacking Pattern**) combining two distinct mechanisms:
+
+1. **Stateless Semantic Search (RAG):** For handling fuzzy, natural language queries and exploratory developer design questions.
+2. **Deterministic Context Compilation (LLM Wiki):** For resolving structured compliance violations with mathematical precision and zero-variance syntax mappings.
+
+This hybrid design decouples qualitative policies from local codebase context, stacking semantic search as the **Policy Layer** and context compilation as the **Codebase Layer**.
+
+```text
+┌─────────────────────────────────────────────────────────────────────────┐
+│                   THE A11Y FIXER RETRIEVAL ROUTER                       │
+└─────────────────────────────────────────────────────────────────────────┘
+                                │
+                                ▼
+                   { Is the Query Structured? }
+                    /                         \
+               [Yes]                           [No]
+                /                               \
+               ▼                                 ▼
+  ┌──────────────────────────┐    ┌──────────────────────────────┐
+  │ Deterministic Context    │    │ Pre-Retrieval Module         │
+  │ Compilation (LLM Wiki)   │    │ (LLaMA-3.2-1B HyDE / Exp.)  │
+  └────────────┬─────────────┘    └──────────────┬───────────────┘
+               │                                 │
+      Exact Rule Key Match                       ▼
+               │                  ┌──────────────────────────────┐
+               ▼                  │ Stateless Semantic Search    │
+  ┌──────────────────────────┐    │ (Vector RAG Index)           │
+  │ Fetch Rule: axe-btn-name │    └──────────────┬───────────────┘
+  │ W3C Authoring Spec       │                   │
+  └────────────┬─────────────┘        MMR (Lambda = 0.5), k=3
+               │                                 │
+               └────────────────┬────────────────┘
+                                │
+                                ▼ [COMPLIANCE POLICY LAYER]
+                                │
+    ┌───────────────────────────┴───────────────────────────┐
+    │               PORTABLE CONTEXT COMPILER               │
+    │                                                       │
+    │   + [CODEBASE LAYER]: Local Workspace Files           │
+    │     ├── Tree-sitter AST Parsing                       │
+    │     ├── PageRank Centrality                           │
+    │     └── AST Skeletonization (90% context compression) │
+    └───────────────────────────┬───────────────────────────┘
+                                │
+                                ▼
+                 ┌──────────────────────────┐
+                 │ Compiled Prompt Context  │ → [Augmented LLM]
+                 └──────────────────────────┘
+```
+
+---
+
+## 2. Deep-Dive: Stateless Semantic Search vs. Deterministic Context Compilation
+
+### A. Stateless Semantic Search (RAG)
+
+Conversational RAG architectures often suffer from context drift and state pollution, where previous dialogue turns contaminate query embeddings. To eliminate this, the A11y Fixer implements **Stateless Semantic Search**.
+
+- **Core Mechanism:** The query is isolated from previous dialogue states. We convert the specific accessibility issue into vector embeddings using the local `bge-base-en-v1.5` model.
+- **No Session Memory Contamination:** The vector is queried against our vector database statelessly. This guarantees that identical semantic queries always return identical context chunks, providing robust mathematical consistency during multi-step debugging cycles.
+
+### B. Deterministic Context Compilation (LLM Wiki)
+
+While semantic search is excellent for general questions, it is highly problematic when resolving specific automated violations (such as `axe-core: button-name`). The A11y Fixer solves this using **Deterministic Context Compilation** powered by an internal **"LLM Wiki"**.
+
+- **The "LLM Wiki" Concept:** A deterministic, highly curated local registry of structured markdown documentation. Each file is indexed by its specific compliance error key (e.g., `axe-button-name.md`).
+- **The Compilation Process:** When axe-core flags a violation, the agent intercepts the specific error ID and uses a deterministic lookup index to retrieve the corresponding LLM Wiki article instantly — bypassing similarity search entirely.
+- **Precision and Consistency:** This ensures the model is conditioned on 100% accurate, pre-vetted compliance references every time a standard error is handled, reducing compile-time regressions to zero.
+
+---
+
+## 3. Observable Influence: Naive RAG vs. Hybrid RAG
+
+Consider an Angular component where a button contains only a vector icon (SVG) and no discernible text.
+
+- **Audit Violation:** `axe-core: button-name`
+- **Failing Node:** `<button class="close-btn"><svg>...</svg></button>`
+
+### Case A: Probabilistic Naive RAG (Fails)
+
+1. Fuzzy cosine similarity retrieves three redundant paragraphs about general text alternatives.
+2. The retriever misses the specific WAI-ARIA and Angular-compliant template chunk.
+3. The LLM hallucinates: `<button class="close-btn" alt="Close">...` — an invalid HTML attribute for a `<button>` tag, failing compilation.
+
+### Case B: Hybrid RAG & LLM Wiki (The A11y Fixer)
+
+1. **Deterministic Interception:** Agent reads the exact error key `button-name` from the Axe log.
+2. **Wiki Retrieval:** Bypasses fuzzy search and executes a hash-key lookup for `axe-button-name.md`.
+3. **Context Compilation:** Compiles the precise Wiki block directly into the context window.
+4. **Grounded Code Generation:** The LLM outputs a structurally flawless remediation:
+
+```html
+<button class="close-btn" [attr.aria-label]="'close_panel' | translate">
+  <svg aria-hidden="true" focusable="false">...</svg>
+</button>
+```
+
+5. **Compilation Check:** Compiles successfully and immediately clears the live browser accessibility tree audit.
+
+---
+
+## 4. Key Retrieval Design Decisions
+
+| Layer | Decision | Value |
+|---|---|---|
+| Semantic chunking | Parent chunks | 512 tokens |
+| Semantic chunking | Child chunks | 128 tokens |
+| Semantic chunking | Sliding window overlap | 15% (~20 tokens) |
+| MMR reranking | Lambda (diversity/relevance balance) | 0.5 |
+| MMR reranking | Final top-k | 3 |
+| LLM Wiki | top-k | 1 (exact match) |
+
+**Two-Stage Curation:** Fast cosine similarity retrieves the top-50 candidates; MMR reranking selects the final k=3 most diverse chunks, ensuring the context represents different facets of compliance (WCAG criteria, WAI-ARIA template, and Angular binding syntax).
+
+---
+
+## 5. Retrieval Failure Modes and Mitigations
+
+### Failure Mode: Out-of-Vocabulary Similarity Trap
+
+If an audit flags `axe: bypass`, a standard embedding model may calculate a low similarity score with the WCAG documentation for "Bypass Blocks (Keyboard Navigation / Skip Links)" because the word "bypass" has a different primary meaning in general pre-training data.
+
+### Mitigation: Multi-Query Expansion & Deterministic Alias Map
+
+1. **Deterministic Alias Mapping:** The LLM Wiki maintains a JSON lookup dictionary that maps common audit error codes to precise guideline articles (e.g., mapping `"bypass"` directly to the _"WCAG 2.4.1: Skip Navigation Links"_ reference page).
+2. **Pre-Retrieval Query Expansion (HyDE):** A lightweight `LLaMA-3.2-1B` module takes the user's query and performs Hypothetical Document Embedding (HyDE) and query rewriting to expand the vocabulary into standard WCAG terminology before vector similarity search is executed.
+
+---
+
+## References
+
+- Lewis, P. et al. (2020). _Retrieval-Augmented Generation for Knowledge-Intensive NLP Tasks._
+- Yao, S. et al. (2022). _ReAct: Synergizing Reasoning and Acting in Language Models._
+- Carbonell, J. & Goldstein, J. (1998). _The use of MMR in multi-document summarization._
+- WAI-ARIA 1.2 Authoring Practices. World Wide Web Consortium (W3C).

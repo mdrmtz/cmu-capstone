@@ -1,0 +1,161 @@
+---
+title: "Checkpoint 4.1 — Tree-of-Thought Integration"
+description: "ToT-guided codebase compilation with DFS search, adaptive sibling inflation, and a 0–20 composite scoring rubric for safe Angular accessibility remediation."
+---
+
+# Required Capstone Checkpoint 4.1: Tree-of-Thought Integration Plan (v3)
+
+**Project Name:** The A11y Fixer
+**System Role:** Autonomous Web Accessibility Remediation Agent for Angular Single Page Applications  
+**Date:** August 24, 2026
+**Architectural Framework:** Tree-of-Thought (ToT) Guided Codebase Compilation with Adaptive Sibling Inflation
+
+---
+
+## 1. Architectural Decision: Why ToT Reasoning is Required
+
+Within **The A11y Fixer's** operational space, relying on a linear **Chain-of-Thought (CoT)** reasoning loop introduces severe stability risks. CoT forces the LLM to make token-by-token commitments from left to right. Once a linear agent commits to an early structural assumption, it cannot easily backtrack. If subsequent compilation checks, unit tests, or layout audits fail, a linear system collapses due to **premature commitment**.
+
+ToT is an absolute architectural requirement due to three domain complexities:
+
+1. **Combinatorial Constraint Complexity:** Resolving interactive accessibility components requires satisfying multiple overlapping specifications (focus boundaries, keyboard listeners, ARIA bindings, Angular change detection) simultaneously.
+2. **High State Space Branching:** For a single accessibility violation, there are often multiple valid remediation patterns (custom directive, `ngAfterViewInit` hook, or third-party module). A linear agent cannot compare these side-by-side.
+3. **The Static-to-Dynamic Gap:** `axe-core` evaluates the live DOM, but the agent edits static Angular template ASTs. ToT allows the agent to treat reasoning as an active **search through a combinatorial problem space**, simulating lookahead compiler runs and pruning invalid paths before committing changes.
+
+---
+
+## 2. Integration Point within the Enterprise Stacking Pattern
+
+The **ToT Search Engine** is integrated as the **orchestration core of the Answering Tier**:
+
+```
+                    ┌──────────────────────────────┐
+                    │    1. THE RETRIEVAL TIER     │
+                    │  (Stateless Semantic Search) │
+                    └──────────────┬───────────────┘
+                                   │ WCAG & WAI-ARIA constraints
+                                   ▼
+                    ┌──────────────────────────────┐
+                    │    2. THE ANSWERING TIER     │
+                    │   (ToT Search Orchestrator)  │
+                    └──────────────┬───────────────┘
+                                   │ Root Codebase State
+                                   ▼
+                    ┌──────────────────────────────┐
+                    │    Thought Generator G(•)    │
+                    │  (Proposes k=3 AST patches)  │
+                    └──────────────┬───────────────┘
+                                   ▼
+                    ┌──────────────────────────────┐
+                    │    State Evaluator V(•)      │
+                    │ (AST Compiler + Critic Agent)│
+                    └──────────────┬───────────────┘
+                                   ▼
+                    ┌──────────────────────────────┐
+                    │    ToT Search Controller     │
+                    │  (DFS Backtracking Router)   │
+                    └──────────────┬───────────────┘
+                                   ▼
+                    ┌──────────────────────────────┐
+                    │  Verified Remediation Code   │
+                    └──────────────────────────────┘
+```
+
+---
+
+## 3. Defining the ToT Structural Primitives
+
+| Primitive | Definition |
+|---|---|
+| **Thought (z)** | A discrete, incremental codebase modification step expressed as AST mutations (e.g., inject `[attr.aria-label]`, append TypeScript property, set `aria-hidden`) |
+| **Node (s)** | Codebase state s = [x, z₁..ᵢ] — the Angular files plus all thoughts applied to that step |
+| **Branch** | Transition representing the application of a specific thought's file modifications |
+| **Depth (T)** | Max 3 stages: HTML template ARIA injection → TypeScript property mapping → Dynamic style adjustments |
+| **Branching Factor (k)** | Maximum k=3 candidate thoughts per node |
+| **Termination** | Success: zero violations + zero compile warnings + ≤2% layout shift. Failure: depth T=3 or 15 total node evaluations exceeded |
+
+---
+
+## 4. DFS Search Strategy and Control Logic
+
+The A11y Fixer implements **Depth-First Search (DFS)** as its core search algorithm.
+
+### Why DFS over BFS
+
+BFS with breadth b=5 at depth T=3 would require managing and compiling up to 15 unique directory states simultaneously — computationally prohibitive given that each Angular compilation and headless browser layout test carries high CPU overhead.
+
+DFS resolves this bottleneck:
+- **Pruning Advantage:** If an intermediate node triggers an Angular compiler syntax break, the entire subtree is instantly pruned and the agent immediately backtracks.
+- **Resource Efficiency:** DFS maintains a single active workspace — O(T) directory states vs O(bᵀ) for BFS.
+
+### Handling Branch Exhaustion: Adaptive Sibling Inflation
+
+If all k=3 candidate thoughts at a given depth fail, the A11y Fixer implements **Adaptive Branching Expansion**:
+
+1. **DFS Sibling Traversal:** Check if unexplored sibling branches exist at shallower levels before expanding.
+2. **Dynamic k-Expansion:** Temporarily inflate the branching factor from k=3 to k=5 at that specific node.
+3. **Contrastive Negative Constraint Prompts:** The generator receives a reflection payload detailing why the previous three attempts failed and is instructed to generate structurally distinct alternatives.
+4. **Entropy Injection:** Scale generator temperature from 0.2 → 0.6 to force exploration of novel structural alternatives.
+5. **Graceful Degradation:** If expanded branches also fail, resume standard backtracking. Hard limit: 15 node evaluations.
+
+---
+
+## 5. Quantitative State Evaluation and Pruning Mechanism
+
+### The Evaluation Rubric (0–20 Scale)
+
+| Metric | Weight | Criteria |
+|---|---|---|
+| Compile Safety | 8 pts | Does code compile under the Angular Ivy compiler without syntax breaks? |
+| Structural AST Validity | 4 pts | Does Tree-sitter parse the template without dangling tags or mismatch? |
+| Qualitative WCAG Compliance | 5 pts | Does the code align with retrieved WAI-ARIA and WCAG specifications? |
+| Layout Stability | 3 pts | Do bounding-box shifts remain under 2%? |
+
+**Pruning Threshold:** Any node scoring ≤5 (or failing compile safety) is immediately pruned.  
+**Tie Resolution:** Select the node with the lower AST edit distance (least intrusive change).  
+**Global Circuit-Breaker:** 15 node evaluations maximum per session.
+
+### Specialized Evaluator Roles
+
+- **Deterministic Heuristic Evaluator:** Local Python test runner executing Tree-sitter parsing, Angular Ivy compiler, and headless Chrome layout audits — generates numeric metrics.
+- **Qualitative Critic Agent:** LLM-based agent conditioned strictly on retrieved WCAG and ARIA specs — validates semantic correctness.
+
+---
+
+## 6. Mapping ToT Roles to Implementation Tools
+
+| ToT Role | Implementation | Notes |
+|---|---|---|
+| **Thought Generator** | CrewAI | Specialized "Accessibility Proposal Specialist" persona with strict prompt boundaries |
+| **Critic / Evaluator** | LangChain | Orchestrates deterministic execution tools (compilers, Tree-sitter scripts) into the Critic Agent |
+| **Decision Maker / Controller** | LangChain LCEL + Conditional Graph Edges | Conditional edges read Evaluator scores: ≤5 → backtrack, >5 → proceed deeper |
+| **Memory / State Manager** | Model Context Protocol (MCP) | A11y State MCP Server exposes: Resources (serialized AST), Tools (git stash/checkout), Prompts (cached successful templates) |
+
+---
+
+## 7. Failure Mode: State Fragmentation and Mitigation
+
+### The Problem
+
+Because DFS requires sequentially modifying files, compiling, testing, and backtracking, there is an inherent risk of **State Fragmentation**: leftover code snippets from Branch A bleeding into Branch B, causing corrupt compilation errors and hallucinations.
+
+### Mitigation: Git-Backed Isolated AST Branching
+
+1. **Branch Stashing:** Every node maps to a unique short-lived Git SHA or stashed state hash.
+2. **Isolated Transitions:** When the ToT controller commands a backtrack, the MCP State Manager executes a deterministic rollback:
+
+```bash
+git checkout -f && git clean -fd
+```
+
+3. **Strict State Synchronization:** The manager then applies ONLY the cumulative AST patch payload matching the target parent node's branch path, guaranteeing each thought is evaluated in a 100% pristine container.
+
+---
+
+## References
+
+- Yao, S. et al. (2023). _Tree of Thoughts: Deliberate Problem Solving with Large Language Models._ NeurIPS 2023.
+- Yao, S. et al. (2022). _ReAct: Synergizing Reasoning and Acting in Language Models._ ICLR 2023.
+- Long, J. (2023). _Large Language Model Guided Tree-of-Thought._ arXiv:2305.08291.
+- Shinn, N. et al. (2023). _Reflexion: Language Agents with Systematic Self-Reflection._
+- Schluntz, E. & Zhang, C. (2024). _Building Effective Agents._ Anthropic Engineering.
