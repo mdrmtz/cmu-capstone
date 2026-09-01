@@ -1,0 +1,38 @@
+{
+  "servers": {
+    "angular-cli": {
+      "command": "npx",
+      "args": ["-y", "@angular/cli", "mcp"]
+    },
+    "chrome-devtools": {
+      "command": "npx",
+      "args": ["chrome-devtools-mcp@latest"]
+    },
+    "mintlify": {
+      "type": "http",
+      "url": "https://mcp.mintlify.com"
+    },
+    "cmu-capstone-docs": {
+      "type": "http",
+      "url": "https://mdrmtz.mintlify.site/mcp"
+    },
+    "wcag": {
+      "type": "http",
+      "url": "https://wcag-mcp.netlify.app/mcp"
+    },
+    "docs-langchain": {
+      "type": "http",
+      "url": "https://docs.langchain.com/mcp"
+    },
+    "reference-langchain": {
+      "type": "http",
+      "url": "https://reference.langchain.com/mcp"
+    },
+    "playwright": {
+      "command": "npx",
+      "args": [
+        "@playwright/mcp@latest"
+      ]
+    }
+  }
+}

@@ -1,0 +1,192 @@
+"""Lifecycle-managed axe-core audit runner.
+
+`AxeAuditRunner.run()` starts `ng serve` for the fixture, runs
+`npx @axe-core/cli` against every page in one pass, normalizes the combined
+report, and tears the dev server down - regardless of success or failure.
+"""
+
+from __future__ import annotations
+
+import json
+import shutil
+import socket
+import subprocess
+from dataclasses import dataclass, field
+from datetime import UTC, datetime
+from pathlib import Path
+from time import monotonic, sleep
+
+DEFAULT_HOST = "127.0.0.1"
+DEFAULT_PORT = 4200
+DEFAULT_STARTUP_TIMEOUT_SECONDS = 90.0
+DEFAULT_AUDIT_TIMEOUT_SECONDS = 300.0
+DEFAULT_TAGS: tuple[str, ...] = ("wcag2a", "wcag2aa")
+
+# The 11 routes registered in Hallucinate.io/src/app/app.routes.ts.
+DEFAULT_PAGES: tuple[str, ...] = (
+    "/",
+    "/home",
+    "/product",
+    "/case-studies",
+    "/docs",
+    "/careers",
+    "/blog",
+    "/pricing",
+    "/about",
+    "/contact",
+    "/status",
+)
+
+
+class AuditRunnerError(RuntimeError):
+    """Raised when the dev server fails to start or axe-core fails to run."""
+
+
+def _is_port_open(host: str, port: int) -> bool:
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
+        sock.settimeout(0.5)
+        return sock.connect_ex((host, port)) == 0
+
+
+@dataclass
+class AxeAuditRunner:
+    """Manages one `ng serve` process and drives `@axe-core/cli` against it."""
+
+    fixture_path: Path
+    host: str = DEFAULT_HOST
+    port: int = DEFAULT_PORT
+    startup_timeout_seconds: float = DEFAULT_STARTUP_TIMEOUT_SECONDS
+    tags: tuple[str, ...] = DEFAULT_TAGS
+    _process: subprocess.Popen | None = field(default=None, init=False, repr=False)
+
+    def start_server(self) -> None:
+        """Start `ng serve`, or reuse an already-running server on the same port."""
+        if not self.fixture_path.exists():
+            msg = f"fixture path does not exist: {self.fixture_path}"
+            raise AuditRunnerError(msg)
+        if _is_port_open(self.host, self.port):
+            return
+        # Fixed argv, no shell, no untrusted input.
+        self._process = subprocess.Popen(  # noqa: S603
+            ["npx", "ng", "serve", "--host", self.host, "--port", str(self.port)],
+            cwd=self.fixture_path,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            text=True,
+        )
+        self._wait_for_server()
+
+    def _wait_for_server(self) -> None:
+        deadline = monotonic() + self.startup_timeout_seconds
+        while monotonic() < deadline:
+            if _is_port_open(self.host, self.port):
+                return
+            if self._process is not None and self._process.poll() is not None:
+                output = self._process.stdout.read() if self._process.stdout else ""
+                msg = f"ng serve exited early (code {self._process.returncode}):\n{output[-2000:]}"
+                raise AuditRunnerError(msg)
+            sleep(0.5)
+        msg = f"ng serve did not become ready within {self.startup_timeout_seconds}s"
+        raise AuditRunnerError(msg)
+
+    def stop_server(self) -> None:
+        """Terminate the managed `ng serve` process, if one was started."""
+        if self._process is None:
+            return
+        self._process.terminate()
+        try:
+            self._process.wait(timeout=10)
+        except subprocess.TimeoutExpired:
+            self._process.kill()
+            self._process.wait(timeout=10)
+        self._process = None
+
+    def audit_pages(self, pages: tuple[str, ...] = DEFAULT_PAGES) -> dict:
+        """Run axe-core against every page in one CLI invocation and normalize the result."""
+        npx = shutil.which("npx")
+        if npx is None:
+            msg = "npx not found on PATH"
+            raise AuditRunnerError(msg)
+
+        # http:// is correct here: `ng serve` is a local dev server with no TLS.
+        urls = [f"http://{self.host}:{self.port}{page}" for page in pages]  # noqa: S310
+        cmd = [npx, "@axe-core/cli", *urls, "--tags", ",".join(self.tags), "--stdout"]
+        # Fixed argv (urls are our own host:port), no shell.
+        result = subprocess.run(  # noqa: S603
+            cmd,
+            cwd=self.fixture_path,
+            capture_output=True,
+            text=True,
+            timeout=DEFAULT_AUDIT_TIMEOUT_SECONDS,
+            check=False,
+        )
+        if result.returncode != 0:
+            msg = f"axe-core cli failed (exit {result.returncode}):\n{result.stderr[-2000:]}"
+            raise AuditRunnerError(msg)
+
+        reports = self._parse_axe_output(result.stdout)
+        return self._normalize(reports)
+
+    @staticmethod
+    def _parse_axe_output(stdout: str) -> list[dict]:
+        try:
+            payload = json.loads(stdout)
+        except json.JSONDecodeError as exc:
+            msg = f"could not parse axe-core output: {exc}"
+            raise AuditRunnerError(msg) from exc
+        return payload if isinstance(payload, list) else [payload]
+
+    @staticmethod
+    def _normalize(reports: list[dict]) -> dict:
+        pages = []
+        total_instances = 0
+        for report in reports:
+            violations = report.get("violations", [])
+            instance_count = sum(len(v.get("nodes", [])) for v in violations)
+            total_instances += instance_count
+            pages.append(
+                {
+                    "url": report.get("url", ""),
+                    "violation_rules": sorted({v["id"] for v in violations}),
+                    "violation_instance_count": instance_count,
+                }
+            )
+        return {
+            "generated_at": datetime.now(UTC).isoformat(),
+            "total_violation_instances": total_instances,
+            "pages": pages,
+            "raw_reports": reports,
+        }
+
+    def run(self, pages: tuple[str, ...] = DEFAULT_PAGES) -> dict:
+        """Full lifecycle: start the server, audit every page, then always stop the server."""
+        self.start_server()
+        try:
+            return self.audit_pages(pages)
+        finally:
+            self.stop_server()
+
+
+def flatten_violation_instances(report: dict) -> list[dict]:
+    """Expand a normalized report's `raw_reports` into one record per failing
+    DOM node - the granularity `evaluation/benchmark_cases.json` and
+    `cli.py run` actually need, since each node is one fixable unit of work
+    (a page's per-rule summary in `report["pages"]` is not enough on its own:
+    it drops the `selector`/`html` needed to target a specific element).
+    """
+    instances = []
+    for raw in report.get("raw_reports", []):
+        url = raw.get("url", "")
+        for violation in raw.get("violations", []):
+            for node in violation.get("nodes", []):
+                instances.append(
+                    {
+                        "url": url,
+                        "rule": violation.get("id", ""),
+                        "wcag_tags": violation.get("tags", []),
+                        "selector": ",".join(node.get("target", [])),
+                        "html": node.get("html", ""),
+                        "failure_summary": node.get("failureSummary"),
+                    }
+                )
+    return instances
