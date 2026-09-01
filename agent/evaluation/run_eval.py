@@ -20,11 +20,14 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
+import yaml
+
 from a11y_fixer import cli, config
 from a11y_fixer.adapters.audit_runner import AxeAuditRunner
 from a11y_fixer.domain.guardrail_rules import brier_score, expected_calibration_error
 
 BENCHMARK_CASES_PATH = Path(__file__).resolve().parent / "benchmark_cases.json"
+PHASES_PATH = Path(__file__).resolve().parent / "phases.yaml"
 DEFAULT_RESULTS_PATH = Path(__file__).resolve().parent / "results" / "results_summary.json"
 
 
@@ -42,6 +45,42 @@ class CaseResult:
 
 def load_benchmark_cases(path: Path = BENCHMARK_CASES_PATH) -> list[dict]:
     return json.loads(path.read_text(encoding="utf-8"))
+
+
+def load_phases(path: Path = PHASES_PATH) -> dict[str, dict]:
+    """Load phase definitions from phases.yaml."""
+    if not path.exists():
+        raise FileNotFoundError(f"phases.yaml not found at {path}")
+    with open(path) as f:
+        data = yaml.safe_load(f)
+    return data.get("phases", {})
+
+
+def filter_cases_by_phase(cases: list[dict], phase_name: str) -> tuple[list[dict], dict]:
+    """Filter benchmark cases by phase definition.
+    
+    Returns: (filtered_cases, phase_definition)
+    """
+    phases = load_phases()
+    if phase_name not in phases:
+        available = ", ".join(sorted(phases.keys()))
+        raise ValueError(f"Phase '{phase_name}' not found. Available: {available}")
+    
+    phase_def = phases[phase_name]
+    filters = phase_def.get("filters", [])
+    
+    # Apply all filters (OR logic — case matches if it satisfies ANY filter)
+    filtered = []
+    for case in cases:
+        for filter_spec in filters:
+            page_match = case.get("page") == filter_spec.get("page")
+            wcag_match = case.get("wcag") == filter_spec.get("wcag")
+            if page_match and wcag_match:
+                filtered.append(case)
+                break  # Don't add duplicates
+    
+    return filtered, phase_def
+
 
 
 def _confidence(result: CaseResult) -> float:
@@ -81,15 +120,13 @@ def compute_metrics(results: list[CaseResult]) -> dict[str, Any]:
     }
 
 
-def _recheck_cleared(fixture: Path, case: dict) -> bool:
+def _recheck_cleared(runner: AxeAuditRunner, case: dict) -> bool:
     """Re-run a scoped axe-core audit against just this case's page and check the rule cleared.
 
-    One `ng serve`/axe-core round-trip per case is the simplest correct
-    implementation; batching by unique page is a possible future
-    optimization if benchmark runtime becomes a bottleneck.
+    Uses a pre-started AxeAuditRunner to avoid restarting `ng serve` for each case.
+    Reuses the same server instance across all cases in a test phase.
     """
-    runner = AxeAuditRunner(fixture_path=fixture)
-    report = runner.run(pages=(case["page"],))
+    report = runner.audit_pages(pages=(case["page"],))
     page_report = report["pages"][0] if report["pages"] else {"violation_rules": []}
     return case["rule"] not in page_report["violation_rules"]
 
@@ -101,9 +138,9 @@ async def _run_one_case(
     pr_config: config.PRDeliveryConfig,
     fixture: Path,
     output_dir: Path,
+    runner: AxeAuditRunner,
 ) -> CaseResult:
     start = time.monotonic()
-    thread_config = {"configurable": {"thread_id": case["id"]}}
     message = (
         "Resolve this axe-core violation:\n"
         f"rule: {case['rule']}\n"
@@ -112,27 +149,49 @@ async def _run_one_case(
         f"wcag: {case['wcag']}\n"
         f"ground truth hint: {case['ground_truth_fix']}\n"
     )
-    try:
-        result = await graph.ainvoke({"messages": [{"role": "user", "content": message}]}, config=thread_config)
-        result = await cli.resolve_interrupts(graph, thread_config, result, auto_approve=True)
-        response = result.get("structured_response")
-        if response is None:
+
+    # Retry up to 3 times for non-deterministic empty responses
+    MAX_ATTEMPTS = 3
+    CASE_TIMEOUT_SECONDS = 120  # 5-minute hard cap per case to prevent credit runaway
+    for attempt in range(MAX_ATTEMPTS):
+        thread_config = {"configurable": {"thread_id": f"{case['id']}-attempt{attempt + 1}", "recursion_limit": 50}}
+        try:
+            result = await asyncio.wait_for(
+                graph.ainvoke({"messages": [{"role": "user", "content": message}]}, config=thread_config),
+                timeout=CASE_TIMEOUT_SECONDS,
+            )
+            result = await cli.resolve_interrupts(graph, thread_config, result, auto_approve=True)
+            response = result.get("structured_response")
+
+            # Only retry if structured_response is None; other errors don't retry
+            if response is None:
+                if attempt < MAX_ATTEMPTS - 1:
+                    continue  # Try again with fresh thread_id
+                # All retries exhausted
+                return CaseResult(
+                    case_id=case["id"], rule=case["rule"], page=case["page"], route="human",
+                    rubric_score=0.0, cleared=False, latency_seconds=time.monotonic() - start,
+                    error="no structured response produced after retries",
+                )
+
+            # Successfully got a response
+            cli.deliver_violation(case, response, fixture=fixture, pr_config=pr_config, output_dir=output_dir)
+            cleared = _recheck_cleared(runner, case)
+            return CaseResult(
+                case_id=case["id"], rule=case["rule"], page=case["page"], route=response.route,
+                rubric_score=response.score, cleared=cleared, latency_seconds=time.monotonic() - start,
+            )
+        except asyncio.TimeoutError:
             return CaseResult(
                 case_id=case["id"], rule=case["rule"], page=case["page"], route="human",
                 rubric_score=0.0, cleared=False, latency_seconds=time.monotonic() - start,
-                error="no structured response produced",
+                error=f"case timed out after {CASE_TIMEOUT_SECONDS}s",
             )
-        cli.deliver_violation(case, response, fixture=fixture, pr_config=pr_config, output_dir=output_dir)
-        cleared = _recheck_cleared(fixture, case)
-        return CaseResult(
-            case_id=case["id"], rule=case["rule"], page=case["page"], route=response.route,
-            rubric_score=response.score, cleared=cleared, latency_seconds=time.monotonic() - start,
-        )
-    except Exception as exc:  # noqa: BLE001 - one case's failure must not abort the whole benchmark run
-        return CaseResult(
-            case_id=case["id"], rule=case["rule"], page=case["page"], route="human",
-            rubric_score=0.0, cleared=False, latency_seconds=time.monotonic() - start, error=str(exc),
-        )
+        except Exception as exc:  # noqa: BLE001 - one case's failure must not abort the whole benchmark run
+            return CaseResult(
+                case_id=case["id"], rule=case["rule"], page=case["page"], route="human",
+                rubric_score=0.0, cleared=False, latency_seconds=time.monotonic() - start, error=str(exc),
+            )
 
 
 async def _arun_eval(
@@ -149,9 +208,16 @@ async def _arun_eval(
     output_dir = config.agent_root() / "evaluation" / "results" / "prs"
 
     graph = await abuild_agent()
-    results = [
-        await _run_one_case(graph, case, pr_config=pr_config, fixture=fixture, output_dir=output_dir) for case in cases
-    ]
+
+    # Start server once for all cases to reuse browser session across cases
+    runner = AxeAuditRunner(fixture_path=fixture)
+    runner.start_server()
+    try:
+        results = [
+            await _run_one_case(graph, case, pr_config=pr_config, fixture=fixture, output_dir=output_dir, runner=runner) for case in cases
+        ]
+    finally:
+        runner.stop_server()
 
     summary = compute_metrics(results)
     output_path.parent.mkdir(parents=True, exist_ok=True)
@@ -171,13 +237,105 @@ def run_eval(
 
 
 def main(argv: list[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(prog="run_eval")
-    parser.add_argument("--cases", default=str(BENCHMARK_CASES_PATH))
+    parser = argparse.ArgumentParser(
+        prog="run_eval",
+        description="Run Phase F evaluation: data-driven test scenarios",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog="""
+Examples:
+  # Run Phase F.1: /about (1.1.1) — dry-run
+  python -m evaluation.run_eval --phase f1
+
+  # Run Phase F.3: /about and /case-studies (1.1.1) — LIVE PR creation
+  python -m evaluation.run_eval --phase f3
+
+  # Override live default: force dry-run for phase f3
+  python -m evaluation.run_eval --phase f3 --no-live
+        """,
+    )
+
+    # Mutually exclusive group for phase vs. direct cases path
+    group = parser.add_mutually_exclusive_group()
+    group.add_argument(
+        "--phase",
+        help="Phase name (f1, f2, f3, ...) — reads filters from phases.yaml",
+    )
+    group.add_argument(
+        "--cases",
+        default=str(BENCHMARK_CASES_PATH),
+        help="Path to benchmark_cases.json (default: %(default)s)",
+    )
+
     parser.add_argument("--output", default=str(DEFAULT_RESULTS_PATH))
+
+    # Live mode override
+    live_group = parser.add_mutually_exclusive_group()
+    live_group.add_argument(
+        "--live",
+        action="store_true",
+        help="Force live PR delivery (overrides phase default)",
+    )
+    live_group.add_argument(
+        "--no-live",
+        action="store_true",
+        help="Force dry-run (overrides phase default)",
+    )
+
     args = parser.parse_args(argv)
 
-    summary = run_eval(cases_path=Path(args.cases), output_path=Path(args.output), live=False)
+    # Load all benchmark cases
+    all_cases = load_benchmark_cases()
+
+    # If --phase specified, filter and use phase defaults
+    if args.phase:
+        filtered_cases, phase_def = filter_cases_by_phase(all_cases, args.phase)
+        cases_path_desc = f"Phase {args.phase}: {phase_def.get('name', args.phase)}"
+
+        # Determine live flag
+        if args.live:
+            live = True
+        elif args.no_live:
+            live = False
+        else:
+            live = phase_def.get("live", False)
+
+        # Write filtered cases to temp file
+        temp_cases_path = Path(__file__).resolve().parent / f"_temp_{args.phase}_cases.json"
+        temp_cases_path.write_text(json.dumps(filtered_cases, indent=2), encoding="utf-8")
+        cases_path = temp_cases_path
+    else:
+        # Direct --cases path
+        cases_path = Path(args.cases)
+        cases_path_desc = str(cases_path)
+        live = args.live or not args.no_live  # Default dry-run
+
+    # Output path with phase name if available
+    if args.phase:
+        output_path = (
+            Path(__file__).resolve().parent
+            / "results"
+            / f"results_phase_{args.phase}.json"
+        )
+    else:
+        output_path = Path(args.output)
+
+    print(f"📊 Running evaluation: {cases_path_desc}")
+    print(f"💾 Results → {output_path}")
+    print(f"🔴 Live PR delivery: {live}\n")
+
+    if live:
+        response = input("⚠️  WARNING: Live PR delivery is enabled! Continue? (type 'yes'): ")
+        if response.strip().lower() != "yes":
+            print("Cancelled.")
+            return 1
+
+    summary = run_eval(cases_path=cases_path, output_path=output_path, live=live)
     print(json.dumps(summary, indent=2))  # noqa: T201
+
+    # Clean up temp file if created
+    if args.phase and temp_cases_path.exists():
+        temp_cases_path.unlink()
+
     return 0
 
 

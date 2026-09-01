@@ -1,0 +1,882 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Benchmark Cases - Accessibility Audit</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        :root {
+            --color-bg: #ffffff;
+            --color-bg-secondary: #f8f9fa;
+            --color-text: #1a1a1a;
+            --color-text-secondary: #6b7280;
+            --color-border: #e5e7eb;
+            --color-error: #dc2626;
+            --color-warning: #f59e0b;
+            --color-success: #10b981;
+            --color-info: #3b82f6;
+            --color-shadow: rgba(0, 0, 0, 0.05);
+            --color-shadow-lg: rgba(0, 0, 0, 0.1);
+        }
+
+        html.dark-mode {
+            --color-bg: #1a1a1a;
+            --color-bg-secondary: #2d2d2d;
+            --color-text: #ffffff;
+            --color-text-secondary: #a0aec0;
+            --color-border: #404040;
+            --color-shadow: rgba(255, 255, 255, 0.05);
+            --color-shadow-lg: rgba(0, 0, 0, 0.3);
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen', 'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue', sans-serif;
+            background-color: var(--color-bg);
+            color: var(--color-text);
+            transition: background-color 0.3s ease, color 0.3s ease;
+            line-height: 1.6;
+        }
+
+        /* Header */
+        header {
+            background: linear-gradient(135deg, var(--color-info) 0%, #1e40af 100%);
+            color: white;
+            padding: 2rem;
+            box-shadow: 0 2px 8px var(--color-shadow-lg);
+            position: sticky;
+            top: 0;
+            z-index: 100;
+        }
+
+        .header-content {
+            max-width: 1400px;
+            margin: 0 auto;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 1rem;
+        }
+
+        .header-title {
+            font-size: 1.75rem;
+            font-weight: 700;
+            letter-spacing: -0.5px;
+        }
+
+        .header-subtitle {
+            font-size: 0.875rem;
+            opacity: 0.95;
+            margin-top: 0.25rem;
+        }
+
+        .header-actions {
+            display: flex;
+            gap: 1rem;
+            align-items: center;
+            flex-wrap: wrap;
+        }
+
+        .back-link {
+            background: rgba(255, 255, 255, 0.2);
+            border: 1px solid rgba(255, 255, 255, 0.3);
+            border-radius: 8px;
+            padding: 0.5rem 1rem;
+            color: white;
+            text-decoration: none;
+            cursor: pointer;
+            font-size: 0.875rem;
+            font-weight: 500;
+            transition: all 0.2s ease;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .back-link:hover {
+            background: rgba(255, 255, 255, 0.3);
+            transform: scale(1.05);
+        }
+
+        .theme-toggle {
+            background: rgba(255, 255, 255, 0.2);
+            border: 1px solid rgba(255, 255, 255, 0.3);
+            border-radius: 8px;
+            padding: 0.5rem 1rem;
+            color: white;
+            cursor: pointer;
+            font-size: 0.875rem;
+            font-weight: 500;
+            transition: all 0.2s ease;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .theme-toggle:hover {
+            background: rgba(255, 255, 255, 0.3);
+            transform: scale(1.05);
+        }
+
+        /* Main Content */
+        main {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 2rem;
+        }
+
+        /* Controls */
+        .controls {
+            display: flex;
+            gap: 1rem;
+            margin-bottom: 2rem;
+            flex-wrap: wrap;
+            align-items: center;
+        }
+
+        .search-box {
+            flex: 1;
+            min-width: 250px;
+        }
+
+        .search-box input {
+            width: 100%;
+            padding: 0.75rem 1rem;
+            border: 1px solid var(--color-border);
+            border-radius: 8px;
+            background: var(--color-bg-secondary);
+            color: var(--color-text);
+            font-size: 0.875rem;
+            transition: all 0.2s ease;
+        }
+
+        .search-box input:focus {
+            outline: none;
+            border-color: var(--color-info);
+            box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+        }
+
+        .filter-container {
+            display: flex;
+            gap: 0.75rem;
+            flex-wrap: wrap;
+        }
+
+        .filter-select {
+            padding: 0.75rem 1rem;
+            border: 1px solid var(--color-border);
+            border-radius: 8px;
+            background: var(--color-bg-secondary);
+            color: var(--color-text);
+            font-size: 0.875rem;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        .filter-select:focus {
+            outline: none;
+            border-color: var(--color-info);
+            box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+        }
+
+        .results-info {
+            font-size: 0.875rem;
+            color: var(--color-text-secondary);
+            padding: 1rem;
+            background: var(--color-bg-secondary);
+            border-radius: 8px;
+            border: 1px solid var(--color-border);
+        }
+
+        /* Table Styles */
+        .table-container {
+            background: var(--color-bg-secondary);
+            border: 1px solid var(--color-border);
+            border-radius: 12px;
+            overflow: hidden;
+            box-shadow: 0 1px 3px var(--color-shadow);
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        thead {
+            background: var(--color-bg);
+            border-bottom: 2px solid var(--color-border);
+            position: sticky;
+            top: 0;
+            z-index: 10;
+        }
+
+        th {
+            padding: 1rem;
+            text-align: left;
+            font-weight: 600;
+            font-size: 0.875rem;
+            color: var(--color-text-secondary);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        td {
+            padding: 1rem;
+            border-bottom: 1px solid var(--color-border);
+            font-size: 0.875rem;
+        }
+
+        tbody tr {
+            transition: background-color 0.2s ease;
+        }
+
+        tbody tr:hover {
+            background-color: var(--color-bg);
+        }
+
+        /* Case ID */
+        .case-id {
+            font-weight: 600;
+            color: var(--color-info);
+            font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+            font-size: 0.8rem;
+        }
+
+        /* Page Column */
+        .page-cell {
+            font-weight: 500;
+            color: var(--color-text);
+        }
+
+        /* Rule Badge */
+        .rule-badge {
+            display: inline-block;
+            background: rgba(220, 38, 38, 0.1);
+            color: var(--color-error);
+            padding: 0.35rem 0.75rem;
+            border-radius: 6px;
+            font-weight: 500;
+            font-size: 0.775rem;
+            white-space: nowrap;
+        }
+
+        /* WCAG Badge */
+        .wcag-link {
+            display: inline-block;
+            background: rgba(59, 130, 246, 0.1);
+            color: var(--color-info);
+            padding: 0.35rem 0.75rem;
+            border-radius: 6px;
+            text-decoration: none;
+            font-weight: 500;
+            font-size: 0.775rem;
+            transition: all 0.2s ease;
+        }
+
+        .wcag-link:hover {
+            background: rgba(59, 130, 246, 0.2);
+            text-decoration: underline;
+        }
+
+        /* Selector Column */
+        .selector-text {
+            font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+            font-size: 0.75rem;
+            background: var(--color-bg-secondary);
+            padding: 0.35rem 0.5rem;
+            border-radius: 4px;
+            word-break: break-all;
+            max-width: 300px;
+        }
+
+        /* Fix Column */
+        .fix-column {
+            max-width: 400px;
+        }
+
+        .fix-text {
+            line-height: 1.5;
+        }
+
+        /* Expandable Row */
+        .expand-btn {
+            background: none;
+            border: none;
+            color: var(--color-info);
+            cursor: pointer;
+            font-size: 1.25rem;
+            padding: 0;
+            width: 30px;
+            height: 30px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 4px;
+            transition: all 0.2s ease;
+        }
+
+        .expand-btn:hover {
+            background: var(--color-bg);
+        }
+
+        .expanded-row {
+            background: var(--color-bg);
+        }
+
+        .expanded-content {
+            padding: 1.5rem;
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 1.5rem;
+        }
+
+        .detail-section {
+            display: flex;
+            flex-direction: column;
+            gap: 0.5rem;
+        }
+
+        .detail-label {
+            font-weight: 600;
+            font-size: 0.75rem;
+            color: var(--color-text-secondary);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .detail-value {
+            font-family: 'Monaco', 'Menlo', 'Ubuntu Mono', monospace;
+            background: var(--color-bg-secondary);
+            padding: 0.75rem;
+            border-radius: 6px;
+            word-break: break-all;
+            font-size: 0.8rem;
+        }
+
+        /* Empty State */
+        .empty-state {
+            text-align: center;
+            padding: 3rem 2rem;
+            color: var(--color-text-secondary);
+        }
+
+        .empty-state-icon {
+            font-size: 3rem;
+            margin-bottom: 1rem;
+        }
+
+        /* Pagination */
+        .pagination {
+            display: flex;
+            justify-content: center;
+            gap: 0.5rem;
+            margin-top: 2rem;
+            flex-wrap: wrap;
+        }
+
+        .pagination-btn {
+            background: var(--color-bg-secondary);
+            border: 1px solid var(--color-border);
+            padding: 0.5rem 0.75rem;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 0.875rem;
+            transition: all 0.2s ease;
+            color: var(--color-text);
+        }
+
+        .pagination-btn:hover:not(:disabled) {
+            background: var(--color-info);
+            color: white;
+            border-color: var(--color-info);
+        }
+
+        .pagination-btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        .pagination-btn.active {
+            background: var(--color-info);
+            color: white;
+            border-color: var(--color-info);
+        }
+
+        /* Footer */
+        footer {
+            text-align: center;
+            padding: 2rem;
+            color: var(--color-text-secondary);
+            font-size: 0.875rem;
+            border-top: 1px solid var(--color-border);
+            margin-top: 3rem;
+        }
+
+        /* Responsive */
+        @media (max-width: 1024px) {
+            table {
+                font-size: 0.8rem;
+            }
+
+            th, td {
+                padding: 0.75rem;
+            }
+
+            .fix-text {
+                max-width: 200px;
+            }
+        }
+
+        @media (max-width: 768px) {
+            main {
+                padding: 1rem;
+            }
+
+            .header-content {
+                justify-content: center;
+                text-align: center;
+                flex-direction: column;
+            }
+
+            .controls {
+                flex-direction: column;
+            }
+
+            .search-box {
+                min-width: auto;
+            }
+
+            .filter-container {
+                width: 100%;
+            }
+
+            .filter-select {
+                flex: 1;
+            }
+
+            /* Stack table vertically on mobile */
+            .table-container {
+                border: none;
+                box-shadow: none;
+            }
+
+            table, thead, tbody, tr, td {
+                display: block;
+                width: 100%;
+            }
+
+            thead {
+                display: none;
+            }
+
+            tr {
+                margin-bottom: 1rem;
+                border: 1px solid var(--color-border);
+                border-radius: 8px;
+                overflow: hidden;
+            }
+
+            td {
+                padding: 0.75rem;
+                border: none;
+                border-bottom: 1px solid var(--color-border);
+                position: relative;
+                padding-left: 40%;
+            }
+
+            td::before {
+                content: attr(data-label);
+                position: absolute;
+                left: 0.75rem;
+                font-weight: 600;
+                font-size: 0.75rem;
+                text-transform: uppercase;
+                color: var(--color-text-secondary);
+                width: 35%;
+            }
+
+            .expanded-content {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <div class="header-content">
+            <div>
+                <div class="header-title">📊 Benchmark Cases</div>
+                <div class="header-subtitle">Detailed violation cases with ground truth fixes</div>
+            </div>
+            <div class="header-actions">
+                <a href="./index.html" class="back-link">
+                    <span>←</span>
+                    <span>Dashboard</span>
+                </a>
+                <button class="theme-toggle" id="themeToggle">
+                    <span id="themeIcon">🌙</span>
+                    <span id="themeName">Dark Mode</span>
+                </button>
+            </div>
+        </div>
+    </header>
+
+    <main>
+        <!-- Controls -->
+        <div class="controls">
+            <div class="search-box">
+                <input 
+                    type="text" 
+                    id="searchInput" 
+                    placeholder="Search by case ID, page, rule, fix... (e.g., 'case-01' or 'image-alt')"
+                    aria-label="Search benchmark cases"
+                />
+            </div>
+            <div class="filter-container">
+                <select id="ruleFilter" class="filter-select" aria-label="Filter by rule">
+                    <option value="">All Rules</option>
+                </select>
+                <select id="pageFilter" class="filter-select" aria-label="Filter by page">
+                    <option value="">All Pages</option>
+                </select>
+            </div>
+        </div>
+
+        <!-- Results Info -->
+        <div class="results-info">
+            Showing <strong id="resultCount">0</strong> of <strong id="totalCount">0</strong> cases
+        </div>
+
+        <!-- Table -->
+        <div class="table-container">
+            <table id="casesTable" role="table">
+                <thead>
+                    <tr>
+                        <th style="width: 40px;"></th>
+                        <th>Case ID</th>
+                        <th>Page</th>
+                        <th>Rule</th>
+                        <th>WCAG</th>
+                        <th>Selector</th>
+                        <th>Ground Truth Fix</th>
+                    </tr>
+                </thead>
+                <tbody id="casesTableBody">
+                    <tr>
+                        <td colspan="7" style="text-align: center; padding: 2rem;">Loading cases...</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+
+        <!-- Empty State -->
+        <div id="emptyState" class="empty-state" style="display: none;">
+            <div class="empty-state-icon">🔍</div>
+            <h3>No cases found</h3>
+            <p>Try adjusting your search or filters</p>
+        </div>
+
+        <!-- Pagination -->
+        <div class="pagination" id="pagination"></div>
+    </main>
+
+    <footer>
+        <p>Benchmark Cases Dashboard | Last updated: <span id="lastUpdated">--</span></p>
+    </footer>
+
+    <script>
+        const BENCHMARK_PATH = '../agent/evaluation/benchmark_cases.json';
+        const RESULTS_SUMMARY_PATH = '../agent/evaluation/results/results_summary.json';
+        const ITEMS_PER_PAGE = 10;
+
+        let allCases = [];
+        let filteredCases = [];
+        let currentPage = 1;
+        let currentTheme = 'light';
+        let expandedRows = new Set();
+
+        // Theme Toggle
+        function initTheme() {
+            const savedTheme = localStorage.getItem('theme') || 'light';
+            currentTheme = savedTheme;
+            applyTheme(savedTheme);
+        }
+
+        function applyTheme(theme) {
+            const html = document.documentElement;
+            const themeToggle = document.getElementById('themeToggle');
+            const themeIcon = document.getElementById('themeIcon');
+            const themeName = document.getElementById('themeName');
+
+            if (theme === 'dark') {
+                html.classList.add('dark-mode');
+                themeIcon.textContent = '☀️';
+                themeName.textContent = 'Light Mode';
+                localStorage.setItem('theme', 'dark');
+            } else {
+                html.classList.remove('dark-mode');
+                themeIcon.textContent = '🌙';
+                themeName.textContent = 'Dark Mode';
+                localStorage.setItem('theme', 'light');
+            }
+        }
+
+        document.getElementById('themeToggle').addEventListener('click', () => {
+            currentTheme = currentTheme === 'light' ? 'dark' : 'light';
+            applyTheme(currentTheme);
+        });
+
+        // Load data
+        async function loadData() {
+            try {
+                const [benchmarkResponse, summaryResponse] = await Promise.all([
+                    fetch(BENCHMARK_PATH),
+                    fetch(RESULTS_SUMMARY_PATH)
+                ]);
+
+                if (!benchmarkResponse.ok) {
+                    throw new Error('Failed to load benchmark cases');
+                }
+
+                allCases = await benchmarkResponse.json();
+                
+                // Try to get timestamp from summary
+                if (summaryResponse.ok) {
+                    const summary = await summaryResponse.json();
+                    if (summary.generated_at) {
+                        const date = new Date(summary.generated_at);
+                        document.getElementById('lastUpdated').textContent = date.toLocaleString();
+                    }
+                }
+
+                initializeFilters();
+                filterAndRender();
+
+            } catch (error) {
+                console.error('Error loading data:', error);
+                document.getElementById('casesTableBody').innerHTML = 
+                    `<tr><td colspan="7" style="text-align: center; color: var(--color-error); padding: 2rem;">Failed to load cases. Please ensure benchmark_cases.json is accessible.</td></tr>`;
+            }
+        }
+
+        function initializeFilters() {
+            const rules = new Set();
+            const pages = new Set();
+
+            allCases.forEach(c => {
+                if (c.rule) rules.add(c.rule);
+                if (c.page) pages.add(c.page);
+            });
+
+            // Populate rule filter
+            const ruleFilter = document.getElementById('ruleFilter');
+            Array.from(rules).sort().forEach(rule => {
+                const option = document.createElement('option');
+                option.value = rule;
+                option.textContent = rule;
+                ruleFilter.appendChild(option);
+            });
+
+            // Populate page filter
+            const pageFilter = document.getElementById('pageFilter');
+            Array.from(pages).sort().forEach(page => {
+                const option = document.createElement('option');
+                option.value = page;
+                option.textContent = page || '(home)';
+                pageFilter.appendChild(option);
+            });
+
+            // Add listeners
+            document.getElementById('searchInput').addEventListener('input', filterAndRender);
+            document.getElementById('ruleFilter').addEventListener('change', filterAndRender);
+            document.getElementById('pageFilter').addEventListener('change', filterAndRender);
+        }
+
+        function filterAndRender() {
+            const search = document.getElementById('searchInput').value.toLowerCase();
+            const ruleFilter = document.getElementById('ruleFilter').value;
+            const pageFilter = document.getElementById('pageFilter').value;
+
+            filteredCases = allCases.filter(c => {
+                const matchSearch = !search || 
+                    c.id.toLowerCase().includes(search) ||
+                    c.page.toLowerCase().includes(search) ||
+                    c.rule.toLowerCase().includes(search) ||
+                    c.wcag.toLowerCase().includes(search) ||
+                    c.selector.toLowerCase().includes(search) ||
+                    c.ground_truth_fix.toLowerCase().includes(search);
+
+                const matchRule = !ruleFilter || c.rule === ruleFilter;
+                const matchPage = !pageFilter || c.page === pageFilter;
+
+                return matchSearch && matchRule && matchPage;
+            });
+
+            currentPage = 1;
+            renderTable();
+            renderPagination();
+            updateResultsInfo();
+        }
+
+        function renderTable() {
+            const tbody = document.getElementById('casesTableBody');
+            const emptyState = document.getElementById('emptyState');
+
+            if (filteredCases.length === 0) {
+                tbody.innerHTML = '';
+                emptyState.style.display = 'block';
+                return;
+            }
+
+            emptyState.style.display = 'none';
+
+            const start = (currentPage - 1) * ITEMS_PER_PAGE;
+            const end = start + ITEMS_PER_PAGE;
+            const pageCases = filteredCases.slice(start, end);
+
+            tbody.innerHTML = pageCases.map((c, idx) => {
+                const isExpanded = expandedRows.has(c.id);
+                return `
+                    <tr id="row-${c.id}">
+                        <td>
+                            <button class="expand-btn" onclick="toggleRow('${escapeAttr(c.id)}')" aria-label="Toggle details">
+                                ${isExpanded ? '−' : '+'}
+                            </button>
+                        </td>
+                        <td data-label="Case ID"><span class="case-id">${escapeHtml(c.id)}</span></td>
+                        <td data-label="Page"><span class="page-cell">${escapeHtml(c.page || '/')}</span></td>
+                        <td data-label="Rule"><span class="rule-badge">${escapeHtml(c.rule)}</span></td>
+                        <td data-label="WCAG"><a href="https://www.w3.org/WAI/WCAG21/Understanding/language-of-page" target="_blank" rel="noopener noreferrer" class="wcag-link">${escapeHtml(c.wcag)}</a></td>
+                        <td data-label="Selector"><span class="selector-text">${escapeHtml(c.selector)}</span></td>
+                        <td data-label="Ground Truth Fix"><div class="fix-text">${escapeHtml(c.ground_truth_fix)}</div></td>
+                    </tr>
+                    ${isExpanded ? `
+                        <tr class="expanded-row" id="expanded-${c.id}">
+                            <td colspan="7">
+                                <div class="expanded-content">
+                                    <div class="detail-section">
+                                        <div class="detail-label">Case ID</div>
+                                        <div class="detail-value">${escapeHtml(c.id)}</div>
+                                    </div>
+                                    <div class="detail-section">
+                                        <div class="detail-label">Page</div>
+                                        <div class="detail-value">${escapeHtml(c.page)}</div>
+                                    </div>
+                                    <div class="detail-section">
+                                        <div class="detail-label">Rule</div>
+                                        <div class="detail-value">${escapeHtml(c.rule)}</div>
+                                    </div>
+                                    <div class="detail-section">
+                                        <div class="detail-label">WCAG Reference</div>
+                                        <div class="detail-value">${escapeHtml(c.wcag)}</div>
+                                    </div>
+                                    <div class="detail-section" style="grid-column: 1/-1;">
+                                        <div class="detail-label">CSS Selector</div>
+                                        <div class="detail-value">${escapeHtml(c.selector)}</div>
+                                    </div>
+                                    <div class="detail-section" style="grid-column: 1/-1;">
+                                        <div class="detail-label">Ground Truth Fix</div>
+                                        <div class="detail-value">${escapeHtml(c.ground_truth_fix)}</div>
+                                    </div>
+                                </div>
+                            </td>
+                        </tr>
+                    ` : ''}
+                `;
+            }).join('');
+        }
+
+        function toggleRow(caseId) {
+            if (expandedRows.has(caseId)) {
+                expandedRows.delete(caseId);
+            } else {
+                expandedRows.add(caseId);
+            }
+            renderTable();
+        }
+
+        function renderPagination() {
+            const container = document.getElementById('pagination');
+            const totalPages = Math.ceil(filteredCases.length / ITEMS_PER_PAGE);
+
+            if (totalPages <= 1) {
+                container.innerHTML = '';
+                return;
+            }
+
+            let html = '';
+
+            // Previous
+            if (currentPage > 1) {
+                html += `<button class="pagination-btn" onclick="goToPage(${currentPage - 1})">← Prev</button>`;
+            }
+
+            // Page numbers
+            const maxVisiblePages = 5;
+            let startPage = Math.max(1, currentPage - Math.floor(maxVisiblePages / 2));
+            let endPage = Math.min(totalPages, startPage + maxVisiblePages - 1);
+
+            if (endPage - startPage < maxVisiblePages - 1) {
+                startPage = Math.max(1, endPage - maxVisiblePages + 1);
+            }
+
+            if (startPage > 1) {
+                html += `<button class="pagination-btn" onclick="goToPage(1)">1</button>`;
+                if (startPage > 2) html += `<span style="padding: 0.5rem 0.25rem;">...</span>`;
+            }
+
+            for (let i = startPage; i <= endPage; i++) {
+                html += `<button class="pagination-btn ${i === currentPage ? 'active' : ''}" onclick="goToPage(${i})">${i}</button>`;
+            }
+
+            if (endPage < totalPages) {
+                if (endPage < totalPages - 1) html += `<span style="padding: 0.5rem 0.25rem;">...</span>`;
+                html += `<button class="pagination-btn" onclick="goToPage(${totalPages})">${totalPages}</button>`;
+            }
+
+            // Next
+            if (currentPage < totalPages) {
+                html += `<button class="pagination-btn" onclick="goToPage(${currentPage + 1})">Next →</button>`;
+            }
+
+            container.innerHTML = html;
+        }
+
+        function goToPage(page) {
+            currentPage = page;
+            renderTable();
+            renderPagination();
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+        }
+
+        function updateResultsInfo() {
+            document.getElementById('resultCount').textContent = filteredCases.length;
+            document.getElementById('totalCount').textContent = allCases.length;
+        }
+
+        function escapeHtml(unsafe) {
+            if (!unsafe) return '';
+            return unsafe
+                .replace(/&/g, "&amp;")
+                .replace(/</g, "&lt;")
+                .replace(/>/g, "&gt;")
+                .replace(/"/g, "&quot;")
+                .replace(/'/g, "&#039;");
+        }
+
+        function escapeAttr(str) {
+            return str.replace(/'/g, "\\'");
+        }
+
+        // Initialize
+        initTheme();
+        loadData();
+    </script>
+</body>
+</html>

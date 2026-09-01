@@ -1,0 +1,1080 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Accessibility Violations - HITL Dashboard</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        :root {
+            --color-bg: #ffffff;
+            --color-bg-secondary: #f8f9fa;
+            --color-text: #1a1a1a;
+            --color-text-secondary: #6b7280;
+            --color-border: #e5e7eb;
+            --color-error: #dc2626;
+            --color-error-light: #fee2e2;
+            --color-warning: #f59e0b;
+            --color-warning-light: #fef3c7;
+            --color-success: #10b981;
+            --color-success-light: #d1fae5;
+            --color-info: #3b82f6;
+            --color-info-light: #dbeafe;
+            --color-shadow: rgba(0, 0, 0, 0.05);
+            --color-shadow-lg: rgba(0, 0, 0, 0.1);
+        }
+
+        html.dark-mode {
+            --color-bg: #1a1a1a;
+            --color-bg-secondary: #2d2d2d;
+            --color-text: #ffffff;
+            --color-text-secondary: #a0aec0;
+            --color-border: #404040;
+            --color-error-light: #7f1d1d;
+            --color-warning-light: #78350f;
+            --color-success-light: #064e3b;
+            --color-info-light: #1e3a8a;
+            --color-shadow: rgba(255, 255, 255, 0.05);
+            --color-shadow-lg: rgba(0, 0, 0, 0.3);
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen', 'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue', sans-serif;
+            background-color: var(--color-bg);
+            color: var(--color-text);
+            transition: background-color 0.3s ease, color 0.3s ease;
+            line-height: 1.6;
+        }
+
+        /* Header */
+        header {
+            background: linear-gradient(135deg, var(--color-info) 0%, #1e40af 100%);
+            color: white;
+            padding: 2rem;
+            box-shadow: 0 2px 8px var(--color-shadow-lg);
+            position: sticky;
+            top: 0;
+            z-index: 100;
+        }
+
+        .header-content {
+            max-width: 1400px;
+            margin: 0 auto;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 1rem;
+        }
+
+        .header-title {
+            font-size: 1.75rem;
+            font-weight: 700;
+            letter-spacing: -0.5px;
+        }
+
+        .header-subtitle {
+            font-size: 0.875rem;
+            opacity: 0.95;
+            margin-top: 0.25rem;
+        }
+
+        .theme-toggle {
+            background: transparent;
+            border: none;
+            border-radius: 8px;
+            padding: 0.5rem 0.75rem;
+            color: white;
+            cursor: pointer;
+            font-size: 1.25rem;
+            font-weight: 500;
+            transition: all 0.2s ease;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            opacity: 0.7;
+        }
+
+        .theme-toggle:hover {
+            opacity: 1;
+            transform: scale(1.1);
+        }
+
+        .theme-toggle #themeName {
+            display: none;
+        }
+
+        @media (max-width: 768px) {
+            .theme-toggle #themeName {
+                display: inline;
+            }
+        }
+
+        /* Main Content */
+        main {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 2rem;
+        }
+
+        /* Metrics Grid */
+        .metrics-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+            gap: 1.5rem;
+            margin-bottom: 2.5rem;
+        }
+
+        .metric-card {
+            background: var(--color-bg-secondary);
+            border: 1px solid var(--color-border);
+            border-radius: 12px;
+            padding: 1.5rem;
+            transition: all 0.3s ease;
+            box-shadow: 0 1px 3px var(--color-shadow);
+        }
+
+        .metric-card:hover {
+            transform: translateY(-4px);
+            box-shadow: 0 8px 16px var(--color-shadow-lg);
+            border-color: var(--color-info);
+        }
+
+        .metric-label {
+            font-size: 0.875rem;
+            color: var(--color-text-secondary);
+            font-weight: 500;
+            margin-bottom: 0.5rem;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .metric-value {
+            font-size: 2.5rem;
+            font-weight: 700;
+            color: var(--color-text);
+            line-height: 1.2;
+        }
+
+        .metric-description {
+            font-size: 0.75rem;
+            color: var(--color-text-secondary);
+            margin-top: 0.75rem;
+        }
+
+        /* Status Colors */
+        .metric-critical .metric-value {
+            color: var(--color-error);
+        }
+
+        .metric-warning .metric-value {
+            color: var(--color-warning);
+        }
+
+        .metric-success .metric-value {
+            color: var(--color-success);
+        }
+
+        .metric-info .metric-value {
+            color: var(--color-info);
+        }
+
+        /* Section */
+        .section {
+            margin-bottom: 2.5rem;
+        }
+
+        .section-title {
+            font-size: 1.5rem;
+            font-weight: 600;
+            margin-bottom: 1.5rem;
+            color: var(--color-text);
+            padding-bottom: 0.75rem;
+            border-bottom: 2px solid var(--color-border);
+        }
+
+        /* Chart Container */
+        .chart-container {
+            background: var(--color-bg-secondary);
+            border: 1px solid var(--color-border);
+            border-radius: 12px;
+            padding: 1.5rem;
+            box-shadow: 0 1px 3px var(--color-shadow);
+        }
+
+        /* Violations by Rule */
+        .violations-list {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 1rem;
+        }
+
+        .violation-item {
+            background: var(--color-bg);
+            border: 1px solid var(--color-border);
+            border-radius: 10px;
+            padding: 1.25rem;
+            transition: all 0.2s ease;
+        }
+
+        .violation-item:hover {
+            border-color: var(--color-error);
+            box-shadow: 0 4px 12px var(--color-shadow-lg);
+        }
+
+        .violation-rule {
+            font-weight: 600;
+            font-size: 1rem;
+            color: var(--color-error);
+            margin-bottom: 0.5rem;
+        }
+
+        .violation-stats {
+            display: flex;
+            justify-content: space-between;
+            font-size: 0.875rem;
+            color: var(--color-text-secondary);
+            margin-top: 0.75rem;
+        }
+
+        .violation-stat {
+            display: flex;
+            flex-direction: column;
+            gap: 0.25rem;
+        }
+
+        .violation-stat-value {
+            font-weight: 700;
+            font-size: 1.25rem;
+            color: var(--color-text);
+        }
+
+        /* Pages Affected */
+        .pages-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+            gap: 1rem;
+        }
+
+        .page-card {
+            background: var(--color-bg);
+            border: 1px solid var(--color-border);
+            border-radius: 10px;
+            padding: 1.25rem;
+            transition: all 0.2s ease;
+        }
+
+        .page-card:hover {
+            box-shadow: 0 4px 12px var(--color-shadow-lg);
+            border-color: var(--color-warning);
+        }
+
+        .page-url {
+            font-weight: 600;
+            font-size: 1.125rem;
+            color: var(--color-info);
+            margin-bottom: 0.75rem;
+            word-break: break-word;
+        }
+
+        .page-violations {
+            font-size: 0.875rem;
+            color: var(--color-text-secondary);
+        }
+
+        .violation-tag {
+            display: inline-block;
+            background: var(--color-error);
+            color: white;
+            padding: 0.25rem 0.75rem;
+            border-radius: 20px;
+            font-size: 0.75rem;
+            font-weight: 500;
+            margin: 0.25rem 0.25rem 0.25rem 0;
+        }
+
+        /* Action Button */
+        .action-button {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.75rem;
+            background: linear-gradient(135deg, var(--color-info) 0%, #1e40af 100%);
+            color: white;
+            border: none;
+            padding: 0.875rem 1.75rem;
+            border-radius: 8px;
+            font-size: 1rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            text-decoration: none;
+            display: inline-flex;
+            align-items: center;
+            gap: 0.75rem;
+        }
+
+        .action-button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 16px rgba(59, 130, 246, 0.3);
+        }
+
+        .action-button:active {
+            transform: translateY(0);
+        }
+
+        /* Footer */
+        footer {
+            text-align: center;
+            padding: 2rem;
+            color: var(--color-text-secondary);
+            font-size: 0.875rem;
+            border-top: 1px solid var(--color-border);
+            margin-top: 3rem;
+        }
+
+        /* Responsive */
+        @media (max-width: 768px) {
+            main {
+                padding: 1rem;
+            }
+
+            .header-content {
+                justify-content: center;
+                text-align: center;
+            }
+
+            .metric-value {
+                font-size: 2rem;
+            }
+
+            .section-title {
+                font-size: 1.25rem;
+            }
+
+            .metrics-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        /* Loading Animation */
+        .loading {
+            display: inline-block;
+            width: 20px;
+            height: 20px;
+            border: 3px solid rgba(255, 255, 255, 0.3);
+            border-radius: 50%;
+            border-top-color: white;
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        /* Badge */
+        .badge {
+            display: inline-block;
+            padding: 0.25rem 0.75rem;
+            border-radius: 20px;
+            font-size: 0.75rem;
+            font-weight: 600;
+        }
+
+        .badge-error {
+            background: rgba(220, 38, 38, 0.1);
+            color: var(--color-error);
+        }
+
+        .badge-warning {
+            background: rgba(245, 158, 11, 0.1);
+            color: var(--color-warning);
+        }
+
+        .badge-success {
+            background: rgba(16, 185, 129, 0.1);
+            color: var(--color-success);
+        }
+
+        /* Priority Filter */
+        .priority-filters {
+            display: flex;
+            gap: 0.75rem;
+            margin-bottom: 2rem;
+            flex-wrap: wrap;
+        }
+
+        .priority-btn {
+            padding: 0.625rem 1.25rem;
+            border: 2px solid var(--color-border);
+            border-radius: 8px;
+            background: var(--color-bg-secondary);
+            color: var(--color-text);
+            cursor: pointer;
+            font-weight: 600;
+            font-size: 0.875rem;
+            transition: all 0.2s ease;
+        }
+
+        .priority-btn:hover {
+            transform: translateY(-2px);
+            border-color: var(--color-info);
+        }
+
+        .priority-btn.active {
+            background: var(--color-info);
+            color: white;
+            border-color: var(--color-info);
+        }
+
+        /* Violation Cards */
+        .violations-container {
+            display: grid;
+            gap: 1.5rem;
+        }
+
+        .violation-card {
+            background: var(--color-bg-secondary);
+            border: 1px solid var(--color-border);
+            border-left: 4px solid var(--color-info);
+            border-radius: 12px;
+            padding: 1.5rem;
+            transition: all 0.3s ease;
+        }
+
+        .violation-card:hover {
+            transform: translateY(-4px);
+            box-shadow: 0 8px 16px var(--color-shadow-lg);
+        }
+
+        .violation-card.critical {
+            border-left-color: var(--color-error);
+            background: var(--color-error-light);
+        }
+
+        .violation-card.warning {
+            border-left-color: var(--color-warning);
+            background: var(--color-warning-light);
+        }
+
+        .violation-card.success {
+            border-left-color: var(--color-success);
+            background: var(--color-success-light);
+        }
+
+        .violation-header {
+            display: grid;
+            grid-template-columns: 1fr auto auto;
+            gap: 1rem;
+            margin-bottom: 1rem;
+            align-items: start;
+        }
+
+        .violation-title {
+            font-size: 1.125rem;
+            font-weight: 700;
+            color: var(--color-text);
+        }
+
+        .violation-impact {
+            display: inline-block;
+            padding: 0.35rem 0.75rem;
+            border-radius: 6px;
+            font-weight: 600;
+            font-size: 0.75rem;
+            text-transform: uppercase;
+            white-space: nowrap;
+        }
+
+        .impact-critical {
+            background: var(--color-error);
+            color: white;
+        }
+
+        .impact-serious {
+            background: var(--color-warning);
+            color: white;
+        }
+
+        .impact-moderate {
+            background: var(--color-info);
+            color: white;
+        }
+
+        .impact-minor {
+            background: var(--color-success);
+            color: white;
+        }
+
+        .violation-stats {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 1rem;
+            margin-bottom: 1rem;
+        }
+
+        .stat-box {
+            background: var(--color-bg);
+            padding: 0.875rem;
+            border-radius: 8px;
+            border: 1px solid var(--color-border);
+        }
+
+        .stat-label {
+            font-size: 0.75rem;
+            color: var(--color-text-secondary);
+            font-weight: 600;
+            text-transform: uppercase;
+            margin-bottom: 0.5rem;
+        }
+
+        .stat-value {
+            font-size: 1.5rem;
+            font-weight: 700;
+            color: var(--color-text);
+        }
+
+        .violation-description {
+            color: var(--color-text-secondary);
+            margin-bottom: 1rem;
+            line-height: 1.5;
+        }
+
+        .violation-pages {
+            margin-bottom: 1rem;
+        }
+
+        .pages-label {
+            font-size: 0.875rem;
+            font-weight: 600;
+            color: var(--color-text-secondary);
+            margin-bottom: 0.5rem;
+            text-transform: uppercase;
+        }
+
+        .pages-list {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 0.5rem;
+        }
+
+        .page-tag {
+            background: var(--color-bg);
+            padding: 0.375rem 0.875rem;
+            border-radius: 20px;
+            font-size: 0.8rem;
+            color: var(--color-info);
+            border: 1px solid var(--color-info);
+            font-weight: 500;
+        }
+
+        .violation-help {
+            background: var(--color-bg);
+            padding: 1rem;
+            border-radius: 8px;
+            border-left: 3px solid var(--color-info);
+            margin-bottom: 1rem;
+            font-size: 0.875rem;
+            color: var(--color-text-secondary);
+        }
+
+        .violation-actions {
+            display: flex;
+            gap: 0.75rem;
+            flex-wrap: wrap;
+        }
+
+        .action-btn {
+            flex: 1;
+            min-width: 150px;
+            padding: 0.75rem 1rem;
+            border: none;
+            border-radius: 8px;
+            font-weight: 600;
+            font-size: 0.875rem;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        .action-btn-primary {
+            background: var(--color-info);
+            color: white;
+        }
+
+        .action-btn-primary:hover {
+            background: #1d4ed8;
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(59, 130, 246, 0.3);
+        }
+
+        .action-btn-secondary {
+            background: var(--color-bg);
+            color: var(--color-text);
+            border: 2px solid var(--color-border);
+        }
+
+        .action-btn-secondary:hover {
+            border-color: var(--color-info);
+            color: var(--color-info);
+        }
+
+        /* Priority Header */
+        .priority-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 2rem;
+            flex-wrap: wrap;
+            gap: 1.5rem;
+            padding-bottom: 1rem;
+            border-bottom: 2px solid var(--color-border);
+        }
+
+        .priority-header h2 {
+            font-size: 1.25rem;
+            font-weight: 600;
+            color: var(--color-text);
+        }
+
+        .priority-info {
+            font-size: 0.875rem;
+            color: var(--color-text-secondary);
+            font-weight: 500;
+        }
+
+        .priority-count {
+            font-size: 1.25rem;
+            font-weight: 600;
+            color: var(--color-text);
+        }
+
+        /* HITL Link Button */
+        .top-actions {
+            display: flex;
+            gap: 1rem;
+            align-items: center;
+            flex-wrap: wrap;
+        }
+
+        .action-link-btn {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.75rem;
+            background: linear-gradient(135deg, var(--color-info) 0%, #1e40af 100%);
+            color: white;
+            border: none;
+            padding: 0.875rem 1.5rem;
+            border-radius: 8px;
+            font-size: 0.9375rem;
+            font-weight: 600;
+            cursor: pointer;
+            text-decoration: none;
+            transition: all 0.3s ease;
+            box-shadow: 0 4px 12px rgba(59, 130, 246, 0.2);
+        }
+
+        .action-link-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 16px rgba(59, 130, 246, 0.3);
+        }
+
+        .action-link-btn.hitl {
+            background: linear-gradient(135deg, var(--color-error) 0%, #991b1b 100%);
+            box-shadow: 0 4px 12px rgba(220, 38, 38, 0.2);
+        }
+
+        .action-link-btn.hitl:hover {
+            box-shadow: 0 8px 16px rgba(220, 38, 38, 0.3);
+        }
+
+        .action-link-btn.lessons {
+            background: linear-gradient(135deg, var(--color-success) 0%, #059669 100%);
+            box-shadow: 0 4px 12px rgba(16, 185, 129, 0.2);
+        }
+
+        .action-link-btn.lessons:hover {
+            box-shadow: 0 8px 16px rgba(16, 185, 129, 0.3);
+        }
+
+        /* Empty State */
+        .empty-violations {
+            text-align: center;
+            padding: 3rem 2rem;
+            color: var(--color-text-secondary);
+        }
+
+        .empty-icon {
+            font-size: 3rem;
+            margin-bottom: 1rem;
+        }
+
+        .empty-title {
+            font-size: 1.25rem;
+            font-weight: 600;
+            margin-bottom: 0.5rem;
+            color: var(--color-text);
+        }
+
+        @media (max-width: 768px) {
+            .violation-header {
+                grid-template-columns: 1fr;
+            }
+
+            .violation-stats {
+                grid-template-columns: 1fr 1fr;
+            }
+
+            .priority-filters {
+                width: 100%;
+            }
+
+            .priority-btn {
+                flex: 1;
+                min-width: 100px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <div class="header-content">
+            <div>
+                <div class="header-title">� Accessibility Violations Queue</div>
+                <div class="header-subtitle">Prioritized tickets waiting for resolution</div>
+            </div>
+            <div class="top-actions">
+                <a href="./hitl_queue/index.html" class="action-link-btn hitl" title="Open HITL queue for human review">
+                    <span>⏳</span>
+                    <span>HITL Queue</span>
+                </a>
+                <a href="./lessons/index.html" class="action-link-btn lessons" title="View lessons from fixed tickets">
+                    <span>📚</span>
+                    <span>Lessons</span>
+                </a>
+                <button class="theme-toggle" id="themeToggle" title="Toggle dark mode">
+                    <span id="themeIcon">🌙</span>
+                    <span id="themeName">Dark Mode</span>
+                </button>
+            </div>
+        </div>
+    </header>
+
+    <main>
+        <!-- Priority Filter -->
+        <div class="priority-header">
+            <div>
+                <h2>Filter by Impact Level</h2>
+                <div class="priority-info">Showing <span id="visibleCount">0</span> of <span id="totalCount">0</span> violations</div>
+            </div>
+        </div>
+        
+        <div class="priority-filters">
+            <button class="priority-btn active" data-filter="all">
+                <span>🔍</span> All Violations (<span id="count-all">0</span>)
+            </button>
+            <button class="priority-btn" data-filter="critical">
+                <span>🔴</span> Critical (<span id="count-critical">0</span>)
+            </button>
+            <button class="priority-btn" data-filter="serious">
+                <span>🟠</span> Serious (<span id="count-serious">0</span>)
+            </button>
+            <button class="priority-btn" data-filter="moderate">
+                <span>🟡</span> Moderate (<span id="count-moderate">0</span>)
+            </button>
+            <button class="priority-btn" data-filter="minor">
+                <span>🟢</span> Minor (<span id="count-minor">0</span>)
+            </button>
+        </div>
+
+        <!-- Violations List -->
+        <div class="violations-container" id="violationsContainer">
+            <div class="empty-violations">
+                <div class="empty-icon">⏳</div>
+                <p>Loading violations from audit data...</p>
+            </div>
+        </div>
+
+        <!-- View Benchmark Cases -->
+        <div class="section" style="text-align: center; padding: 2rem; background: var(--color-bg-secondary); border-radius: 12px; border: 1px solid var(--color-border); margin-top: 3rem;">
+            <h3 style="margin-bottom: 1rem;">View All Cases Details</h3>
+            <p style="color: var(--color-text-secondary); margin-bottom: 1.5rem;">See complete benchmark cases with search, filter, and ground truth fixes</p>
+            <a href="./benchmark-cases.html" class="action-btn action-btn-primary" style="display: inline-block; min-width: auto; flex: initial;">
+                <span>→</span>
+                <span>View Benchmark Cases</span>
+            </a>
+        </div>
+    </main>
+
+    <footer>
+        <p>Accessibility Audit Dashboard | Last updated: <span id="lastUpdated">--</span></p>
+    </footer>
+
+    <script>
+        // Data paths (relative to dashboard folder)
+        const AUDIT_PATH = '../agent/evaluation/results/audit.json';
+
+        let currentTheme = 'light';
+        let allViolations = [];
+        let filteredViolations = [];
+        let currentFilter = 'all';
+
+        // Theme Toggle
+        function initTheme() {
+            const savedTheme = localStorage.getItem('theme') || 'light';
+            currentTheme = savedTheme;
+            applyTheme(savedTheme);
+        }
+
+        function applyTheme(theme) {
+            const html = document.documentElement;
+            const themeToggle = document.getElementById('themeToggle');
+            const themeIcon = document.getElementById('themeIcon');
+            const themeName = document.getElementById('themeName');
+
+            if (theme === 'dark') {
+                html.classList.add('dark-mode');
+                themeIcon.textContent = '☀️';
+                themeName.textContent = 'Light Mode';
+                localStorage.setItem('theme', 'dark');
+            } else {
+                html.classList.remove('dark-mode');
+                themeIcon.textContent = '🌙';
+                themeName.textContent = 'Dark Mode';
+                localStorage.setItem('theme', 'light');
+            }
+        }
+
+        document.getElementById('themeToggle').addEventListener('click', () => {
+            currentTheme = currentTheme === 'light' ? 'dark' : 'light';
+            applyTheme(currentTheme);
+        });
+
+        // Parse raw_reports and extract violations
+        async function loadViolations() {
+            try {
+                const response = await fetch(AUDIT_PATH);
+                if (!response.ok) {
+                    throw new Error('Failed to load audit data');
+                }
+
+                const auditData = await response.json();
+                const violations = {};
+
+                // Parse raw_reports
+                if (auditData.raw_reports && Array.isArray(auditData.raw_reports)) {
+                    auditData.raw_reports.forEach(report => {
+                        const pageUrl = report.url || 'unknown';
+                        
+                        if (report.violations && Array.isArray(report.violations)) {
+                            report.violations.forEach(violation => {
+                                const key = violation.id;
+                                
+                                if (!violations[key]) {
+                                    violations[key] = {
+                                        id: violation.id,
+                                        impact: violation.impact || 'moderate',
+                                        description: violation.description || '',
+                                        help: violation.help || '',
+                                        helpUrl: violation.helpUrl || '',
+                                        nodeCount: 0,
+                                        pages: new Set(),
+                                        nodes: []
+                                    };
+                                }
+                                
+                                violations[key].nodeCount += (violation.nodes || []).length;
+                                violations[key].pages.add(pageUrl);
+                                violations[key].nodes.push(...(violation.nodes || []));
+                            });
+                        }
+                    });
+                }
+
+                // Convert to array and sort by impact and node count
+                allViolations = Object.values(violations)
+                    .map(v => ({
+                        ...v,
+                        pages: Array.from(v.pages)
+                    }))
+                    .sort((a, b) => {
+                        const impactOrder = { critical: 0, serious: 1, moderate: 2, minor: 3 };
+                        const aImpact = impactOrder[a.impact] ?? 4;
+                        const bImpact = impactOrder[b.impact] ?? 4;
+                        
+                        if (aImpact !== bImpact) return aImpact - bImpact;
+                        return b.nodeCount - a.nodeCount;
+                    });
+
+                // Set initial filter to "all" and render all violations
+                currentFilter = 'all';
+                filteredViolations = allViolations;
+                renderViolations();
+                updateFilterCounts();
+                updateLastUpdated(auditData.generated_at);
+
+            } catch (error) {
+                console.error('Error loading violations:', error);
+                document.getElementById('violationsContainer').innerHTML = `
+                    <div class="empty-violations">
+                        <div class="empty-icon">⚠️</div>
+                        <div class="empty-title">Failed to Load Data</div>
+                        <p>Error: ${error.message}</p>
+                        <p style="font-size: 0.875rem; margin-top: 1rem;">Make sure audit.json exists at ../results/audit.json</p>
+                    </div>
+                `;
+            }
+        }
+
+        function filterViolations() {
+            if (currentFilter === 'all') {
+                filteredViolations = allViolations;
+            } else {
+                filteredViolations = allViolations.filter(v => v.impact === currentFilter);
+            }
+            renderViolations();
+            // Smooth scroll to violations
+            document.getElementById('violationsContainer').scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }
+
+        function renderViolations() {
+            const container = document.getElementById('violationsContainer');
+            const visibleCount = filteredViolations.length;
+            const totalCount = allViolations.length;
+
+            document.getElementById('visibleCount').textContent = visibleCount;
+            document.getElementById('totalCount').textContent = totalCount;
+
+            if (filteredViolations.length === 0) {
+                container.innerHTML = `
+                    <div class="empty-violations">
+                        <div class="empty-icon">✅</div>
+                        <div class="empty-title">No Violations Found</div>
+                        <p>Great! All accessibility issues of this severity have been resolved.</p>
+                    </div>
+                `;
+                return;
+            }
+
+            const html = filteredViolations.map(violation => {
+                const impactClass = violation.impact || 'moderate';
+                const cardClass = impactClass === 'critical' ? 'critical' : 
+                                 impactClass === 'serious' ? 'warning' : 
+                                 impactClass === 'moderate' ? '' : 'success';
+                
+                const impactDisplay = {
+                    critical: 'Critical',
+                    serious: 'Serious',
+                    moderate: 'Moderate',
+                    minor: 'Minor'
+                }[violation.impact] || 'Unknown';
+
+                return `
+                    <div class="violation-card ${cardClass}">
+                        <div class="violation-header">
+                            <div>
+                                <div class="violation-title">${escapeHtml(violation.id)}</div>
+                            </div>
+                            <span class="violation-impact impact-${impactClass}">${impactDisplay}</span>
+                        </div>
+
+                        <div class="violation-stats">
+                            <div class="stat-box">
+                                <div class="stat-label">Instances</div>
+                                <div class="stat-value">${violation.nodeCount}</div>
+                            </div>
+                            <div class="stat-box">
+                                <div class="stat-label">Pages Affected</div>
+                                <div class="stat-value">${violation.pages.length}</div>
+                            </div>
+                        </div>
+
+                        <div class="violation-description">
+                            ${escapeHtml(violation.description)}
+                        </div>
+
+                        <div class="violation-pages">
+                            <div class="pages-label">📄 Affected Pages</div>
+                            <div class="pages-list">
+                                ${violation.pages.map(page => {
+                                    const pageDisplay = page.replace('http://127.0.0.1:4200', '') || '/';
+                                    return `<span class="page-tag">${escapeHtml(pageDisplay)}</span>`;
+                                }).join('')}
+                            </div>
+                        </div>
+
+                        <div class="violation-help">
+                            <strong>💡 What to do:</strong> ${escapeHtml(violation.help)}
+                        </div>
+
+                        <div class="violation-actions">
+                            <a href="${escapeAttr(violation.helpUrl)}" target="_blank" rel="noopener noreferrer" class="action-btn action-btn-secondary">
+                                📖 Learn More
+                            </a>
+                            <a href="./benchmark-cases.html?filter=${encodeURIComponent(violation.id)}" class="action-btn action-btn-primary">
+                                🔍 View Cases
+                            </a>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+
+            container.innerHTML = html;
+        }
+
+        function updateFilterCounts() {
+            const impacts = { all: 0, critical: 0, serious: 0, moderate: 0, minor: 0 };
+            
+            allViolations.forEach(v => {
+                impacts.all++;
+                impacts[v.impact]++;
+            });
+
+            document.getElementById('count-all').textContent = impacts.all;
+            document.getElementById('count-critical').textContent = impacts.critical;
+            document.getElementById('count-serious').textContent = impacts.serious;
+            document.getElementById('count-moderate').textContent = impacts.moderate;
+            document.getElementById('count-minor').textContent = impacts.minor;
+        }
+
+        function updateLastUpdated(timestamp) {
+            if (timestamp) {
+                const date = new Date(timestamp);
+                document.getElementById('lastUpdated').textContent = date.toLocaleString();
+            }
+        }
+
+        function escapeHtml(unsafe) {
+            if (!unsafe) return '';
+            return unsafe
+                .replace(/&/g, "&amp;")
+                .replace(/</g, "&lt;")
+                .replace(/>/g, "&gt;")
+                .replace(/"/g, "&quot;")
+                .replace(/'/g, "&#039;");
+        }
+
+        function escapeAttr(str) {
+            if (!str) return '#';
+            return str.replace(/"/g, "&quot;").replace(/'/g, "&#039;");
+        }
+
+        // Filter button handlers
+        document.querySelectorAll('.priority-btn').forEach(btn => {
+            btn.addEventListener('click', function() {
+                document.querySelectorAll('.priority-btn').forEach(b => b.classList.remove('active'));
+                this.classList.add('active');
+                currentFilter = this.dataset.filter;
+                filterViolations();
+            });
+        });
+
+        // Initialize
+        initTheme();
+        loadViolations();
+    </script>
+</body>
+</html>

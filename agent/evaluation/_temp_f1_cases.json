@@ -1,0 +1,18 @@
+[
+  {
+    "id": "case-16",
+    "page": "/about",
+    "rule": "image-alt",
+    "selector": "img[src$=\"maya.svg\"]",
+    "wcag": "1.1.1",
+    "ground_truth_fix": "Add a descriptive alt attribute to the <img> (/images/maya.svg) describing its semantic content (or alt=\"\" if verified decorative)."
+  },
+  {
+    "id": "case-17",
+    "page": "/about",
+    "rule": "image-alt",
+    "selector": "img[src$=\"leo.svg\"]",
+    "wcag": "1.1.1",
+    "ground_truth_fix": "Add a descriptive alt attribute to the <img> (/images/leo.svg) describing its semantic content (or alt=\"\" if verified decorative)."
+  }
+]

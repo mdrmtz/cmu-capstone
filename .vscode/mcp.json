@@ -6,7 +6,7 @@
     },
     "chrome-devtools": {
       "command": "npx",
-      "args": ["chrome-devtools-mcp@latest"]
+     "args": ["-y", "chrome-devtools-mcp@latest", "--allow-unrestricted-paths","--no-performance-crux","--no-usage-statistics"]
     },
     "mintlify": {
       "type": "http",

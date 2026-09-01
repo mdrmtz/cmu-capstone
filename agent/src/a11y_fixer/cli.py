@@ -186,7 +186,6 @@ async def _acmd_run(args: argparse.Namespace) -> int:
 
     failures = 0
     for index, violation in enumerate(violations):
-        thread_config = {"configurable": {"thread_id": f"violation-{index}"}}
         message = (
             "Resolve this axe-core violation:\n"
             f"rule: {violation['rule']}\n"
@@ -195,20 +194,38 @@ async def _acmd_run(args: argparse.Namespace) -> int:
             f"html: {violation['html']}\n"
             f"failure_summary: {violation.get('failure_summary')}\n"
         )
-        try:
-            result = await graph.ainvoke({"messages": [{"role": "user", "content": message}]}, config=thread_config)
-            result = await resolve_interrupts(graph, thread_config, result, auto_approve=args.yes)
+        
+        # Retry up to 3 times for non-deterministic empty responses
+        MAX_ATTEMPTS = 3
+        violation_succeeded = False
+        for attempt in range(MAX_ATTEMPTS):
+            thread_config = {"configurable": {"thread_id": f"violation-{index}-attempt{attempt + 1}", "recursion_limit": 50}}
+            try:
+                result = await graph.ainvoke({"messages": [{"role": "user", "content": message}]}, config=thread_config)
+                result = await resolve_interrupts(graph, thread_config, result, auto_approve=args.yes)
 
-            response = result.get("structured_response")
-            if response is None:
-                print(f"[{violation['rule']}] no structured response produced - skipping")  # noqa: T201
-                continue
+                response = result.get("structured_response")
+                if response is None:
+                    if attempt < MAX_ATTEMPTS - 1:
+                        continue  # Try again with fresh thread_id
+                    # All retries exhausted
+                    print(f"[{violation['rule']}] no structured response produced after retries - skipping")  # noqa: T201
+                    break
 
-            outcome = deliver_violation(violation, response, fixture=fixture, pr_config=pr_config, output_dir=output_dir)
-            print(f"[{violation['rule']}] {outcome}")  # noqa: T201
-        except Exception as exc:  # noqa: BLE001 - one violation's failure must not abort the rest of the batch
+                # Successfully got a response
+                outcome = deliver_violation(violation, response, fixture=fixture, pr_config=pr_config, output_dir=output_dir)
+                print(f"[{violation['rule']}] {outcome}")  # noqa: T201
+                violation_succeeded = True
+                break
+            except Exception as exc:  # noqa: BLE001 - one violation's failure must not abort the rest of the batch
+                # Don't retry on exceptions, just skip and move to next violation
+                failures += 1
+                print(f"[{violation['rule']}] FAILED: {type(exc).__name__}: {exc}")  # noqa: T201
+                break
+        
+        if not violation_succeeded and attempt == MAX_ATTEMPTS - 1 and response is None:
+            # Explicitly mark as failed if all retries exhausted with no response
             failures += 1
-            print(f"[{violation['rule']}] FAILED: {type(exc).__name__}: {exc}")  # noqa: T201
 
     if failures:
         print(f"{failures}/{len(violations)} violation(s) failed")  # noqa: T201

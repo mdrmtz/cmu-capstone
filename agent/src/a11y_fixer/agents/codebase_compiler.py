@@ -19,7 +19,7 @@ offline benchmark scoring, decoupled from any live LLM.
 
 from __future__ import annotations
 
-from deepagents import FilesystemPermission, RubricMiddleware, SubAgent
+from deepagents import FilesystemMiddleware, FilesystemPermission, RubricMiddleware, SubAgent
 from langchain_core.language_models import BaseChatModel
 
 from a11y_fixer import config
@@ -74,6 +74,8 @@ def _permissions(virtual_fixture: str) -> list[FilesystemPermission]:
 async def build(model: str | BaseChatModel) -> SubAgent:
     """Resolve this subagent's MCP tools and return its `SubAgent` spec."""
     mcp_tools = await aget_tools(["angular-cli"])
+    # Filter out list_projects tool: it returns invalid structured content (missing parsingErrors field)
+    mcp_tools = [tool for tool in mcp_tools if getattr(tool, "name", None) != "list_projects"]
     virtual_fixture = config.to_virtual_path(config.fixture_path())
     return SubAgent(
         name=NAME,
@@ -86,6 +88,12 @@ async def build(model: str | BaseChatModel) -> SubAgent:
         tools=mcp_tools,
         skills=[config.to_virtual_path(config.skills_dir() / "angular-cli-mcp")],
         permissions=_permissions(virtual_fixture),
-        middleware=[RubricMiddleware(model=model, system_prompt=RUBRIC_SYSTEM_PROMPT, max_iterations=3)],
+        middleware=[
+            FilesystemMiddleware(
+                tools=["read_file", "write_file", "edit_file"],
+                _permissions=_permissions(virtual_fixture),
+            ),
+            RubricMiddleware(model=model, system_prompt=RUBRIC_SYSTEM_PROMPT, max_iterations=3),
+        ],
     )
 

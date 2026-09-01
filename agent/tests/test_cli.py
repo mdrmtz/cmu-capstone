@@ -210,9 +210,11 @@ def test_cmd_run_continues_after_one_violation_fails(tmp_path: Path, monkeypatch
     class FakeGraph:
         async def ainvoke(self, messages: dict, config: dict) -> dict:  # noqa: ARG002
             invoked.append(config["configurable"]["thread_id"])
-            if len(invoked) == 1:
+            # Only violation-0-attempt1 raises exception; everything else returns None
+            if config["configurable"]["thread_id"] == "violation-0-attempt1":
                 msg = "boom"
                 raise RuntimeError(msg)
+            # All other calls return None (structured response)
             return {"structured_response": None}
 
     async def fake_abuild_agent(**_kwargs: object) -> FakeGraph:
@@ -225,5 +227,13 @@ def test_cmd_run_continues_after_one_violation_fails(tmp_path: Path, monkeypatch
 
     exit_code = cli._cmd_run(args)  # noqa: SLF001
 
-    assert invoked == ["violation-0", "violation-1"]
+    # First violation (rule-a) has 1 exception on attempt1, continues to violation-1
+    # Second violation (rule-b) has 3 None retries (no structured response after retries)
+    # Total: 4 calls (1 for first, 3 for second)
+    assert len(invoked) == 4
+    assert invoked[0] == "violation-0-attempt1"
+    assert invoked[1] == "violation-1-attempt1"
+    assert invoked[2] == "violation-1-attempt2"
+    assert invoked[3] == "violation-1-attempt3"
     assert exit_code == 1
+

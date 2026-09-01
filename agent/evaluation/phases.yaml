@@ -1,0 +1,32 @@
+# Evaluation Scenarios
+# Data-driven test definitions — no code duplication, scalable to unlimited phases
+
+phases:
+  f1:
+    name: "/about (1.1.1 only)"
+    description: "Test /about page for image-alt violations (wcag 1.1.1)"
+    filters:
+      - page: "/about"
+        wcag: "1.1.1"
+    cases_count: 2  # case-16, case-17 (both image-alt)
+    live: false
+
+  f2:
+    name: "/case-studies (1.1.1 only)"
+    description: "Test /case-studies page for image-alt violations (wcag 1.1.1)"
+    filters:
+      - page: "/case-studies"
+        wcag: "1.1.1"
+    cases_count: 3  # case-06, case-07, case-08 (all image-alt)
+    live: false
+
+  f3:
+    name: "/about and /case-studies (1.1.1)"
+    description: "Test both pages combined for image-alt violations (wcag 1.1.1) — LIVE PR DELIVERY"
+    filters:
+      - page: "/about"
+        wcag: "1.1.1"
+      - page: "/case-studies"
+        wcag: "1.1.1"
+    cases_count: 5  # case-16, case-17 + case-06, case-07, case-08
+    live: true
