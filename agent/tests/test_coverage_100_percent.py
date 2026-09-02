@@ -299,6 +299,17 @@ class TestDeliverViolation:
     def test_deliver_violation_human_route(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
         """Test human route queues the violation."""
         monkeypatch.setenv("A11Y_HITL_QUEUE_DIR", str(tmp_path))
+        import subprocess
+
+        repo = tmp_path / "repo"
+        repo.mkdir()
+        subprocess.run(["git", "init"], cwd=repo, capture_output=True, check=True)
+        subprocess.run(["git", "config", "user.email", "test@test.com"], cwd=repo, capture_output=True, check=True)
+        subprocess.run(["git", "config", "user.name", "Test"], cwd=repo, capture_output=True, check=True)
+        (repo / "file.txt").write_text("initial")
+        subprocess.run(["git", "add", "file.txt"], cwd=repo, capture_output=True, check=True)
+        subprocess.run(["git", "commit", "-m", "initial"], cwd=repo, capture_output=True, check=True)
+        (repo / "file.txt").write_text("modified")
 
         response = ViolationResponse(
             rule="test", wcag="1.1.1", selector=".x", technique_id="t", technique_type="sufficient",
@@ -307,7 +318,7 @@ class TestDeliverViolation:
         violation = {"rule": "test", "selector": ".x"}
 
         result = cli.deliver_violation(
-            violation, response, fixture=tmp_path, pr_config=MagicMock(), output_dir=tmp_path
+            violation, response, fixture=repo, pr_config=MagicMock(), output_dir=tmp_path
         )
 
         assert result["delivered"] is False
@@ -452,41 +463,36 @@ class TestGroupClearanceByRule:
 class TestRecheckCleared:
     """Test _recheck_cleared() re-audit logic."""
 
-    def test_recheck_cleared_rule_is_gone(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    def test_recheck_cleared_rule_is_gone(self) -> None:
         """Test recheck returns True when rule cleared."""
         mock_runner = MagicMock()
-        mock_runner.run.return_value = {
+        mock_runner.audit_pages.return_value = {
             "pages": [{"violation_rules": []}]  # No violations after fix
         }
 
-        monkeypatch.setattr("evaluation.run_eval.AxeAuditRunner", lambda **_: mock_runner)
-
         case = {"page": "/about", "rule": "image-alt"}
-        cleared = _recheck_cleared(tmp_path, case)
+        cleared = _recheck_cleared(mock_runner, case)
         assert cleared is True
+        mock_runner.audit_pages.assert_called_once_with(pages=("/about",))
 
-    def test_recheck_cleared_rule_still_present(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    def test_recheck_cleared_rule_still_present(self) -> None:
         """Test recheck returns False when rule still exists."""
         mock_runner = MagicMock()
-        mock_runner.run.return_value = {
+        mock_runner.audit_pages.return_value = {
             "pages": [{"violation_rules": ["image-alt", "color-contrast"]}]
         }
 
-        monkeypatch.setattr("evaluation.run_eval.AxeAuditRunner", lambda **_: mock_runner)
-
         case = {"page": "/about", "rule": "image-alt"}
-        cleared = _recheck_cleared(tmp_path, case)
+        cleared = _recheck_cleared(mock_runner, case)
         assert cleared is False
 
-    def test_recheck_cleared_no_pages(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    def test_recheck_cleared_no_pages(self) -> None:
         """Test recheck when no pages returned."""
         mock_runner = MagicMock()
-        mock_runner.run.return_value = {"pages": []}
-
-        monkeypatch.setattr("evaluation.run_eval.AxeAuditRunner", lambda **_: mock_runner)
+        mock_runner.audit_pages.return_value = {"pages": []}
 
         case = {"page": "/about", "rule": "image-alt"}
-        cleared = _recheck_cleared(tmp_path, case)
+        cleared = _recheck_cleared(mock_runner, case)
         assert cleared is True
 
 

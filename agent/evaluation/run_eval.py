@@ -56,6 +56,24 @@ def load_phases(path: Path = PHASES_PATH) -> dict[str, dict]:
     return data.get("phases", {})
 
 
+def _case_number(case_id: str) -> int:
+    """Extract the numeric suffix from a `case-NN` id, e.g. `"case-05"` -> `5`."""
+    return int(case_id.rsplit("-", 1)[-1])
+
+
+def _matches_filter(case: dict, filter_spec: dict) -> bool:
+    """A case matches a filter by page+wcag, a case-id range, or an explicit case-id list."""
+    if "case_ids" in filter_spec:
+        return case["id"] in filter_spec["case_ids"]
+    if "case_from" in filter_spec or "case_to" in filter_spec:
+        case_from, case_to = filter_spec.get("case_from"), filter_spec.get("case_to")
+        n = _case_number(case["id"])
+        if case_from is not None and n < _case_number(case_from):
+            return False
+        return not (case_to is not None and n > _case_number(case_to))
+    return case.get("page") == filter_spec.get("page") and case.get("wcag") == filter_spec.get("wcag")
+
+
 def filter_cases_by_phase(cases: list[dict], phase_name: str) -> tuple[list[dict], dict]:
     """Filter benchmark cases by phase definition.
     
@@ -73,13 +91,27 @@ def filter_cases_by_phase(cases: list[dict], phase_name: str) -> tuple[list[dict
     filtered = []
     for case in cases:
         for filter_spec in filters:
-            page_match = case.get("page") == filter_spec.get("page")
-            wcag_match = case.get("wcag") == filter_spec.get("wcag")
-            if page_match and wcag_match:
+            if _matches_filter(case, filter_spec):
                 filtered.append(case)
                 break  # Don't add duplicates
     
     return filtered, phase_def
+
+
+def filter_cases_by_range(cases: list[dict], case_from: str | None, case_to: str | None) -> list[dict]:
+    """Filter benchmark cases to an inclusive `case-NN` id range, for ad-hoc
+    end-to-end runs (e.g. `--case-from case-01 --case-to case-05`) without
+    needing a named entry in phases.yaml.
+    """
+    return [case for case in cases if _matches_filter(case, {"case_from": case_from, "case_to": case_to})]
+
+
+def filter_cases_by_ids(cases: list[dict], case_ids: list[str]) -> list[dict]:
+    """Filter benchmark cases to an explicit, possibly non-contiguous list of
+    case ids (e.g. case-01, case-04, case-15) - order follows `cases`, a
+    requested id with no matching case is simply absent from the result.
+    """
+    return [case for case in cases if _matches_filter(case, {"case_ids": case_ids})]
 
 
 
@@ -175,10 +207,11 @@ async def _run_one_case(
                 )
 
             # Successfully got a response
-            cli.deliver_violation(case, response, fixture=fixture, pr_config=pr_config, output_dir=output_dir)
+            cli.warn_on_overconfidence(case["id"], response.rationale)
+            outcome = cli.deliver_violation(case, response, fixture=fixture, pr_config=pr_config, output_dir=output_dir)
             cleared = _recheck_cleared(runner, case)
             return CaseResult(
-                case_id=case["id"], rule=case["rule"], page=case["page"], route=response.route,
+                case_id=case["id"], rule=case["rule"], page=case["page"], route=outcome["route"],
                 rubric_score=response.score, cleared=cleared, latency_seconds=time.monotonic() - start,
             )
         except asyncio.TimeoutError:
@@ -236,6 +269,110 @@ def run_eval(
     return asyncio.run(_arun_eval(cases_path=cases_path, output_path=output_path, live=live))
 
 
+def _resolve_phase(args: argparse.Namespace, all_cases: list[dict]) -> tuple[Path, str, bool] | None:
+    """Resolve `--phase` into `(cases_path, description, live)`.
+
+    Returns `None` if the phase matched zero cases - the caller should print
+    an error and exit rather than build the whole agent for nothing.
+    """
+    filtered_cases, phase_def = filter_cases_by_phase(all_cases, args.phase)
+    if not filtered_cases:
+        print(f"phase '{args.phase}' matched 0 cases - nothing to run")  # noqa: T201
+        return None
+
+    expected_count = phase_def.get("cases_count")
+    if expected_count is not None and len(filtered_cases) != expected_count:
+        print(  # noqa: T201
+            f"warning: phase '{args.phase}' expected {expected_count} cases but filters "
+            f"matched {len(filtered_cases)} - benchmark_cases.json may have changed"
+        )
+
+    # live:true in phases.yaml is only a default, not sufficient on its own - --live must be explicit.
+    if args.live:
+        live = True
+    elif args.no_live:
+        live = False
+    elif phase_def.get("live", False):
+        print(  # noqa: T201
+            f"phase '{args.phase}' is configured for live delivery - defaulting "
+            f"to dry-run anyway; pass --live to confirm"
+        )
+        live = False
+    else:
+        live = False
+
+    temp_cases_path = Path(__file__).resolve().parent / f"_temp_{args.phase}_cases.json"
+    temp_cases_path.write_text(json.dumps(filtered_cases, indent=2), encoding="utf-8")
+    cases_path_desc = f"Phase {args.phase}: {phase_def.get('name', args.phase)}"
+    return temp_cases_path, cases_path_desc, live
+
+
+def _resolve_case_range(args: argparse.Namespace, all_cases: list[dict]) -> tuple[Path, str, bool] | None:
+    """Resolve `--case-from`/`--case-to` into `(cases_path, description, live)`,
+    for an ad-hoc end-to-end range that has no named entry in phases.yaml.
+
+    Returns `None` if the range matched zero cases.
+    """
+    filtered_cases = filter_cases_by_range(all_cases, args.case_from, args.case_to)
+    if not filtered_cases:
+        print(f"case range {args.case_from!r} to {args.case_to!r} matched 0 cases")  # noqa: T201
+        return None
+
+    label = f"{args.case_from or 'case-01'} to {args.case_to or 'case-22'}"
+    temp_cases_path = Path(__file__).resolve().parent / "_temp_case_range_cases.json"
+    temp_cases_path.write_text(json.dumps(filtered_cases, indent=2), encoding="utf-8")
+    return temp_cases_path, f"Cases {label}", args.live
+
+
+def _resolve_case_ids(args: argparse.Namespace, all_cases: list[dict]) -> tuple[Path, str, bool] | None:
+    """Resolve `--case-ids` into `(cases_path, description, live)`, for an
+    explicit, possibly non-contiguous list (e.g. case-01,case-04,case-15).
+
+    Returns `None` if none of the requested ids matched a real case.
+    """
+    requested = [case_id.strip() for case_id in args.case_ids.split(",") if case_id.strip()]
+    filtered_cases = filter_cases_by_ids(all_cases, requested)
+
+    found_ids = {case["id"] for case in filtered_cases}
+    missing = [case_id for case_id in requested if case_id not in found_ids]
+    if missing:
+        print(f"warning: requested case id(s) not found, skipping: {', '.join(missing)}")  # noqa: T201
+
+    if not filtered_cases:
+        print(f"none of the requested case ids matched a real case: {args.case_ids}")  # noqa: T201
+        return None
+
+    temp_cases_path = Path(__file__).resolve().parent / "_temp_case_ids_cases.json"
+    temp_cases_path.write_text(json.dumps(filtered_cases, indent=2), encoding="utf-8")
+    return temp_cases_path, f"Cases {', '.join(sorted(found_ids))}", args.live
+
+
+def _resolve_run_target(args: argparse.Namespace, all_cases: list[dict]) -> tuple[Path, str, bool, bool] | None:
+    """Resolve which cases to run: `--case-ids`, `--case-from`/`--case-to`, `--phase`, or `--cases`.
+
+    Returns `(cases_path, description, live, uses_temp_file)`, or `None` if
+    the caller should print an error and exit (conflicting flags, or a
+    filter matched 0 cases).
+    """
+    ad_hoc_modes = [bool(args.case_ids), bool(args.case_from or args.case_to), bool(args.phase)]
+    if sum(ad_hoc_modes) > 1:
+        print("--case-ids, --case-from/--case-to, and --phase are mutually exclusive")  # noqa: T201
+        return None
+
+    if args.case_ids:
+        resolved = _resolve_case_ids(args, all_cases)
+        return (*resolved, True) if resolved else None
+    if args.case_from or args.case_to:
+        resolved = _resolve_case_range(args, all_cases)
+        return (*resolved, True) if resolved else None
+    if args.phase:
+        resolved = _resolve_phase(args, all_cases)
+        return (*resolved, True) if resolved else None
+
+    cases_path = Path(args.cases)
+    return cases_path, str(cases_path), args.live, False
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(
         prog="run_eval",
@@ -247,10 +384,21 @@ Examples:
   python -m evaluation.run_eval --phase f1
 
   # Run Phase F.3: /about and /case-studies (1.1.1) — LIVE PR creation
-  python -m evaluation.run_eval --phase f3
+  # (phase defaults to live, but --live must still be passed explicitly)
+  python -m evaluation.run_eval --phase f3 --live
 
   # Override live default: force dry-run for phase f3
   python -m evaluation.run_eval --phase f3 --no-live
+
+  # Ad-hoc end-to-end range, no phases.yaml entry needed
+  python -m evaluation.run_eval --case-from case-01 --case-to case-10
+
+  # Explicit, non-contiguous list of cases (unknown ids are skipped with a warning)
+  python -m evaluation.run_eval --case-ids case-01,case-04,case-08,case-15,case-22
+
+  # Single case, or every case, without editing phases.yaml
+  python -m evaluation.run_eval --phase smoke
+  python -m evaluation.run_eval --phase all
         """,
     )
 
@@ -258,12 +406,27 @@ Examples:
     group = parser.add_mutually_exclusive_group()
     group.add_argument(
         "--phase",
-        help="Phase name (f1, f2, f3, ...) — reads filters from phases.yaml",
+        help="Phase name (f1, f2, f3, smoke, all, ...) — reads filters from phases.yaml",
     )
     group.add_argument(
         "--cases",
         default=str(BENCHMARK_CASES_PATH),
         help="Path to benchmark_cases.json (default: %(default)s)",
+    )
+    parser.add_argument(
+        "--case-from",
+        default=None,
+        help="Start of an inclusive case-id range, e.g. case-01 (ad-hoc, no phases.yaml entry needed)",
+    )
+    parser.add_argument(
+        "--case-to",
+        default=None,
+        help="End of an inclusive case-id range, e.g. case-10",
+    )
+    parser.add_argument(
+        "--case-ids",
+        default=None,
+        help="Comma-separated, possibly non-contiguous case ids, e.g. case-01,case-04,case-15",
     )
 
     parser.add_argument("--output", default=str(DEFAULT_RESULTS_PATH))
@@ -286,28 +449,10 @@ Examples:
     # Load all benchmark cases
     all_cases = load_benchmark_cases()
 
-    # If --phase specified, filter and use phase defaults
-    if args.phase:
-        filtered_cases, phase_def = filter_cases_by_phase(all_cases, args.phase)
-        cases_path_desc = f"Phase {args.phase}: {phase_def.get('name', args.phase)}"
-
-        # Determine live flag
-        if args.live:
-            live = True
-        elif args.no_live:
-            live = False
-        else:
-            live = phase_def.get("live", False)
-
-        # Write filtered cases to temp file
-        temp_cases_path = Path(__file__).resolve().parent / f"_temp_{args.phase}_cases.json"
-        temp_cases_path.write_text(json.dumps(filtered_cases, indent=2), encoding="utf-8")
-        cases_path = temp_cases_path
-    else:
-        # Direct --cases path
-        cases_path = Path(args.cases)
-        cases_path_desc = str(cases_path)
-        live = args.live or not args.no_live  # Default dry-run
+    resolved = _resolve_run_target(args, all_cases)
+    if resolved is None:
+        return 1
+    cases_path, cases_path_desc, live, uses_temp_file = resolved
 
     # Output path with phase name if available
     if args.phase:
@@ -333,8 +478,8 @@ Examples:
     print(json.dumps(summary, indent=2))  # noqa: T201
 
     # Clean up temp file if created
-    if args.phase and temp_cases_path.exists():
-        temp_cases_path.unlink()
+    if uses_temp_file and cases_path.exists():
+        cases_path.unlink()
 
     return 0
 

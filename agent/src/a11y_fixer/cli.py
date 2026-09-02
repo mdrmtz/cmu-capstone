@@ -30,6 +30,8 @@ from a11y_fixer import config
 from a11y_fixer.adapters.audit_runner import AxeAuditRunner, flatten_violation_instances
 from a11y_fixer.adapters.pr import delivery as pr_delivery
 from a11y_fixer.adapters.repo_source import resolve_repo_source
+from a11y_fixer.domain.guardrail_rules import check_confidence_calibration, validate_raw_axe_reports
+from a11y_fixer.domain.hitl_policy import assess_risk
 
 if TYPE_CHECKING:
     from langgraph.graph.state import CompiledStateGraph
@@ -140,18 +142,41 @@ def deliver_violation(
     pr_config: config.PRDeliveryConfig,
     output_dir: Path,
 ) -> dict:
-    """Route one resolved violation to the human queue or PR delivery."""
-    if response.route == "human":
+    """Route one resolved violation to the human queue or PR delivery.
+
+    Captures (and resets) the fixture's git diff unconditionally, before the
+    route is decided - codebase_compiler's writes happen during graph
+    invocation, before this function is ever called, so the human path must
+    reset the working tree too or a queued violation's diff would
+    contaminate the next violation.
+    """
+    changes = _capture_and_reset_git_changes(fixture)
+    if not changes:
+        return {"delivered": False, "reason": "codebase_compiler made no file changes", "route": response.route}
+
+    p_ik = max(0.0, min(1.0, response.score / 20.0))
+    assessments = [
+        assess_risk(rule=violation["rule"], file_path=change.path, rubric_score=response.score, p_ik=p_ik)
+        for change in changes
+    ]
+    # assess_risk is one more risk signal alongside the model's own call - it may only escalate, never downgrade.
+    route = "human" if response.route == "human" or any(a.route == "human" for a in assessments) else "auto"
+
+    if route == "human":
         config.hitl_queue_dir().mkdir(parents=True, exist_ok=True)
         queue_path = _hitl_queue_path(violation)
         queue_path.write_text(
-            json.dumps({"violation": violation, "response": response.model_dump()}, indent=2), encoding="utf-8"
+            json.dumps(
+                {
+                    "violation": violation,
+                    "response": response.model_dump(),
+                    "risk_assessments": [vars(a) for a in assessments],
+                },
+                indent=2,
+            ),
+            encoding="utf-8",
         )
-        return {"delivered": False, "queue_path": str(queue_path)}
-
-    changes = _capture_and_reset_git_changes(fixture)
-    if not changes:
-        return {"delivered": False, "reason": "codebase_compiler made no file changes"}
+        return {"delivered": False, "queue_path": str(queue_path), "route": route}
 
     plan = pr_delivery.PullRequestPlan(
         title=f"a11y-fixer: fix {violation['rule']} ({violation['selector']})",
@@ -160,7 +185,20 @@ def deliver_violation(
         changes=changes,
     )
     result = pr_delivery.deliver(plan, config=pr_config, output_dir=output_dir)
-    return {"delivered": True, "result": result}
+    return {"delivered": True, "result": result, "route": route}
+
+
+def warn_on_overconfidence(context: str, rationale: str) -> None:
+    """Print a warning if `rationale` trips the overconfidence-marker scanner.
+
+    Shared by the live CLI and the offline eval harness so both surfaces flag
+    the same fabrication-prone language, not just build/test/route failures.
+    """
+    calibration = check_confidence_calibration(rationale)
+    if calibration["verdict"] == "PASS":
+        return
+    markers = ", ".join(marker for marker, _context, _alt in calibration["flagged_phrases"])
+    print(f"[{context}] confidence-calibration {calibration['verdict']} (markers: {markers})")  # noqa: T201
 
 
 async def _acmd_run(args: argparse.Namespace) -> int:
@@ -170,6 +208,10 @@ async def _acmd_run(args: argparse.Namespace) -> int:
 
     if args.audit:
         report = json.loads(Path(args.audit).read_text(encoding="utf-8"))
+        validation_error = validate_raw_axe_reports(report.get("raw_reports", []))
+        if validation_error is not None:
+            print(f"invalid audit report {args.audit}: {validation_error}")  # noqa: T201
+            return 2
     else:
         report = AxeAuditRunner(fixture_path=config.fixture_path()).run()
 
@@ -213,6 +255,7 @@ async def _acmd_run(args: argparse.Namespace) -> int:
                     break
 
                 # Successfully got a response
+                warn_on_overconfidence(violation["rule"], response.rationale)
                 outcome = deliver_violation(violation, response, fixture=fixture, pr_config=pr_config, output_dir=output_dir)
                 print(f"[{violation['rule']}] {outcome}")  # noqa: T201
                 violation_succeeded = True

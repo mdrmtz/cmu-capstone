@@ -6,6 +6,7 @@ import pytest
 
 from a11y_fixer import config
 from a11y_fixer.agents import audit_crawler, codebase_compiler, compliance_planner, qa_critic
+from a11y_fixer.domain.rubric import RubricComponents, score_candidate
 
 
 @pytest.fixture(autouse=True)
@@ -29,6 +30,36 @@ async def test_qa_critic_spec() -> None:
     spec = await qa_critic.build()
     assert spec["name"] == "qa_critic"
     assert "skills" not in spec
+
+
+async def test_qa_critic_spec_includes_score_rubric_tool() -> None:
+    spec = await qa_critic.build()
+    assert qa_critic.score_rubric in spec["tools"]
+    assert "fake-tool" in spec["tools"]  # the chrome-devtools MCP tools are still present too
+
+
+def test_score_rubric_matches_domain_rubric_computation() -> None:
+    components = RubricComponents(build_pass=True, ast_valid=True, wcag_judge_score=0.8, cls=0.02, bbox_drift_pct=1.0)
+    expected = score_candidate(components)
+
+    result = qa_critic.score_rubric.invoke(
+        {"build_pass": True, "ast_valid": True, "wcag_judge_score": 0.8, "cls": 0.02, "bbox_drift_pct": 1.0}
+    )
+
+    assert result["total"] == expected.total
+    assert result["components"] == expected.components
+
+
+def test_score_rubric_defaults_visual_stability_to_unmeasured() -> None:
+    result = qa_critic.score_rubric.invoke({"build_pass": True, "ast_valid": True, "wcag_judge_score": 0.5})
+
+    assert result["visual_stability_measured"] is False
+    assert result["components"]["visual_stability"] == 0.0
+
+
+def test_score_rubric_rejects_out_of_range_wcag_score() -> None:
+    with pytest.raises(ValueError, match="wcag_judge_score"):
+        qa_critic.score_rubric.invoke({"build_pass": True, "ast_valid": True, "wcag_judge_score": 1.5})
 
 
 async def test_audit_crawler_spec() -> None:

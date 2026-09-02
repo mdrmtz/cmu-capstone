@@ -56,6 +56,18 @@ def validate_axe_report(payload: dict) -> tuple[AxeAuditReport | None, str | Non
         return None, str(exc)
 
 
+def validate_raw_axe_reports(payloads: list[dict]) -> str | None:
+    """Validate every per-page raw axe-core report (as stored in a normalized
+    report's `raw_reports` list). Returns the first validation error found,
+    or `None` if every report is well-formed.
+    """
+    for payload in payloads:
+        _, error = validate_axe_report(payload)
+        if error is not None:
+            return error
+    return None
+
+
 # --- Pre-generation: path-traversal guard ---
 
 ALLOWED_WRITE_EXTENSIONS: frozenset[str] = frozenset({".html", ".ts", ".scss"})

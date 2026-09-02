@@ -98,18 +98,30 @@ def _violation() -> dict:
 
 def test_deliver_violation_routes_human_to_review_queue(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(config, "hitl_queue_dir", lambda: tmp_path / "hitl_queue")
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    subprocess.run(["git", "init", "-q"], cwd=repo, check=True)  # noqa: S603, S607
+    subprocess.run(["git", "config", "user.email", "t@example.com"], cwd=repo, check=True)  # noqa: S603, S607
+    subprocess.run(["git", "config", "user.name", "T"], cwd=repo, check=True)  # noqa: S603, S607
+    (repo / "blog.component.html").write_text("<button>Buy</button>\n", encoding="utf-8")
+    subprocess.run(["git", "add", "."], cwd=repo, check=True)  # noqa: S603, S607
+    subprocess.run(["git", "commit", "-q", "-m", "init"], cwd=repo, check=True)  # noqa: S603, S607
+    (repo / "blog.component.html").write_text('<button aria-label="Buy">Buy</button>\n', encoding="utf-8")
+
     response = ViolationResponse(
         rule="color-contrast", wcag="1.4.3", selector=".cta", technique_id="G18", technique_type="sufficient",
         code="", rationale="ambiguous background", score=10.0, route="human",
     )
 
     outcome = cli.deliver_violation(
-        _violation(), response, fixture=tmp_path, pr_config=config.PRDeliveryConfig(live=False, github_token=None, github_repo=None),
+        _violation(), response, fixture=repo, pr_config=config.PRDeliveryConfig(live=False, github_token=None, github_repo=None),
         output_dir=tmp_path / "prs",
     )
 
     assert outcome["delivered"] is False
     assert Path(outcome["queue_path"]).exists()
+    # working tree reset even on the human path (Phase 2 fix)
+    assert (repo / "blog.component.html").read_text(encoding="utf-8") == "<button>Buy</button>\n"
 
 
 def test_capture_and_reset_git_changes(tmp_path: Path) -> None:
@@ -140,6 +152,38 @@ def test_deliver_violation_routes_auto_to_dry_run_pr(tmp_path: Path) -> None:
     subprocess.run(["git", "init", "-q"], cwd=repo, check=True)  # noqa: S603, S607
     subprocess.run(["git", "config", "user.email", "t@example.com"], cwd=repo, check=True)  # noqa: S603, S607
     subprocess.run(["git", "config", "user.name", "T"], cwd=repo, check=True)  # noqa: S603, S607
+    (repo / "about.component.html").write_text("<img>\n", encoding="utf-8")
+    subprocess.run(["git", "add", "."], cwd=repo, check=True)  # noqa: S603, S607
+    subprocess.run(["git", "commit", "-q", "-m", "init"], cwd=repo, check=True)  # noqa: S603, S607
+    (repo / "about.component.html").write_text('<img alt="logo">\n', encoding="utf-8")
+
+    response = ViolationResponse(
+        rule="image-alt", wcag="1.1.1", selector="img", technique_id="H37", technique_type="sufficient",
+        code='<img alt="logo">', rationale="descriptive alt text", score=20.0, route="auto",
+    )
+    outcome = cli.deliver_violation(
+        {"rule": "image-alt", "url": "/about", "selector": "img", "html": "<img>"},
+        response,
+        fixture=repo,
+        pr_config=config.PRDeliveryConfig(live=False, github_token=None, github_repo=None),
+        output_dir=tmp_path / "prs",
+    )
+
+    assert outcome["delivered"] is True
+    assert isinstance(outcome["result"], DryRunResult)
+    assert outcome["result"].diff_path.exists()
+    assert outcome["route"] == "auto"
+
+
+def test_deliver_violation_assess_risk_overrides_auto_to_human_for_high_risk_rule(tmp_path: Path) -> None:
+    """assess_risk may escalate a model's "auto" self-report - html-has-lang is
+    on HIGH_RISK_RULES (site-wide blast radius) regardless of rubric score.
+    """
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    subprocess.run(["git", "init", "-q"], cwd=repo, check=True)  # noqa: S603, S607
+    subprocess.run(["git", "config", "user.email", "t@example.com"], cwd=repo, check=True)  # noqa: S603, S607
+    subprocess.run(["git", "config", "user.name", "T"], cwd=repo, check=True)  # noqa: S603, S607
     (repo / "index.html").write_text("<html>\n", encoding="utf-8")
     subprocess.run(["git", "add", "."], cwd=repo, check=True)  # noqa: S603, S607
     subprocess.run(["git", "commit", "-q", "-m", "init"], cwd=repo, check=True)  # noqa: S603, S607
@@ -157,9 +201,10 @@ def test_deliver_violation_routes_auto_to_dry_run_pr(tmp_path: Path) -> None:
         output_dir=tmp_path / "prs",
     )
 
-    assert outcome["delivered"] is True
-    assert isinstance(outcome["result"], DryRunResult)
-    assert outcome["result"].diff_path.exists()
+    assert outcome["delivered"] is False
+    assert outcome["route"] == "human"
+    queued = json.loads(Path(outcome["queue_path"]).read_text(encoding="utf-8"))
+    assert queued["risk_assessments"][0]["high_blast_radius"] is True
 
 
 def test_deliver_violation_reports_no_changes(tmp_path: Path) -> None:
@@ -236,4 +281,61 @@ def test_cmd_run_continues_after_one_violation_fails(tmp_path: Path, monkeypatch
     assert invoked[2] == "violation-1-attempt2"
     assert invoked[3] == "violation-1-attempt3"
     assert exit_code == 1
+
+
+def test_cmd_run_rejects_malformed_audit_report_before_building_agent(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    audit_path = tmp_path / "audit.json"
+    audit_path.write_text(json.dumps({"raw_reports": [{"violations": []}]}), encoding="utf-8")  # missing "url"
+
+    async def fake_abuild_agent(**_kwargs: object) -> None:
+        raise AssertionError("abuild_agent should not be called for a malformed audit report")
+
+    monkeypatch.setattr("a11y_fixer.deep_agent.abuild_agent", fake_abuild_agent)
+
+    parser = cli.build_parser()
+    args = parser.parse_args(["run", "--audit", str(audit_path), "--no-live", "--yes"])
+
+    exit_code = cli._cmd_run(args)  # noqa: SLF001
+
+    assert exit_code == 2
+
+
+def test_cmd_run_warns_on_overconfident_rationale(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    audit_path = tmp_path / "audit.json"
+    audit_path.write_text(json.dumps(_audit_report([("/a", "rule-a")])), encoding="utf-8")
+
+    overconfident_response = ViolationResponse(
+        rule="rule-a", wcag="1.1.1", selector="img", technique_id="H37", technique_type="sufficient",
+        code='<img alt="x">', rationale="This fix is guaranteed to always pass with zero risk.",
+        score=20.0, route="auto",
+    )
+
+    class FakeGraph:
+        async def ainvoke(self, messages: dict, config: dict) -> dict:  # noqa: ARG002
+            return {"structured_response": overconfident_response}
+
+    async def fake_abuild_agent(**_kwargs: object) -> FakeGraph:
+        return FakeGraph()
+
+    monkeypatch.setattr("a11y_fixer.deep_agent.abuild_agent", fake_abuild_agent)
+    monkeypatch.setattr(cli, "deliver_violation", lambda *_a, **_k: {"delivered": False, "reason": "test stub"})
+
+    parser = cli.build_parser()
+    args = parser.parse_args(["run", "--audit", str(audit_path), "--no-live", "--yes"])
+
+    exit_code = cli._cmd_run(args)  # noqa: SLF001
+
+    captured = capsys.readouterr()
+    assert exit_code == 0
+    assert "confidence-calibration FAIL" in captured.out
+
+
+def test_warn_on_overconfidence_is_silent_for_well_calibrated_text(capsys: pytest.CaptureFixture[str]) -> None:
+    cli.warn_on_overconfidence("rule-a", "Evidence suggests this improves contrast for most users.")
+
+    assert capsys.readouterr().out == ""
 

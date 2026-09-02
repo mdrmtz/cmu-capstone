@@ -16,6 +16,8 @@ from datetime import UTC, datetime
 from pathlib import Path
 from time import monotonic, sleep
 
+from a11y_fixer.domain.guardrail_rules import validate_raw_axe_reports
+
 DEFAULT_HOST = "127.0.0.1"
 DEFAULT_PORT = 4200
 DEFAULT_STARTUP_TIMEOUT_SECONDS = 90.0
@@ -125,6 +127,10 @@ class AxeAuditRunner:
             raise AuditRunnerError(msg)
 
         reports = self._parse_axe_output(result.stdout)
+        validation_error = validate_raw_axe_reports(reports)
+        if validation_error is not None:
+            msg = f"axe-core output failed schema validation: {validation_error}"
+            raise AuditRunnerError(msg)
         return self._normalize(reports)
 
     @staticmethod

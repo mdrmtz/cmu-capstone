@@ -379,9 +379,9 @@ class TestIntegration:
                 result = await codebase_compiler.build("model")
 
                 # Permissions from build should match _permissions() output
-                assert len(result.permissions) == len(perms)
+                assert len(result["permissions"]) == len(perms)
                 for i, perm in enumerate(perms):
-                    result_perm = result.permissions[i]
+                    result_perm = result["permissions"][i]
                     assert result_perm.operations == perm.operations
                     assert result_perm.mode == perm.mode
 
@@ -415,7 +415,7 @@ class TestIntegration:
                 # Find indices of middleware types
                 fs_idx = None
                 rubric_idx = None
-                for i, m in enumerate(result.middleware):
+                for i, m in enumerate(result["middleware"]):
                     if isinstance(m, FilesystemMiddleware):
                         fs_idx = i
                     if isinstance(m, RubricMiddleware):

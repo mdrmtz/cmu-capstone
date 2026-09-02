@@ -10,6 +10,7 @@ from a11y_fixer.domain.guardrail_rules import (
     epistemic_gate,
     expected_calibration_error,
     validate_axe_report,
+    validate_raw_axe_reports,
     validate_write_path,
 )
 
@@ -42,6 +43,28 @@ def test_validate_axe_report_rejects_missing_required_field() -> None:
     assert report is None
     assert error is not None
     assert "url" in error
+
+
+def test_validate_raw_axe_reports_accepts_all_valid() -> None:
+    payloads = [
+        {"url": "http://localhost:4200/", "violations": []},
+        {"url": "http://localhost:4200/blog", "violations": [{"id": "image-alt", "nodes": []}]},
+    ]
+    assert validate_raw_axe_reports(payloads) is None
+
+
+def test_validate_raw_axe_reports_returns_first_error() -> None:
+    payloads = [
+        {"url": "http://localhost:4200/", "violations": []},
+        {"violations": []},  # missing required "url"
+    ]
+    error = validate_raw_axe_reports(payloads)
+    assert error is not None
+    assert "url" in error
+
+
+def test_validate_raw_axe_reports_accepts_empty_list() -> None:
+    assert validate_raw_axe_reports([]) is None
 
 
 # --- path-traversal guard ---

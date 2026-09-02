@@ -149,6 +149,26 @@ def test_audit_pages_raises_if_npx_missing(runner: AxeAuditRunner, monkeypatch: 
         runner.audit_pages(pages=("/",))
 
 
+def test_audit_pages_raises_on_schema_invalid_report(runner: AxeAuditRunner, monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr("a11y_fixer.adapters.audit_runner.shutil.which", lambda _: "/usr/bin/npx")
+    reports = [{"violations": []}]  # missing required "url"
+    fake_result = MagicMock(returncode=0, stdout=json.dumps(reports), stderr="")
+    monkeypatch.setattr(subprocess, "run", lambda *a, **k: fake_result)  # noqa: ARG005
+
+    with pytest.raises(AuditRunnerError, match="schema validation"):
+        runner.audit_pages(pages=("/",))
+
+
+def test_audit_pages_raises_on_schema_invalid_violation(runner: AxeAuditRunner, monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr("a11y_fixer.adapters.audit_runner.shutil.which", lambda _: "/usr/bin/npx")
+    reports = [{"url": "http://127.0.0.1:4200/", "violations": [{"nodes": []}]}]  # violation missing required "id"
+    fake_result = MagicMock(returncode=0, stdout=json.dumps(reports), stderr="")
+    monkeypatch.setattr(subprocess, "run", lambda *a, **k: fake_result)  # noqa: ARG005
+
+    with pytest.raises(AuditRunnerError, match="schema validation"):
+        runner.audit_pages(pages=("/",))
+
+
 def test_run_starts_audits_then_always_stops(runner: AxeAuditRunner, monkeypatch: pytest.MonkeyPatch) -> None:
     calls: list[str] = []
     monkeypatch.setattr(runner, "start_server", lambda: calls.append("start"))

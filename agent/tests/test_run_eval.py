@@ -9,7 +9,17 @@ import pytest
 AGENT_ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(AGENT_ROOT / "evaluation"))
 
-from run_eval import BENCHMARK_CASES_PATH, CaseResult, compute_metrics, load_benchmark_cases  # noqa: E402
+import run_eval as run_eval_module  # noqa: E402
+from run_eval import (  # noqa: E402
+    BENCHMARK_CASES_PATH,
+    CaseResult,
+    compute_metrics,
+    filter_cases_by_ids,
+    filter_cases_by_phase,
+    filter_cases_by_range,
+    load_benchmark_cases,
+    main,
+)
 
 
 def test_benchmark_cases_file_matches_reconciled_ground_truth() -> None:
@@ -74,3 +84,183 @@ def test_compute_metrics_mixed_outcomes() -> None:
 def test_compute_metrics_mean_latency() -> None:
     results = [_result(latency_seconds=1.0), _result(latency_seconds=3.0)]
     assert compute_metrics(results)["mean_latency_seconds"] == pytest.approx(2.0)
+
+
+def test_filter_cases_by_phase_f1_matches_about_image_alt() -> None:
+    filtered, phase_def = filter_cases_by_phase(load_benchmark_cases(), "f1")
+    assert len(filtered) == phase_def["cases_count"]
+    assert all(c["page"] == "/about" and c["wcag"] == "1.1.1" for c in filtered)
+
+
+def test_filter_cases_by_phase_unknown_phase_raises() -> None:
+    with pytest.raises(ValueError, match="not found"):
+        filter_cases_by_phase(load_benchmark_cases(), "does-not-exist")
+
+
+def _cleanup_temp_cases(phase: str) -> None:
+    (AGENT_ROOT / "evaluation" / f"_temp_{phase}_cases.json").unlink(missing_ok=True)
+
+
+def test_main_phase_live_true_still_defaults_to_dry_run_without_explicit_flag(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    seen: dict[str, object] = {}
+    monkeypatch.setattr(
+        run_eval_module, "run_eval", lambda **kwargs: seen.update(live=kwargs["live"]) or {"total_cases": 0}
+    )
+
+    exit_code = main(["--phase", "f3"])
+
+    assert exit_code == 0
+    assert seen["live"] is False
+    assert "defaulting to dry-run anyway" in capsys.readouterr().out
+    _cleanup_temp_cases("f3")
+
+
+def test_main_phase_live_true_with_explicit_live_flag_goes_live(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    seen: dict[str, object] = {}
+    monkeypatch.setattr(
+        run_eval_module, "run_eval", lambda **kwargs: seen.update(live=kwargs["live"]) or {"total_cases": 0}
+    )
+    monkeypatch.setattr("builtins.input", lambda _prompt="": "yes")
+
+    exit_code = main(["--phase", "f3", "--live"])
+
+    assert exit_code == 0
+    assert seen["live"] is True
+    _cleanup_temp_cases("f3")
+
+
+def test_main_phase_matching_zero_cases_fails_fast_before_running(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    monkeypatch.setattr(run_eval_module, "filter_cases_by_phase", lambda *_a: ([], {"live": False}))
+    run_calls: list[bool] = []
+    monkeypatch.setattr(run_eval_module, "run_eval", lambda **_k: run_calls.append(True))
+
+    exit_code = main(["--phase", "f1"])
+
+    assert exit_code == 1
+    assert run_calls == []
+    assert "matched 0 cases" in capsys.readouterr().out
+
+
+def test_main_phase_cases_count_mismatch_prints_warning(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    monkeypatch.setattr(
+        run_eval_module,
+        "filter_cases_by_phase",
+        lambda *_a: ([{"id": "x"}], {"name": "test", "live": False, "cases_count": 5}),
+    )
+    monkeypatch.setattr(run_eval_module, "run_eval", lambda **_k: {"total_cases": 1})
+
+    exit_code = main(["--phase", "f1"])
+
+    assert exit_code == 0
+    assert "expected 5 cases but filters matched 1" in capsys.readouterr().out
+    _cleanup_temp_cases("f1")
+
+
+def test_filter_cases_by_range_inclusive_bounds() -> None:
+    cases = load_benchmark_cases()
+    filtered = filter_cases_by_range(cases, "case-01", "case-03")
+    assert [c["id"] for c in filtered] == ["case-01", "case-02", "case-03"]
+
+
+def test_filter_cases_by_range_open_ended_from() -> None:
+    cases = load_benchmark_cases()
+    filtered = filter_cases_by_range(cases, "case-21", None)
+    assert [c["id"] for c in filtered] == ["case-21", "case-22"]
+
+
+def test_filter_cases_by_range_open_ended_to() -> None:
+    cases = load_benchmark_cases()
+    filtered = filter_cases_by_range(cases, None, "case-02")
+    assert [c["id"] for c in filtered] == ["case-01", "case-02"]
+
+
+def test_phase_smoke_matches_exactly_case_01() -> None:
+    filtered, _phase_def = filter_cases_by_phase(load_benchmark_cases(), "smoke")
+    assert [c["id"] for c in filtered] == ["case-01"]
+
+
+def test_phase_all_matches_every_case() -> None:
+    cases = load_benchmark_cases()
+    filtered, _phase_def = filter_cases_by_phase(cases, "all")
+    assert len(filtered) == len(cases) == 22
+
+
+def test_main_case_range_defaults_to_dry_run_and_matches_range(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    seen: dict[str, object] = {}
+
+    def fake_run_eval(*, cases_path: Path, output_path: Path, live: bool) -> dict:  # noqa: ARG001
+        seen["live"] = live
+        seen["cases"] = json.loads(cases_path.read_text(encoding="utf-8"))
+        return {"total_cases": len(seen["cases"])}
+
+    monkeypatch.setattr(run_eval_module, "run_eval", fake_run_eval)
+
+    exit_code = main(["--case-from", "case-01", "--case-to", "case-03"])
+
+    assert exit_code == 0
+    assert seen["live"] is False
+    assert [c["id"] for c in seen["cases"]] == ["case-01", "case-02", "case-03"]
+    assert not (AGENT_ROOT / "evaluation" / "_temp_case_range_cases.json").exists()
+
+
+def test_main_case_range_matching_zero_cases_fails_fast(capsys: pytest.CaptureFixture[str]) -> None:
+    exit_code = main(["--case-from", "case-99", "--case-to", "case-99"])
+
+    assert exit_code == 1
+    assert "matched 0 cases" in capsys.readouterr().out
+
+
+def test_main_rejects_phase_combined_with_case_range(capsys: pytest.CaptureFixture[str]) -> None:
+    exit_code = main(["--phase", "f1", "--case-from", "case-01"])
+
+    assert exit_code == 1
+    assert "mutually exclusive" in capsys.readouterr().out
+
+
+def test_filter_cases_by_ids_preserves_benchmark_order_and_skips_unknown() -> None:
+    cases = load_benchmark_cases()
+    filtered = filter_cases_by_ids(cases, ["case-15", "case-01", "case-99", "case-08"])
+    assert [c["id"] for c in filtered] == ["case-01", "case-08", "case-15"]
+
+
+def test_main_case_ids_non_contiguous_list_and_warns_on_missing(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    seen: dict[str, object] = {}
+
+    def fake_run_eval(*, cases_path: Path, output_path: Path, live: bool) -> dict:  # noqa: ARG001
+        seen["cases"] = json.loads(cases_path.read_text(encoding="utf-8"))
+        return {"total_cases": len(seen["cases"])}
+
+    monkeypatch.setattr(run_eval_module, "run_eval", fake_run_eval)
+
+    exit_code = main(["--case-ids", "case-01,case-04,case-08,case-15,case-22,case-99"])
+
+    assert exit_code == 0
+    assert [c["id"] for c in seen["cases"]] == ["case-01", "case-04", "case-08", "case-15", "case-22"]
+    assert "not found, skipping: case-99" in capsys.readouterr().out
+    assert not (AGENT_ROOT / "evaluation" / "_temp_case_ids_cases.json").exists()
+
+
+def test_main_case_ids_all_unknown_fails_fast(capsys: pytest.CaptureFixture[str]) -> None:
+    exit_code = main(["--case-ids", "case-98,case-99"])
+
+    assert exit_code == 1
+    assert "none of the requested case ids matched" in capsys.readouterr().out
+
+
+def test_main_rejects_case_ids_combined_with_case_range(capsys: pytest.CaptureFixture[str]) -> None:
+    exit_code = main(["--case-ids", "case-01", "--case-from", "case-02"])
+
+    assert exit_code == 1
+    assert "mutually exclusive" in capsys.readouterr().out
