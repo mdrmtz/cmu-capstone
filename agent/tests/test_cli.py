@@ -10,6 +10,7 @@ from langgraph.types import Command
 
 from a11y_fixer import cli, config
 from a11y_fixer.adapters.pr.delivery import DryRunResult
+from a11y_fixer.agents import audit_crawler
 from a11y_fixer.deep_agent import ViolationResponse
 
 
@@ -18,6 +19,19 @@ def test_build_parser_audit_defaults() -> None:
     args = parser.parse_args(["audit"])
     assert args.command == "audit"
     assert args.output
+    assert args.url is None
+
+
+def test_build_parser_audit_rejects_conflicting_target_flags() -> None:
+    parser = cli.build_parser()
+    with pytest.raises(SystemExit):
+        parser.parse_args(["audit", "--repo", "/tmp/x", "--url", "https://example.com"])
+
+
+def test_build_parser_run_rejects_url_flag() -> None:
+    parser = cli.build_parser()
+    with pytest.raises(SystemExit):
+        parser.parse_args(["run", "--url", "https://example.com"])
 
 
 def test_build_parser_run_live_flags() -> None:
@@ -33,6 +47,78 @@ def test_build_parser_run_rejects_conflicting_live_flags() -> None:
         parser.parse_args(["run", "--live", "--no-live"])
 
 
+def test_build_parser_review_list_flag() -> None:
+    parser = cli.build_parser()
+    args = parser.parse_args(["review", "--list"])
+    assert args.command == "review"
+    assert args.list is True
+    assert args.item is None
+
+
+def test_build_parser_review_rejects_conflicting_decision_flags() -> None:
+    parser = cli.build_parser()
+    with pytest.raises(SystemExit):
+        parser.parse_args(["review", "1-x.json", "--approve", "--reject"])
+
+
+def _patch_review_config(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    monkeypatch.setattr(config, "hitl_queue_dir", lambda: tmp_path / "hitl_queue")
+    monkeypatch.setattr(config, "wiki_dir", lambda: tmp_path / "wiki")
+    monkeypatch.setattr(config, "agent_root", lambda: tmp_path)
+
+
+def test_cmd_review_list_empty_queue(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture) -> None:
+    _patch_review_config(monkeypatch, tmp_path)
+    parser = cli.build_parser()
+    args = parser.parse_args(["review", "--list"])
+
+    exit_code = cli._cmd_review(args)  # noqa: SLF001
+
+    assert exit_code == 0
+    assert "empty" in capsys.readouterr().out
+
+
+def test_cmd_review_missing_item_and_decision_prints_usage(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    _patch_review_config(monkeypatch, tmp_path)
+    parser = cli.build_parser()
+    args = parser.parse_args(["review"])
+
+    assert cli._cmd_review(args) == 1  # noqa: SLF001
+
+
+def test_cmd_review_item_not_found(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    _patch_review_config(monkeypatch, tmp_path)
+    parser = cli.build_parser()
+    args = parser.parse_args(["review", "missing.json", "--approve"])
+
+    assert cli._cmd_review(args) == 1  # noqa: SLF001
+
+
+def test_cmd_review_approve_real_flow(tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture) -> None:
+    _patch_review_config(monkeypatch, tmp_path)
+    queue_dir = tmp_path / "hitl_queue"
+    queue_dir.mkdir(parents=True)
+    (queue_dir / "1-image-alt.json").write_text(
+        json.dumps(
+            {
+                "violation": {"rule": "image-alt", "url": "/about", "selector": "img", "html": "<img>"},
+                "response": {"rationale": "descriptive alt text"},
+                "changes": [{"path": "about.component.html", "old_content": "<img>\n", "new_content": '<img alt="logo">\n'}],
+            }
+        ),
+        encoding="utf-8",
+    )
+    parser = cli.build_parser()
+    args = parser.parse_args(["review", "1-image-alt.json", "--approve", "--reviewer", "bob"])
+
+    exit_code = cli._cmd_review(args)  # noqa: SLF001
+
+    assert exit_code == 0
+    printed = json.loads(capsys.readouterr().out)
+    assert printed["decision"] == "approve"
+    assert printed["delivered"] is True
+
+
 def test_cmd_audit_writes_report(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     fake_report = {"total_violation_instances": 3, "pages": [{"url": "/", "violation_rules": ["html-has-lang"]}]}
     monkeypatch.setattr(cli.AxeAuditRunner, "run", lambda self: fake_report)  # noqa: ARG005
@@ -45,6 +131,93 @@ def test_cmd_audit_writes_report(tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 
     assert exit_code == 0
     assert json.loads(output_path.read_text(encoding="utf-8")) == fake_report
+
+
+def test_cmd_audit_uses_crawler_discovery_for_non_default_fixture(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("A11Y_FIXTURE_PATH", str(tmp_path))
+    fake_report = {"total_violation_instances": 0, "pages": []}
+
+    async def _fake_discover_and_audit(runner: object) -> dict:  # noqa: ARG001
+        return fake_report
+
+    monkeypatch.setattr(audit_crawler, "discover_and_audit", _fake_discover_and_audit)
+
+    output_path = tmp_path / "audit.json"
+    parser = cli.build_parser()
+    args = parser.parse_args(["audit", "--output", str(output_path)])
+
+    exit_code = cli._cmd_audit(args)  # noqa: SLF001
+
+    assert exit_code == 0
+    assert json.loads(output_path.read_text(encoding="utf-8")) == fake_report
+
+
+async def test_acmd_run_uses_crawler_discovery_for_non_default_fixture(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("A11Y_FIXTURE_PATH", str(tmp_path))
+
+    async def _fake_discover_and_audit(runner: object) -> dict:  # noqa: ARG001
+        return {"raw_reports": []}
+
+    monkeypatch.setattr(audit_crawler, "discover_and_audit", _fake_discover_and_audit)
+
+    parser = cli.build_parser()
+    args = parser.parse_args(["run"])
+
+    exit_code = await cli._acmd_run(args)  # noqa: SLF001
+
+    assert exit_code == 0
+
+
+def test_cmd_audit_url_mode_joins_discovered_routes_with_the_base_url(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    fake_report = {"total_violation_instances": 0, "pages": []}
+    captured_urls: list[str] = []
+
+    async def _fake_discover_routes(base_url: str, *, model: str = "") -> list[str]:  # noqa: ARG001
+        return ["/", "/about"]
+
+    def _fake_audit_urls(self: object, urls: list[str]) -> dict:  # noqa: ARG001
+        captured_urls.extend(urls)
+        return fake_report
+
+    monkeypatch.setattr(audit_crawler, "discover_routes", _fake_discover_routes)
+    monkeypatch.setattr(cli.AxeAuditRunner, "audit_urls", _fake_audit_urls)
+
+    output_path = tmp_path / "audit.json"
+    parser = cli.build_parser()
+    args = parser.parse_args(["audit", "--url", "https://example.com", "--output", str(output_path)])
+
+    exit_code = cli._cmd_audit(args)  # noqa: SLF001
+
+    assert exit_code == 0
+    assert captured_urls == ["https://example.com/", "https://example.com/about"]
+    assert json.loads(output_path.read_text(encoding="utf-8")) == fake_report
+
+
+def test_cmd_audit_url_mode_falls_back_to_the_given_url_when_discovery_finds_nothing(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    captured_urls: list[str] = []
+
+    async def _fake_discover_routes(base_url: str, *, model: str = "") -> list[str]:  # noqa: ARG001
+        return []
+
+    def _fake_audit_urls(self: object, urls: list[str]) -> dict:  # noqa: ARG001
+        captured_urls.extend(urls)
+        return {"total_violation_instances": 0, "pages": []}
+
+    monkeypatch.setattr(audit_crawler, "discover_routes", _fake_discover_routes)
+    monkeypatch.setattr(cli.AxeAuditRunner, "audit_urls", _fake_audit_urls)
+
+    output_path = tmp_path / "audit.json"
+    parser = cli.build_parser()
+    args = parser.parse_args(["audit", "--url", "https://example.com/", "--output", str(output_path)])
+
+    exit_code = cli._cmd_audit(args)  # noqa: SLF001
+
+    assert exit_code == 0
+    assert captured_urls == ["https://example.com/"]
 
 
 class _FakeInterrupt:
@@ -205,6 +378,71 @@ def test_deliver_violation_assess_risk_overrides_auto_to_human_for_high_risk_rul
     assert outcome["route"] == "human"
     queued = json.loads(Path(outcome["queue_path"]).read_text(encoding="utf-8"))
     assert queued["risk_assessments"][0]["high_blast_radius"] is True
+
+
+def test_deliver_violation_path_guardrail_escalates_disallowed_extension(tmp_path: Path) -> None:
+    """validate_write_path (2b) escalates on its own, independent of assess_risk."""
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    subprocess.run(["git", "init", "-q"], cwd=repo, check=True)  # noqa: S603, S607
+    subprocess.run(["git", "config", "user.email", "t@example.com"], cwd=repo, check=True)  # noqa: S603, S607
+    subprocess.run(["git", "config", "user.name", "T"], cwd=repo, check=True)  # noqa: S603, S607
+    (repo / "about.component.json").write_text("{}\n", encoding="utf-8")
+    subprocess.run(["git", "add", "."], cwd=repo, check=True)  # noqa: S603, S607
+    subprocess.run(["git", "commit", "-q", "-m", "init"], cwd=repo, check=True)  # noqa: S603, S607
+    (repo / "about.component.json").write_text('{"alt": "logo"}\n', encoding="utf-8")
+
+    response = ViolationResponse(
+        rule="image-alt", wcag="1.1.1", selector="img", technique_id="H37", technique_type="sufficient",
+        code='{"alt": "logo"}', rationale="descriptive alt text", score=20.0, route="auto",
+    )
+    outcome = cli.deliver_violation(
+        {"rule": "image-alt", "url": "/about", "selector": "img", "html": "<img>"},
+        response,
+        fixture=repo,
+        pr_config=config.PRDeliveryConfig(live=False, github_token=None, github_repo=None),
+        output_dir=tmp_path / "prs",
+    )
+
+    assert outcome["delivered"] is False
+    assert outcome["route"] == "human"
+    queued = json.loads(Path(outcome["queue_path"]).read_text(encoding="utf-8"))
+    assert queued["path_violations"]  # .json isn't in ALLOWED_WRITE_EXTENSIONS
+    # isolated from assess_risk: this rule/file/score would have been "auto" on its own
+    assert queued["risk_assessments"][0]["route"] == "auto"
+
+
+def test_deliver_violation_epistemic_gate_recorded_on_low_confidence(tmp_path: Path) -> None:
+    """epistemic_gate (2c) is genuinely called and its verdict recorded - even though it
+    always agrees with assess_risk's own low_confidence check at this call site today
+    (both derive from the same p_ik = score / 20, and 15/20 == 0.75 exactly).
+    """
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    subprocess.run(["git", "init", "-q"], cwd=repo, check=True)  # noqa: S603, S607
+    subprocess.run(["git", "config", "user.email", "t@example.com"], cwd=repo, check=True)  # noqa: S603, S607
+    subprocess.run(["git", "config", "user.name", "T"], cwd=repo, check=True)  # noqa: S603, S607
+    (repo / "about.component.html").write_text("<img>\n", encoding="utf-8")
+    subprocess.run(["git", "add", "."], cwd=repo, check=True)  # noqa: S603, S607
+    subprocess.run(["git", "commit", "-q", "-m", "init"], cwd=repo, check=True)  # noqa: S603, S607
+    (repo / "about.component.html").write_text('<img alt="logo">\n', encoding="utf-8")
+
+    response = ViolationResponse(
+        rule="image-alt", wcag="1.1.1", selector="img", technique_id="H37", technique_type="sufficient",
+        code='<img alt="logo">', rationale="uncertain alt text", score=8.0, route="auto",
+    )
+    outcome = cli.deliver_violation(
+        {"rule": "image-alt", "url": "/about", "selector": "img", "html": "<img>"},
+        response,
+        fixture=repo,
+        pr_config=config.PRDeliveryConfig(live=False, github_token=None, github_repo=None),
+        output_dir=tmp_path / "prs",
+    )
+
+    assert outcome["route"] == "human"
+    queued = json.loads(Path(outcome["queue_path"]).read_text(encoding="utf-8"))
+    assert queued["epistemic_gate"]["verdict"] == "BLOCK"
+    assert queued["epistemic_gate"]["p_ik"] == 0.4
 
 
 def test_deliver_violation_reports_no_changes(tmp_path: Path) -> None:

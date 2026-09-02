@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from unittest.mock import AsyncMock
+from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
@@ -68,6 +68,99 @@ async def test_audit_crawler_spec() -> None:
     skill_dir = config.skills_dir() / "playwright-mcp"
     assert spec["skills"] == [config.to_virtual_path(skill_dir)]
     assert skill_dir.is_dir()
+
+
+async def test_audit_crawler_spec_defaults_to_free_tier_openrouter() -> None:
+    spec = await audit_crawler.build()
+    assert spec["model"] == "openrouter:openrouter/free"
+
+
+async def test_audit_crawler_spec_model_is_overridable() -> None:
+    spec = await audit_crawler.build(model="ollama:llama3.1")
+    assert spec["model"] == "ollama:llama3.1"
+
+
+class _FakeDiscoveryGraph:
+    def __init__(self, structured_response: object) -> None:
+        self._structured_response = structured_response
+
+    async def ainvoke(self, *_args: object, **_kwargs: object) -> dict:
+        return {"structured_response": self._structured_response}
+
+
+async def test_discover_routes_returns_the_discovered_list(monkeypatch: pytest.MonkeyPatch) -> None:
+    fake_graph = _FakeDiscoveryGraph(audit_crawler.DiscoveredRoutes(routes=["/", "/about"]))
+    monkeypatch.setattr("deepagents.create_deep_agent", lambda **_kwargs: fake_graph)
+
+    routes = await audit_crawler.discover_routes("http://127.0.0.1:4200")
+
+    assert routes == ["/", "/about"]
+
+
+async def test_discover_routes_returns_empty_list_when_no_structured_response(monkeypatch: pytest.MonkeyPatch) -> None:
+    fake_graph = _FakeDiscoveryGraph(None)
+    monkeypatch.setattr("deepagents.create_deep_agent", lambda **_kwargs: fake_graph)
+
+    routes = await audit_crawler.discover_routes("http://127.0.0.1:4200")
+
+    assert routes == []
+
+
+async def test_discover_routes_never_raises_on_failure(monkeypatch: pytest.MonkeyPatch) -> None:
+    def _raise(**_kwargs: object) -> None:
+        msg = "boom"
+        raise RuntimeError(msg)
+
+    monkeypatch.setattr("deepagents.create_deep_agent", _raise)
+
+    routes = await audit_crawler.discover_routes("http://127.0.0.1:4200")
+
+    assert routes == []
+
+
+async def test_discover_and_audit_uses_discovered_routes(monkeypatch: pytest.MonkeyPatch) -> None:
+    async def _fake_discover_routes(base_url: str, *, model: str = "") -> list[str]:  # noqa: ARG001
+        return ["/", "/about"]
+
+    monkeypatch.setattr(audit_crawler, "discover_routes", _fake_discover_routes)
+    runner = MagicMock(host="127.0.0.1", port=4200)
+    runner.audit_pages.return_value = {"ok": True}
+
+    result = await audit_crawler.discover_and_audit(runner)
+
+    runner.start_server.assert_called_once()
+    runner.audit_pages.assert_called_once_with(pages=("/", "/about"))
+    runner.stop_server.assert_called_once()
+    assert result == {"ok": True}
+
+
+async def test_discover_and_audit_falls_back_to_default_pages_when_discovery_finds_nothing(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    async def _fake_discover_routes(base_url: str, *, model: str = "") -> list[str]:  # noqa: ARG001
+        return []
+
+    monkeypatch.setattr(audit_crawler, "discover_routes", _fake_discover_routes)
+    runner = MagicMock(host="127.0.0.1", port=4200)
+    runner.audit_pages.return_value = {"ok": True}
+
+    await audit_crawler.discover_and_audit(runner)
+
+    runner.audit_pages.assert_called_once_with(pages=audit_crawler.DEFAULT_PAGES)
+
+
+async def test_discover_and_audit_stops_server_even_if_audit_pages_raises(monkeypatch: pytest.MonkeyPatch) -> None:
+    async def _fake_discover_routes(base_url: str, *, model: str = "") -> list[str]:  # noqa: ARG001
+        return ["/"]
+
+    monkeypatch.setattr(audit_crawler, "discover_routes", _fake_discover_routes)
+    runner = MagicMock(host="127.0.0.1", port=4200)
+    runner.audit_pages.side_effect = RuntimeError("boom")
+
+    with pytest.raises(RuntimeError, match="boom"):
+        await audit_crawler.discover_and_audit(runner)
+
+    runner.stop_server.assert_called_once()
 
 
 async def test_codebase_compiler_spec_permission_ordering() -> None:

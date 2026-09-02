@@ -61,17 +61,23 @@ def assess_risk(
     if high_risk_rule:
         reasons.append(f"rule '{rule}' is on the HIGH_RISK_RULES list")
 
-    high_blast_radius = any(fragment in file_path for fragment in HIGH_BLAST_RADIUS_PATH_FRAGMENTS)
+    high_blast_radius = any(
+        fragment in file_path for fragment in HIGH_BLAST_RADIUS_PATH_FRAGMENTS
+    )
     if high_blast_radius:
         reasons.append(f"file '{file_path}' matches a high-blast-radius path fragment")
 
     low_confidence = rubric_score < rubric_pass_floor or p_ik < p_ik_floor
     if rubric_score < rubric_pass_floor:
-        reasons.append(f"rubric score {rubric_score} below pass floor {rubric_pass_floor}")
+        reasons.append(
+            f"rubric score {rubric_score} below pass floor {rubric_pass_floor}"
+        )
     if p_ik < p_ik_floor:
         reasons.append(f"P(IK) {p_ik} below floor {p_ik_floor}")
 
-    route: Route = "human" if (high_risk_rule or high_blast_radius or low_confidence) else "auto"
+    route: Route = (
+        "human" if (high_risk_rule or high_blast_radius or low_confidence) else "auto"
+    )
     if route == "auto":
         reasons.append("no risk factors triggered")
 

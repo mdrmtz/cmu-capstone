@@ -16,12 +16,30 @@ from langchain_mcp_adapters.client import MultiServerMCPClient
 from langchain_mcp_adapters.sessions import Connection
 
 MCP_SERVERS: dict[str, Connection] = {
-    "angular-cli": {"transport": "stdio", "command": "npx", "args": ["-y", "@angular/cli", "mcp"]},
-    "chrome-devtools": {"transport": "stdio", "command": "npx", "args": ["chrome-devtools-mcp@latest"]},
-    "playwright": {"transport": "stdio", "command": "npx", "args": ["@playwright/mcp@latest"]},
+    "angular-cli": {
+        "transport": "stdio",
+        "command": "npx",
+        "args": ["-y", "@angular/cli", "mcp"],
+    },
+    "chrome-devtools": {
+        "transport": "stdio",
+        "command": "npx",
+        "args": ["chrome-devtools-mcp@latest"],
+    },
+    "playwright": {
+        "transport": "stdio",
+        "command": "npx",
+        "args": ["@playwright/mcp@latest"],
+    },
     "wcag": {"transport": "streamable_http", "url": "https://wcag-mcp.netlify.app/mcp"},
-    "docs-langchain": {"transport": "streamable_http", "url": "https://docs.langchain.com/mcp"},
-    "reference-langchain": {"transport": "streamable_http", "url": "https://reference.langchain.com/mcp"},
+    "docs-langchain": {
+        "transport": "streamable_http",
+        "url": "https://docs.langchain.com/mcp",
+    },
+    "reference-langchain": {
+        "transport": "streamable_http",
+        "url": "https://reference.langchain.com/mcp",
+    },
 }
 
 

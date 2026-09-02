@@ -15,7 +15,12 @@ BUILD_PASS_WEIGHT: float = 8.0
 AST_VALID_WEIGHT: float = 4.0
 WCAG_COMPLIANCE_WEIGHT: float = 5.0
 VISUAL_STABILITY_WEIGHT: float = 3.0
-MAX_TOTAL: float = BUILD_PASS_WEIGHT + AST_VALID_WEIGHT + WCAG_COMPLIANCE_WEIGHT + VISUAL_STABILITY_WEIGHT
+MAX_TOTAL: float = (
+    BUILD_PASS_WEIGHT
+    + AST_VALID_WEIGHT
+    + WCAG_COMPLIANCE_WEIGHT
+    + VISUAL_STABILITY_WEIGHT
+)
 
 CLS_THRESHOLD: float = 0.05
 BBOX_DRIFT_PCT_THRESHOLD: float = 2.0
@@ -29,7 +34,9 @@ class RubricComponents:
     ast_valid: bool
     wcag_judge_score: float  # LLM judge confidence in [0, 1]
     cls: float | None = None  # Cumulative Layout Shift, measured via chrome-devtools
-    bbox_drift_pct: float | None = None  # bounding-box drift %, measured via chrome-devtools
+    bbox_drift_pct: float | None = (
+        None  # bounding-box drift %, measured via chrome-devtools
+    )
 
 
 @dataclass(frozen=True)
@@ -46,7 +53,10 @@ def _visual_stability_points(components: RubricComponents) -> tuple[float, bool]
     """Full credit if both CLS and bbox drift are within threshold; 0 if not measured."""
     if components.cls is None or components.bbox_drift_pct is None:
         return 0.0, False
-    stable = components.cls <= CLS_THRESHOLD and components.bbox_drift_pct <= BBOX_DRIFT_PCT_THRESHOLD
+    stable = (
+        components.cls <= CLS_THRESHOLD
+        and components.bbox_drift_pct <= BBOX_DRIFT_PCT_THRESHOLD
+    )
     return (VISUAL_STABILITY_WEIGHT if stable else 0.0), True
 
 

@@ -23,7 +23,9 @@ class AxeNode(BaseModel):
 
     html: str = ""
     target: list[str] = Field(default_factory=list)
-    failureSummary: str | None = None  # noqa: N815 - axe-core's own camelCase field name
+    failureSummary: str | None = (
+        None  # noqa: N815 - axe-core's own camelCase field name
+    )
 
 
 class AxeViolation(BaseModel):
@@ -85,7 +87,11 @@ def validate_write_path(
     """
     root = root.resolve()
     candidate_path = Path(candidate)
-    resolved = candidate_path.resolve() if candidate_path.is_absolute() else (root / candidate_path).resolve()
+    resolved = (
+        candidate_path.resolve()
+        if candidate_path.is_absolute()
+        else (root / candidate_path).resolve()
+    )
 
     if not resolved.is_relative_to(root):
         return None, f"path escapes fixture root {root}: {candidate}"
@@ -106,7 +112,12 @@ def epistemic_gate(p_ik: float, threshold: float = DEFAULT_P_IK_THRESHOLD) -> di
         msg = f"p_ik must be in [0, 1], got {p_ik}"
         raise ValueError(msg)
     passed = p_ik >= threshold
-    return {"p_ik": p_ik, "threshold": threshold, "passed": passed, "verdict": "PASS" if passed else "BLOCK"}
+    return {
+        "p_ik": p_ik,
+        "threshold": threshold,
+        "passed": passed,
+        "verdict": "PASS" if passed else "BLOCK",
+    }
 
 
 # --- During-generation: overconfidence scanner (ported from Module-06 Lab 6.1) ---
@@ -183,10 +194,14 @@ def brier_score(predictions: list[float], outcomes: list[int]) -> float:
         raise ValueError(msg)
     if not predictions:
         return float("nan")
-    return sum((p - o) ** 2 for p, o in zip(predictions, outcomes, strict=True)) / len(predictions)
+    return sum((p - o) ** 2 for p, o in zip(predictions, outcomes, strict=True)) / len(
+        predictions
+    )
 
 
-def expected_calibration_error(predictions: list[float], outcomes: list[int], n_bins: int = 10) -> float:
+def expected_calibration_error(
+    predictions: list[float], outcomes: list[int], n_bins: int = 10
+) -> float:
     """Weighted average of |accuracy(bin) - confidence(bin)| across equal-width confidence bins."""
     if len(predictions) != len(outcomes):
         msg = "predictions and outcomes must be the same length"

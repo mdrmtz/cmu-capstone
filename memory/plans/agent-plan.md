@@ -2,7 +2,7 @@
 
 **System:** Autonomous Web Accessibility (WCAG 2.2 AA) Remediation for Angular SPAs
 **Repo:** `cmu-capstone/agent/`
-**Date:** 2026-08-31
+**Date:** 2026-08-31 (Phase 0/1/2 guardrail-wiring addendum: 2026-09-01)
 
 ---
 
@@ -33,7 +33,173 @@ returned an empty response for this model/provider combination. See
 
 ---
 
-## Status At A Glance (2026-08-31)
+## Recent Changes (2026-09-01 — dormant guardrail wiring: Phase 0-3)
+
+A follow-up architecture audit (`Module-07-Capstone-Project/capstone-system-architecture-diagrams.md`)
+found that `domain/guardrail_rules.py`, `domain/rubric.py`, and `domain/hitl_policy.py`
+were real and unit-tested but had **zero callers from live code** - the running
+agent never actually used any of them; routing was just the top-level LLM's own
+judgment. Wired three of these in, numbered as phases layered on top of (not
+replacing) the A-G plan above:
+
+| Phase | What was wired | Detail |
+| ----- | --------------- | ------ |
+| 0 — Input validation | `guardrail_rules.validate_raw_axe_reports()` | Called from `AxeAuditRunner.audit_pages()` and `cli.py`'s `--audit <path>` loader - a malformed axe-core report now fails fast (exit code 2) before the agent is even built. `check_confidence_calibration()` also wired via a new `cli.warn_on_overconfidence()` helper, called after every resolved violation in both `cli.py` and `run_eval.py`. |
+| 1 — Deterministic rubric scoring | `agents/qa_critic.py::score_rubric` | A new `@tool`-wrapped call into `domain/rubric.score_candidate()`, added to `qa_critic`'s tool list; its system prompt now mandates calling it and reporting the returned `total` verbatim instead of inventing a score. **Live-verified**: a real run confirmed the model calls `score_rubric` with real build/AST/WCAG/CLS measurements. |
+| 2 — Risk-based routing | `domain/hitl_policy.assess_risk()` | Wired into `cli.py::deliver_violation()` - the model's self-reported `route` is no longer trusted on its own. `assess_risk()` checks the rule, the actually-changed file path(s), the rubric score, and P(IK) (`score/20`), and may escalate `"auto"` to `"human"` - never the reverse; the model's own `"human"` call is always honored. |
+| 3 — Path + epistemic guardrails | `guardrail_rules.validate_write_path()` + `epistemic_gate()` | Both wired into `cli.py::deliver_violation()` as two more escalate-only signals alongside `assess_risk()`. `validate_write_path()` flags any changed file outside the fixture root or with a non-whitelisted extension (`.html`/`.ts`/`.scss`) - genuine defense-in-depth on top of deepagents' own `permissions=` allow-list. `epistemic_gate()` records its own PASS/BLOCK verdict in the queued JSON (`"epistemic_gate"` key) - **note:** at this call site it never disagrees with `assess_risk()`'s own `low_confidence` check, since both derive from the identical `p_ik = score / 20` and `15/20 == 0.75` matches `p_ik_floor` exactly - it adds an independently-recorded audit trail, not new escalation coverage, today. |
+
+**Bundled bug fix (Phase 2):** `deliver_violation()` previously returned immediately
+on `route == "human"` without ever calling `_capture_and_reset_git_changes()` -
+any real file writes were left uncommitted in the fixture's working tree,
+contaminating the next violation. Now the git diff is always captured (and the
+tree always reset) regardless of route.
+
+**Still genuinely open (not wired in this pass):** `hitl/review_queue.py`
+(this plan's originally-envisioned calibrated ROC/AUC Bounded Decider) still
+was never built - `assess_risk()` is a simpler, real substitute, not that
+design; see the Phase E row below. The plan's "Reject with Constraint"
+continual-learning loop is also **100% unimplemented** - `wiki_pipeline.
+ingest_lesson()` is real and tested but has zero live callers, and the
+dashboard's Approve/Reject buttons only write to `localStorage` with an
+`alert()` - no backend ever receives a human's actual decision.
+
+Verified: 246 tests passed, 4 e2e deselected, zero regressions. Full account
+in `agent/wiki/log.md`.
+
+---
+
+## Recent Changes (2026-09-01 — Phase E.3: calibrated ROC/AUC review queue)
+
+Built the plan's last missing Phase E piece: `hitl/review_queue.py`, porting
+Module-06 Lab 6.2's `TrajectoryLogger -> Monitor -> ReviewQueue` pattern (the
+lab this plan's own Phase E always cited) onto this domain, with the
+polarity flipped - that lab flags HIGH suspicion and calibrates against
+BENIGN traffic; this domain flags LOW confidence (P(IK)) and calibrates
+against historically-CLEARED cases (the closest equivalent of "benign" -
+the ones a false escalation would waste review time on).
+
+- `roc_auc`/`roc_points` - ported near-verbatim (AUC = P(score(positive) >
+  score(negative)), ties count half).
+- `calibrate_p_ik_floor(cleared_p_iks, target_fpr=0.05)` - the HIGHEST P(IK)
+  floor whose false-escalation rate on historically-cleared cases stays
+  within budget (the lab's `calibrate_threshold` picks the LOWEST
+  threshold within a benign false-positive budget; escalating below a
+  floor instead of above a threshold flips which end of the scale is
+  "most sensitive, still affordable").
+- `calibrate_from_results(results_path)` - loads a real `run_eval.py`
+  `results_summary.json` and calibrates from it; **falls back to
+  `hitl_policy.DEFAULT_P_IK_FLOOR` (uncalibrated) since that file still
+  doesn't exist** - running the real 22-case benchmark remains a
+  prerequisite this function does not perform itself. Not yet wired to
+  override `assess_risk()`'s live defaults for the same reason - there is
+  no real data to calibrate from yet, so doing so would not actually be
+  "calibrated," just a renamed hardcoded default.
+- `ReviewQueue` class wraps the existing filesystem `hitl_queue/` directory
+  (`list_pending()`/`review()`/`get_stats()`). **`review()` is the first
+  real capture point for a human's actual decision** - closes the
+  previously-flagged "Reject with Constraint" gap: reject calls
+  `wiki_pipeline.ingest_lesson()` for real; approve re-applies the
+  persisted diff via `pr_delivery.deliver()` (both were 100% dead ends
+  before this). `deliver_violation()` now also persists the actual
+  `changes` (file diffs) into the queued JSON so a later `review()` call
+  has something real to act on - previously only `response.code` (a
+  single snippet, not necessarily the full diff) survived past queueing.
+- New `cli.py review` subcommand: `a11y-fixer review --list`,
+  `a11y-fixer review <queue-file> --approve|--reject --notes "..."` -
+  without this, `ReviewQueue` would just be another dormant, unit-tested-
+  only module, exactly the anti-pattern this whole engagement has been
+  fixing.
+
+**Genuinely still open after this pass:** live calibration against real
+data (blocked on the same `run_eval.py` run as the compendium
+reconciliation); wiring `calibrate_from_results()`'s output into
+`deliver_violation()`'s `assess_risk()` call once real data exists; a
+dashboard-side UI for the new `review` subcommand (currently CLI-only).
+
+Verified: 272 tests passed (was 246, +26 new), 4 e2e deselected, zero
+regressions.
+
+---
+
+## Recent Changes (2026-09-01 — audit_crawler discover+audit encapsulation)
+
+Closed the gap flagged by the architecture audit: `audit_crawler` was wired
+as one of 4 live subagents but never actually reachable - neither `cli.py`
+nor `run_eval.py` ever asks the top-level agent to discover pages, since
+both always hand it an already-known violation. Added the actual mechanism
+to `agents/audit_crawler.py`:
+
+- `DiscoveredRoutes(BaseModel)` - a real Pydantic schema for the crawler's
+  output, replacing the old free-form "return the discovered route list"
+  prose (which had zero structure or validation).
+- `discover_routes(base_url) -> list[str]` - a **standalone single-agent
+  graph** (no subagent delegation - a one-shot task doesn't need it) built
+  from this module's own `SYSTEM_PROMPT` + Playwright tools, with
+  `response_format=ToolStrategy(schema=DiscoveredRoutes)`. Never raises -
+  returns `[]` on any failure so callers can fall back to `DEFAULT_PAGES`.
+- `discover_and_audit(runner: AxeAuditRunner) -> dict` - a route-aware
+  drop-in replacement for `runner.run()`: start the server, discover real
+  routes, run **one combined `audit_pages()` call** across all of them
+  (already produces a single normalized report), always stop the server.
+- `audit_crawler.build()`/`discover_routes()`/`discover_and_audit()` all
+  default to `DEFAULT_CRAWLER_MODEL = "openrouter:openrouter/free"` - a
+  narrow, bounded discovery task doesn't need the paid default the rest of
+  the agent uses, using the per-subagent `SubAgent["model"]` override
+  mechanism confirmed in `deepagents.graph` (`spec.get("model", model)`).
+- `config.is_default_fixture()` - new gate: `DEFAULT_PAGES` is only ever
+  correct for the bundled Hallucinate.io fixture, never a `--repo` override.
+- Wired into both `cli.py::_cmd_audit` and `_acmd_run`'s "run a fresh
+  audit" branch, gated on `is_default_fixture()` - the bundled fixture
+  keeps using the fast, free, known-good `DEFAULT_PAGES` path unchanged;
+  anything else now genuinely calls the crawler instead of silently
+  scanning Hallucinate.io's own (wrong) route list against a different app.
+
+**Deliberately out of scope for this pass** (separate, still-open thread):
+reverting `.env`'s `A11Y_LLM_BACKEND` to ollama for the other 3 subagents.
+
+Verified: 284 tests passed (was 272, +10 new: 2 `is_default_fixture` tests,
+6 `discover_routes`/`discover_and_audit` tests, 2 cli.py gating tests), 4
+e2e deselected, zero regressions.
+
+---
+
+## Recent Changes (2026-09-01 — `--url` live-site audit-only mode)
+
+Added the mode flagged as out-of-scope in the previous pass: `python -m
+a11y_fixer.cli audit --url <live-url>` audits an already-running site
+directly - no clone, no `npm install`, no `ng serve`.
+
+- `AxeAuditRunner.audit_urls(urls: list[str]) -> dict` - new method that
+  scans arbitrary full URLs directly (no assumption they're this runner's
+  own `host`/`port`), and touches no server lifecycle at all - a live site
+  needs nothing started. `audit_pages()` is refactored to delegate to it
+  (build `http://{host}:{port}{page}` urls, then call `audit_urls()`) -
+  same observable behavior, confirmed by all its existing tests still
+  passing unchanged.
+- `cli.py::_audit_live_url(url)` - calls `audit_crawler.discover_routes(url)`
+  directly (no `AxeAuditRunner` needed for discovery against a live site),
+  joins each discovered relative route onto the given base URL via
+  `urllib.parse.urljoin`, then calls the new `audit_urls()`. Falls back to
+  auditing just the one given URL if discovery finds nothing -
+  `DEFAULT_PAGES` would be actively wrong for an arbitrary external site.
+- New `--url` flag on the `audit` subcommand only (mutually exclusive with
+  `--repo`) - deliberately **not** added to `run`, since fixing a violation
+  needs a real local, writable clone for `codebase_compiler` and PR
+  delivery; there's nothing to write to for a live external URL.
+- `agents/audit_crawler.py`'s `SYSTEM_PROMPT` tightened: routes must be
+  relative paths (e.g. `"/about"`), not full URLs - the caller now joins
+  them with whichever base URL applies (local dev server or live site),
+  so this ambiguity needed to be pinned down explicitly rather than left
+  implicit.
+
+Verified: 291 tests passed (was 284, +7 new: 3 `audit_urls`/`audit_pages`-
+delegation tests, 4 cli.py `--url` parser/dispatch tests), 4 e2e
+deselected, zero regressions.
+
+---
+
+## Status At A Glance (2026-08-31, Phase E updated 2026-09-01, audit_crawler wired 2026-09-01)
 
 **"Next Steps (What Remains)" section below is stale** — every item in it was
 completed during the fresh-start rebuild. Kept as-is further down for the
@@ -57,7 +223,7 @@ migration reasoning; this table is the accurate status:
 | B     | Skills, wiki, `deep_agent.py`                | ✅ Done                  | `.agents/skills/a11y-fixer/`, `wiki_pipeline.py`, `deep_agent.py`                                                                                                                                                                                                                                                                                                                                         |
 | C     | ToT DFS + Codebase Compiler                  | ⚠️ Done differently      | `RubricMiddleware` replaces the live ToT loop (per this doc's own migration note); `domain/tot_search.py` kept as a pure algorithm for **offline** eval scoring only, not live. `adapters/sandbox/git_worktree.py` is real/tested but **not wired into the live Codebase Compiler** - it applies patches directly (permission-scoped) and verifies via the angular-cli MCP's `run_target`, not a worktree |
 | D     | QA Critic + rubric                           | ✅ Done                  | `domain/rubric.py`, `agents/qa_critic.py` (chrome-devtools MCP)                                                                                                                                                                                                                                                                                                                                           |
-| E     | Orchestration/guardrails/HITL/delivery       | ⚠️ Partial               | `orchestrator.py` correctly deleted; `guardrail_rules.py` exists; `adapters/pr/delivery.py` matches the plan exactly. **`hitl/review_queue.py` was never built** - `hitl/` is an empty stub package; real HITL is deepagents' native `interrupt_on` plus a plain filesystem JSON queue written directly in `cli.py`, not the planned calibrated-threshold/ROC-AUC Bounded Decider                         |
+| E     | Orchestration/guardrails/HITL/delivery       | ⚠️ Nearly done (data-calibration still pending) | `orchestrator.py` correctly deleted; `adapters/pr/delivery.py` matches the plan exactly. All 4 `guardrail_rules.py` predicates, `hitl_policy.assess_risk()`, **and now `hitl/review_queue.py`'s ROC/AUC Bounded Decider + a real `cli.py review` subcommand** are wired (see Recent Changes above) - routing, guardrails, and the reject/approve review loop are all real, not just the LLM's opinion. **Still missing:** `calibrate_from_results()` has never run against REAL data (`run_eval.py` still hasn't been executed for real) - `assess_risk()`'s floors remain the original hardcoded defaults, not yet data-calibrated                         |
 | F     | Evaluation + trigger + report reconciliation | ⚠️ Partial               | `benchmark_cases.json` (22 real cases) + `run_eval.py` exist and are unit-tested; `triggers/github-actions/a11y-fixer.yml` exists. **`run_eval.py` has never actually been executed** - no `results_summary.json` exists yet. **`capstone-complete-compendium.md` §7 still has its original placeholder numbers**, not reconciled                                                                         |
 | G     | Docker sandbox                               | ⚠️ Built, not integrated | `docker_backend.py` + `sandbox/Dockerfile` are real and tested (unit + real e2e container lifecycle) - confirmed via full-repo grep: zero references anywhere outside their own test files. Not used by the live agent (`permissions=` is incompatible with an execution-capable backend) or by `run_eval.py`                                                                                             |
 
@@ -67,6 +233,8 @@ migration reasoning; this table is the accurate status:
 - Reconcile `capstone-complete-compendium.md` §7 against those real numbers.
 - Decide whether to wire the Docker/git-worktree sandbox into something real, or relabel it in the file tree as reference-only.
 - Backlog subagents (`color_contrast_vision`, `alt_text_context`) - never started, but that's expected: they were always labeled Future Enhancements, not a phase deliverable.
+- **(2026-09-01)** Once a real `run_eval.py` run exists, wire `hitl/review_queue.calibrate_from_results()`'s output into `deliver_violation()`'s `assess_risk()` call so the P(IK) floor is actually data-calibrated instead of the current hardcoded default.
+- **(2026-09-01)** The new `cli.py review` subcommand is CLI-only - the dashboard's Approve/Reject buttons still only write to `localStorage`; wiring them to actually invoke it (or an equivalent backend) remains open if a GUI reviewer flow is wanted.
 
 | Change                               | Detail                                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
 | ------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -227,7 +395,7 @@ combined audit.json. (The `/home` / `/status` clean-baseline expectation was wro
   - `permissions` = Angular file scope (`**/*.component.{html,ts,scss}`)
   - `interrupt_on` = PR merge + high-risk rule edits (HITL Bounded Decider)
   - `response_format` = structured JSON per violation
-- `agents/audit_crawler.py` — converted to `SubAgent` spec (not wired yet).
+- `agents/audit_crawler.py` — converted to `SubAgent` spec. **Update 2026-09-01:** now wired - `deep_agent.py` builds it alongside `compliance_planner`/`codebase_compiler`/`qa_critic` as one of 4 live subagents.
 - `agents/compliance_planner.py` — converted to `SubAgent` spec with wcag-mcp tools. **explicitly attached** (subagents inherit neither
   skills nor memory from the orchestrator — confirmed by `deepagents-deep-dive` skills notebook)
 

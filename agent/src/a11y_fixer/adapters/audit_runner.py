@@ -105,15 +105,24 @@ class AxeAuditRunner:
 
     def audit_pages(self, pages: tuple[str, ...] = DEFAULT_PAGES) -> dict:
         """Run axe-core against every page in one CLI invocation and normalize the result."""
+        # http:// is correct here: `ng serve` is a local dev server with no TLS.
+        urls = [f"http://{self.host}:{self.port}{page}" for page in pages]  # noqa: S310
+        return self.audit_urls(urls)
+
+    def audit_urls(self, urls: list[str]) -> dict:
+        """Run axe-core against arbitrary full URLs in one CLI invocation and
+        normalize the result - unlike `audit_pages()`, these don't have to be
+        this runner's own managed `host`/`port`, and no server lifecycle is
+        touched here: a live external site needs nothing started, a local one
+        needs `start_server()` called first by the caller.
+        """
         npx = shutil.which("npx")
         if npx is None:
             msg = "npx not found on PATH"
             raise AuditRunnerError(msg)
 
-        # http:// is correct here: `ng serve` is a local dev server with no TLS.
-        urls = [f"http://{self.host}:{self.port}{page}" for page in pages]  # noqa: S310
         cmd = [npx, "@axe-core/cli", *urls, "--tags", ",".join(self.tags), "--stdout"]
-        # Fixed argv (urls are our own host:port), no shell.
+        # Fixed argv (caller-supplied urls, no shell interpolation).
         result = subprocess.run(  # noqa: S603
             cmd,
             cwd=self.fixture_path,

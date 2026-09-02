@@ -89,6 +89,43 @@ def _axe_report(url: str, violations: list[dict]) -> dict:
     return {"url": url, "violations": violations}
 
 
+def test_audit_urls_scans_arbitrary_urls_directly(runner: AxeAuditRunner, monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr("a11y_fixer.adapters.audit_runner.shutil.which", lambda _: "/usr/bin/npx")
+    reports = [_axe_report("https://example.com/about", [{"id": "image-alt", "nodes": [{}]}])]
+    fake_result = MagicMock(returncode=0, stdout=json.dumps(reports), stderr="")
+    captured_cmd: list[str] = []
+    monkeypatch.setattr(
+        subprocess, "run", lambda cmd, **_k: (captured_cmd.extend(cmd), fake_result)[1]  # noqa: ARG005
+    )
+
+    normalized = runner.audit_urls(["https://example.com/about"])
+
+    assert normalized["total_violation_instances"] == 1
+    assert "https://example.com/about" in captured_cmd
+
+
+def test_audit_urls_raises_if_npx_missing(runner: AxeAuditRunner, monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr("a11y_fixer.adapters.audit_runner.shutil.which", lambda _: None)
+
+    with pytest.raises(AuditRunnerError, match="npx not found"):
+        runner.audit_urls(["https://example.com/"])
+
+
+def test_audit_pages_delegates_to_audit_urls_with_host_port(runner: AxeAuditRunner, monkeypatch: pytest.MonkeyPatch) -> None:
+    captured_urls: list[str] = []
+
+    def _fake_audit_urls(urls: list[str]) -> dict:
+        captured_urls.extend(urls)
+        return {"ok": True}
+
+    monkeypatch.setattr(runner, "audit_urls", _fake_audit_urls)
+
+    result = runner.audit_pages(pages=("/", "/about"))
+
+    assert captured_urls == [f"http://{runner.host}:{runner.port}/", f"http://{runner.host}:{runner.port}/about"]
+    assert result == {"ok": True}
+
+
 def test_audit_pages_normalizes_list_output(runner: AxeAuditRunner, monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr("a11y_fixer.adapters.audit_runner.shutil.which", lambda _: "/usr/bin/npx")
     reports = [

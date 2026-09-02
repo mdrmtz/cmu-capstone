@@ -22,6 +22,16 @@ def test_to_virtual_path_rejects_path_outside_repo_root(tmp_path: Path) -> None:
         config.to_virtual_path(tmp_path)
 
 
+def test_is_default_fixture_true_with_no_override(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.delenv("A11Y_FIXTURE_PATH", raising=False)
+    assert config.is_default_fixture() is True
+
+
+def test_is_default_fixture_false_with_repo_override(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    monkeypatch.setenv("A11Y_FIXTURE_PATH", str(tmp_path))
+    assert config.is_default_fixture() is False
+
+
 def test_selected_llm_backend_defaults_to_ollama(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.delenv("A11Y_LLM_BACKEND", raising=False)
     monkeypatch.delenv("A11Y_LLM_MODEL", raising=False)

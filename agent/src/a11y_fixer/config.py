@@ -51,6 +51,14 @@ def fixture_path() -> Path:
     return _REPO_ROOT / FIXTURE_DIR_NAME
 
 
+def is_default_fixture() -> bool:
+    """True unless `--repo`/`A11Y_FIXTURE_PATH` points at something other than
+    the bundled Hallucinate.io fixture - `DEFAULT_PAGES` is only ever correct
+    for that one fixture, never for an arbitrary other repo.
+    """
+    return fixture_path() == _REPO_ROOT / FIXTURE_DIR_NAME
+
+
 def wiki_dir() -> Path:
     """Institutional-memory directory: HITL rejection lessons only."""
     return agent_root() / "wiki"
@@ -169,4 +177,8 @@ def resolve_pr_delivery(cli_live: bool | None) -> PRDeliveryConfig:
 
 
 def langsmith_tracing_enabled() -> bool:
-    return os.environ.get("LANGSMITH_TRACING", "").strip().lower() in {"true", "1", "yes"}
+    return os.environ.get("LANGSMITH_TRACING", "").strip().lower() in {
+        "true",
+        "1",
+        "yes",
+    }

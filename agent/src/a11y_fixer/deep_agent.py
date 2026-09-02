@@ -26,7 +26,12 @@ from a11y_fixer import config
 from a11y_fixer.adapters.audit_runner import AxeAuditRunner
 from a11y_fixer.adapters.mcp_clients import aget_tools
 from a11y_fixer.adapters.retrieval import wiki_pipeline
-from a11y_fixer.agents import audit_crawler, codebase_compiler, compliance_planner, qa_critic
+from a11y_fixer.agents import (
+    audit_crawler,
+    codebase_compiler,
+    compliance_planner,
+    qa_critic,
+)
 
 
 class ViolationResponse(BaseModel):
@@ -88,7 +93,9 @@ def _default_permissions(virtual_fixture: str) -> list[FilesystemPermission]:
     override (a narrower allow-list) may write fixture files.
     """
     return [
-        FilesystemPermission(operations=["read"], paths=[f"{virtual_fixture}/**"], mode="allow"),
+        FilesystemPermission(
+            operations=["read"], paths=[f"{virtual_fixture}/**"], mode="allow"
+        ),
         FilesystemPermission(operations=["write"], paths=["/**"], mode="deny"),
     ]
 
@@ -101,7 +108,9 @@ async def abuild_agent(
     """Async composition root: resolves every MCP-backed tool/subagent, then
     calls `create_deep_agent()` exactly once.
     """
-    from deepagents import create_deep_agent  # noqa: PLC0415 - deferred: keeps module import side-effect-free for tests
+    from deepagents import (
+        create_deep_agent,
+    )  # noqa: PLC0415 - deferred: keeps module import side-effect-free for tests
 
     config.configure_model_providers()
     model_spec = config.selected_llm_backend().model
@@ -129,7 +138,9 @@ async def abuild_agent(
             config.to_virtual_path(config.skills_dir() / "a11y-fixer"),
             config.to_virtual_path(config.skills_dir() / "cmu-capstone-docs"),
         ],
-        memory=[config.to_virtual_path(wiki_pipeline.memory_file_path(config.wiki_dir()))],
+        memory=[
+            config.to_virtual_path(wiki_pipeline.memory_file_path(config.wiki_dir()))
+        ],
         permissions=_default_permissions(virtual_fixture),
         interrupt_on={
             "write_file": InterruptOnConfig(allowed_decisions=["approve", "reject"]),
@@ -149,6 +160,10 @@ async def abuild_agent(
     )
 
 
-def build_agent(*, backend: BackendProtocol | None = None, checkpointer: BaseCheckpointSaver | None = None) -> CompiledStateGraph:
+def build_agent(
+    *,
+    backend: BackendProtocol | None = None,
+    checkpointer: BaseCheckpointSaver | None = None,
+) -> CompiledStateGraph:
     """Sync wrapper around `abuild_agent`, for callers outside an event loop (`cli.py`)."""
     return asyncio.run(abuild_agent(backend=backend, checkpointer=checkpointer))

@@ -72,7 +72,9 @@ class _NodeIdGenerator:
         return f"n{self._counter}"
 
 
-def _score_with_timeout(score: ScoreFn, candidate: Any, timeout_seconds: float) -> tuple[float, bool]:
+def _score_with_timeout(
+    score: ScoreFn, candidate: Any, timeout_seconds: float
+) -> tuple[float, bool]:
     """Run `score(candidate)` under a wall-clock timeout.
 
     A slow real evaluation (e.g. `ng build`) must not hang the search forever.
@@ -111,7 +113,9 @@ def dfs_search(
 
     def evaluate(candidate: Any, parent_id: str | None, depth: int) -> ToTNode:
         nonlocal evals, best
-        node_score, timed_out = _score_with_timeout(score, candidate, cfg.candidate_timeout_seconds)
+        node_score, timed_out = _score_with_timeout(
+            score, candidate, cfg.candidate_timeout_seconds
+        )
         evals += 1
         node = ToTNode(
             node_id=ids.next_id(),
@@ -126,11 +130,15 @@ def dfs_search(
             best = node
         return node
 
-    def generate_and_score(parent: ToTNode, k: int, temperature: float, negatives: list[str]) -> list[ToTNode]:
+    def generate_and_score(
+        parent: ToTNode, k: int, temperature: float, negatives: list[str]
+    ) -> list[ToTNode]:
         remaining = cfg.global_node_cap - evals
         if remaining <= 0:
             return []
-        candidates = generate(parent.candidate, min(k, remaining), temperature, negatives)
+        candidates = generate(
+            parent.candidate, min(k, remaining), temperature, negatives
+        )
         nodes: list[ToTNode] = []
         for candidate in candidates:
             if evals >= cfg.global_node_cap:
@@ -144,8 +152,13 @@ def dfs_search(
 
         children = generate_and_score(node, cfg.min_siblings, cfg.base_temperature, [])
         if children and all(child.pruned for child in children):
-            negatives = [f"candidate scored {child.score}: {child.candidate!r}" for child in children]
-            children = children + generate_and_score(node, cfg.max_siblings, cfg.max_temperature, negatives)
+            negatives = [
+                f"candidate scored {child.score}: {child.candidate!r}"
+                for child in children
+            ]
+            children = children + generate_and_score(
+                node, cfg.max_siblings, cfg.max_temperature, negatives
+            )
 
         node.children = children
         surviving = [c for c in children if not c.pruned]
