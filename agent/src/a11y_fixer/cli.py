@@ -34,7 +34,12 @@ from a11y_fixer.adapters.audit_runner import AxeAuditRunner, flatten_violation_i
 from a11y_fixer.adapters.pr import delivery as pr_delivery
 from a11y_fixer.adapters.pr.github_pr_manager import GitHubPRManager
 from a11y_fixer.adapters.repo_source import resolve_repo_source
-from a11y_fixer.adapters.violation_store import PrePipelineGate, ViolationStore
+from a11y_fixer.adapters.violation_store import (
+    PrePipelineGate,
+    HITLQueueGate,
+    ViolationStore,
+)
+from a11y_fixer.adapters.html_lang_applier import apply_html_lang
 from a11y_fixer.domain.guardrail_rules import (
     check_confidence_calibration,
     epistemic_gate,
@@ -42,11 +47,16 @@ from a11y_fixer.domain.guardrail_rules import (
     validate_write_path,
 )
 from a11y_fixer.domain.hitl_policy import assess_risk
+from a11y_fixer.domain.html_lang_fix import (
+    get_html_lang_fix,
+    is_html_lang_violation,
+)
 from a11y_fixer.domain.violations import (
     compute_violation_id,
     ViolationStatus,
     ViolationState,
 )
+from a11y_fixer.hitl.review_queue import calibrate_from_results
 
 if TYPE_CHECKING:
     from langgraph.graph.state import CompiledStateGraph
@@ -86,7 +96,7 @@ def _cmd_audit(args: argparse.Namespace) -> int:
             if config.is_default_fixture()
             else asyncio.run(audit_crawler.discover_and_audit(runner))
         )
-    output_path = Path(args.output)
+    output_path = config.agent_root() / DEFAULT_AUDIT_OUTPUT
     output_path.parent.mkdir(parents=True, exist_ok=True)
     output_path.write_text(json.dumps(report, indent=2), encoding="utf-8")
     print(  # noqa: T201 - CLI output
@@ -219,6 +229,7 @@ def deliver_violation(
     fixture: Path,
     pr_config: config.PRDeliveryConfig,
     output_dir: Path,
+    p_ik_floor: float | None = None,
 ) -> dict:
     """Route one resolved violation to the human queue or PR delivery.
 
@@ -227,6 +238,10 @@ def deliver_violation(
     invocation, before this function is ever called, so the human path must
     reset the working tree too or a queued violation's diff would
     contaminate the next violation.
+
+    Args:
+        p_ik_floor: Calibrated P(IK) floor from Phase 2/4 calibration. If provided,
+                   overrides the default threshold for HITL escalation. Phase 3-4 feature.
     """
     changes = _capture_and_reset_git_changes(fixture)
     if not changes:
@@ -244,12 +259,18 @@ def deliver_violation(
 
     p_ik = max(0.0, min(1.0, response.score / 20.0))
     gate = epistemic_gate(p_ik)
+    # Use calibrated floor if provided (Phase 4), otherwise defaults in assess_risk()
+    assess_risk_kwargs = {
+        "rule": violation["rule"],
+        "rubric_score": response.score,
+        "p_ik": p_ik,
+    }
+    if p_ik_floor is not None:
+        assess_risk_kwargs["p_ik_floor"] = p_ik_floor
     assessments = [
         assess_risk(
-            rule=violation["rule"],
             file_path=change.path,
-            rubric_score=response.score,
-            p_ik=p_ik,
+            **assess_risk_kwargs,
         )
         for change in changes
     ]
@@ -265,6 +286,27 @@ def deliver_violation(
 
     if route == "human":
         config.hitl_queue_dir().mkdir(parents=True, exist_ok=True)
+
+        # NEW: Deduplication gate for HITL queue (Phase 3 feature)
+        store = ViolationStore(status_file=config.agent_root() / ".violation_status.json")
+        queue_gate = HITLQueueGate(store)
+        
+        # Determine action: ADD, SKIP, or REPLACE
+        action, reason, old_queue_path = queue_gate.should_queue(
+            rule_id=violation["rule"],
+            selector=violation["selector"],
+            score=response.score,
+        )
+        
+        if action == "SKIP":
+            # Already queued with adequate or better solution
+            return {
+                "delivered": False,
+                "reason": f"hitl_queue_dedup: {reason}",
+                "route": route,
+            }
+        
+        # ADD or REPLACE: Write new queue entry
         queue_path = _hitl_queue_path(violation)
         queue_path.write_text(
             json.dumps(
@@ -280,7 +322,27 @@ def deliver_violation(
             ),
             encoding="utf-8",
         )
-        return {"delivered": False, "queue_path": str(queue_path), "route": route}
+        
+        # Record in violation store
+        queue_gate.record_queue_entry(
+            rule_id=violation["rule"],
+            selector=violation["selector"],
+            queue_path=str(queue_path),
+            score=response.score,
+        )
+        
+        # Clean up old queue entry if replacing
+        if action == "REPLACE" and old_queue_path:
+            old_path = Path(old_queue_path)
+            if old_path.exists():
+                old_path.unlink()  # Delete old file
+        
+        return {
+            "delivered": False,
+            "queue_path": str(queue_path),
+            "route": route,
+            "queue_action": action,
+        }
 
     # NEW: Task 2.1-2.3 - Compute violation ID and solution hash for tracking
     violation_id = compute_violation_id(violation["rule"], violation["selector"])
@@ -470,6 +532,41 @@ async def _acmd_run(args: argparse.Namespace) -> int:
         "replaced": 0,
     }
 
+    # FIX 2: Calibrate P(IK) floor from Phase 3 results (Phase 4 feature)
+    # Dynamically computes calibrated floor from evaluation results if available
+    p_ik_floor = None
+    results_summary_path = (
+        config.agent_root() / "evaluation" / "results" / "results_summary.json"
+    )
+    if results_summary_path.exists():
+        try:
+            # First, try to load pre-computed calibration (if it exists)
+            results_data = json.loads(results_summary_path.read_text(encoding="utf-8"))
+            p_ik_floor = results_data.get("calibrated_p_ik_floor")
+        except Exception:  # noqa: BLE001
+            pass  # Ignore if results file malformed
+    
+    # Phase 4: If no pre-computed calibration, compute it from phase results
+    if p_ik_floor is None:
+        # Try full Phase 3 results first (results_phase_all.json)
+        phase_results_path = config.agent_root() / "evaluation" / "results" / "results_phase_all.json"
+        if phase_results_path.exists():
+            try:
+                calibration = calibrate_from_results(phase_results_path, target_fpr=0.05)
+                if calibration.calibrated:
+                    p_ik_floor = calibration.p_ik_floor
+                    print(
+                        f"📊 Phase 4 Calibration: Computed P(IK) floor = {calibration.p_ik_floor:.3f} "
+                        f"(AUC={calibration.auc:.3f}, n={calibration.sample_size})"
+                    )  # noqa: T201
+                else:
+                    print(
+                        f"📊 Phase 4 Calibration: Insufficient data to calibrate "
+                        f"(n={calibration.sample_size}, using default floor)"
+                    )  # noqa: T201
+            except Exception as e:  # noqa: BLE001
+                print(f"⚠️  Calibration failed: {e}")  # noqa: T201
+
     graph = await abuild_agent()
 
     failures = 0
@@ -507,7 +604,60 @@ async def _acmd_run(args: argparse.Namespace) -> int:
             store.upsert(status)
             continue
 
-        # action == "CREATE" or "REPLACE" — proceed with full pipeline
+        # action == "CREATE" or "REPLACE" — check for html-lang fast-track
+        if is_html_lang_violation(violation):
+            print(f"🎯 [HTML-LANG] {violation_id}: Fast-track html-has-lang fix")  # noqa: T201
+            html_lang_fix = get_html_lang_fix()
+            apply_result = await apply_html_lang(fixture)
+
+            if apply_result["applied"]:
+                print("  ✅ Applied & verified (ng build passed)")  # noqa: T201
+
+                # Create ViolationResponse for delivery
+                from a11y_fixer.deep_agent import ViolationResponse  # noqa: PLC0415
+
+                html_lang_response = ViolationResponse(
+                    rule=violation["rule"],
+                    wcag=html_lang_fix.wcag_sc,
+                    selector=violation["selector"],
+                    technique_id=html_lang_fix.technique_id,
+                    code=html_lang_fix.template_code,
+                    rationale=html_lang_fix.rationale,
+                    score=20.0,  # Deterministic, build-verified
+                    route="auto",  # Auto-merge (bypasses HITL)
+                )
+
+                try:
+                    delivered = await deliver_violation(
+                        violation,
+                        html_lang_response,
+                        fixture=fixture,
+                        pr_config=pr_config,
+                        output_dir=output_dir,
+                        p_ik_floor=p_ik_floor,
+                    )
+                    print(f"  📤 Delivered: {delivered['route']} (auto-merge PR)")  # noqa: T201
+                    
+                    # Record as MERGED in violation store for deduplication
+                    store.mark_merged(
+                        violation_id=violation_id,
+                        rule_id=violation["rule"],
+                        selector=violation["selector"],
+                        pr_number=delivered.get("pr_number"),
+                    )
+                    
+                    metrics["created"] += 1
+                except Exception as e:  # noqa: BLE001
+                    print(f"  ❌ Delivery failed: {e}")  # noqa: T201
+                    failures += 1
+
+                continue  # Skip full pipeline, move to next violation
+            else:
+                print(f"  ⚠️  Fast-track failed: {apply_result.get('error')}")  # noqa: T201
+                print("  🔄 Falling back to full pipeline...")  # noqa: T201
+                # Fall through to normal pipeline
+
+        # Proceed with full pipeline (either not html-lang, or html-lang fast-track failed)
         print(f"▶️  Processing {violation_id}: {action}")  # noqa: T201
         metrics["created"] += 1
 
@@ -557,6 +707,7 @@ async def _acmd_run(args: argparse.Namespace) -> int:
                     fixture=fixture,
                     pr_config=pr_config,
                     output_dir=output_dir,
+                    p_ik_floor=p_ik_floor,
                 )
                 print(f"[{violation['rule']}] {outcome}")  # noqa: T201
 
@@ -674,15 +825,183 @@ def _cmd_review(args: argparse.Namespace) -> int:
     return 0
 
 
+def _cmd_queue_sync(args: argparse.Namespace) -> int:
+    """List and manage queue items, show sync status with GitHub PRs."""
+    from a11y_fixer.hitl.review_queue import (
+        ReviewQueue,
+    )  # noqa: PLC0415 - deferred
+
+    pr_config = config.resolve_pr_delivery(args.live)
+    output_dir = config.agent_root() / "evaluation" / "results" / "prs"
+    queue = ReviewQueue(
+        config.hitl_queue_dir(),
+        wiki_dir=config.wiki_dir(),
+        pr_config=pr_config,
+        output_dir=output_dir,
+    )
+
+    # Handle --check-merged first (separate from queue listing)
+    if args.check_merged:
+        return _check_merged_prs(pr_config, args.live)
+
+    pending = queue.list_pending()
+    stats = queue.get_stats()
+
+    # Show summary
+    print(f"\n📊 HITL Queue Status")  # noqa: T201
+    print(f"   Pending: {stats['pending']} | Reviewed: {stats['reviewed']} | Total: {stats['total']}")
+
+    if not pending:
+        print("   ✅ Queue is empty")  # noqa: T201
+        return 0
+
+    # Parse all pending items
+    items_by_score = []
+    for path in pending:
+        try:
+            data = json.loads(path.read_text(encoding="utf-8"))
+            violation = data.get("violation", {})
+            response = data.get("response", {})
+            score = response.get("score", 0)
+            rule = violation.get("rule", "unknown")
+            selector = violation.get("selector", "?")
+            items_by_score.append({
+                "path": path,
+                "filename": path.name,
+                "score": score,
+                "rule": rule,
+                "selector": selector,
+            })
+        except Exception as e:  # noqa: BLE001
+            print(f"   ⚠️  Failed to parse {path.name}: {e}")  # noqa: T201
+
+    items_by_score.sort(key=lambda x: x["score"], reverse=True)
+
+    # Show detailed list
+    print(f"\n📋 Pending Queue Items (sorted by score):")  # noqa: T201
+    for i, item in enumerate(items_by_score, 1):
+        score_emoji = "🟢" if item["score"] >= 18 else "🟡" if item["score"] >= 15 else "🔴"
+        print(
+            f"   {i}. [{score_emoji} {item['score']}/20] {item['rule']:20} | {item['selector'][:40]}"
+        )  # noqa: T201
+        print(f"      📄 {item['filename']}")  # noqa: T201
+
+    # If auto-approve flag, approve high-scoring items
+    if args.auto_approve:
+        high_score_items = [item for item in items_by_score if item["score"] >= 18.0]
+        if not high_score_items:
+            print(f"\n   No items with score ≥ 18.0 to auto-approve")  # noqa: T201
+            return 0
+
+        print(f"\n✅ Auto-approving {len(high_score_items)} high-scoring item(s):")  # noqa: T201
+        for item in high_score_items:
+            try:
+                result = queue.review(
+                    item["path"],
+                    "approve",
+                    reviewer="auto-sync",
+                    notes="Auto-approved by queue-sync: score ≥ 18.0",
+                )
+                pr_num = result.get("result", {}).get("pull_request_number", "?")
+                print(f"   ✓ {item['rule']:20} → PR #{pr_num}")  # noqa: T201
+            except Exception as e:  # noqa: BLE001
+                print(f"   ✗ {item['rule']:20} → Error: {e}")  # noqa: T201
+
+    return 0
+
+
+def _check_merged_prs(pr_config: config.PRDeliveryConfig, live: bool | None) -> int:
+    """Check GitHub for merged PRs and update violation store.
+
+    This syncs the system's view with GitHub's reality. If a PR was merged
+    manually in GitHub, this command detects it and updates the violation
+    store to `state = MERGED`, preventing duplicate PR creation on next audit.
+    """
+    import httpx
+
+    if not pr_config.github_token:
+        print("❌ GitHub token not configured (set GITHUB_TOKEN env var)")  # noqa: T201
+        return 1
+
+    store = ViolationStore(status_file=config.agent_root() / ".violation_status.json")
+
+    if not store._cache:
+        print("✅ No violations in store to check")  # noqa: T201
+        return 0
+
+    # Filter to PR_OPEN violations only
+    open_prs = [
+        (vid, status)
+        for vid, status in store._cache.items()
+        if status.state == ViolationState.PR_OPEN and status.current_pr_number
+    ]
+
+    if not open_prs:
+        print("✅ No open PRs to check")  # noqa: T201
+        return 0
+
+    print(f"\n🔄 Checking GitHub for merged PRs...")  # noqa: T201
+    print(f"   Total open PRs to check: {len(open_prs)}")  # noqa: T201
+
+    merged_count = 0
+    headers = {
+        "Authorization": f"Bearer {pr_config.github_token}",
+        "Accept": "application/vnd.github+json",
+        "X-GitHub-Api-Version": "2022-11-28",
+    }
+    owner, _, repo = pr_config.github_repo.partition("/")
+    base_url = "https://api.github.com"
+
+    with httpx.Client(base_url=base_url, headers=headers, timeout=30.0) as client:
+        for vid, status in open_prs:
+            pr_num = status.current_pr_number
+            try:
+                pr_resp = client.get(f"/repos/{owner}/{repo}/pulls/{pr_num}")
+                if pr_resp.status_code != 200:  # noqa: PLR2004
+                    print(f"   ⚠️  PR #{pr_num}: API error {pr_resp.status_code}")  # noqa: T201
+                    continue
+
+                pr_data = pr_resp.json()
+                is_merged = pr_data.get("merged", False) or pr_data.get("merged_at") is not None
+                state = pr_data.get("state")
+
+                if is_merged:
+                    print(
+                        f"   ✅ PR #{pr_num} [{status.rule_id}] is MERGED (score: {status.current_score}/20)"
+                    )  # noqa: T201
+                    # Update store
+                    status.state = ViolationState.MERGED
+                    status.updated_at = datetime.now(UTC)
+                    if live:
+                        store.upsert(status)
+                    merged_count += 1
+                else:
+                    print(
+                        f"   ⏳ PR #{pr_num} [{status.rule_id}] is {state.upper()} (not merged)"
+                    )  # noqa: T201
+            except Exception as e:  # noqa: BLE001
+                print(f"   ❌ PR #{pr_num}: Error: {e}")  # noqa: T201
+
+    if merged_count == 0:
+        print(f"\n   No merged PRs found")  # noqa: T201
+        return 0
+
+    if live:
+        store.save()
+        print(f"\n✅ Updated violation store: {merged_count} PR(s) marked as MERGED")  # noqa: T201
+    else:
+        print(f"\n📋 DRY-RUN: Would update {merged_count} PR(s) to MERGED state")  # noqa: T201
+        print(f"   Run with --live to persist changes")  # noqa: T201
+
+    return 0
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="a11y-fixer")
     subparsers = parser.add_subparsers(dest="command", required=True)
 
     audit_parser = subparsers.add_parser(
         "audit", help="Run a full axe-core audit against the fixture"
-    )
-    audit_parser.add_argument(
-        "--output", default=str(config.agent_root() / DEFAULT_AUDIT_OUTPUT)
     )
     audit_target_group = audit_parser.add_mutually_exclusive_group()
     audit_target_group.add_argument(
@@ -777,6 +1096,36 @@ def build_parser() -> argparse.ArgumentParser:
         help="Force dry-run delivery on --approve",
     )
     review_parser.set_defaults(func=_cmd_review)
+
+    queue_sync_parser = subparsers.add_parser(
+        "queue-sync",
+        help="List pending HITL queue items and auto-approve high-scoring fixes",
+    )
+    queue_sync_parser.add_argument(
+        "--auto-approve",
+        action="store_true",
+        help="Auto-approve all items with score ≥ 18.0 and deliver as PRs",
+    )
+    queue_sync_parser.add_argument(
+        "--check-merged",
+        action="store_true",
+        help="Check GitHub for manually merged PRs and update violation store",
+    )
+    queue_sync_parser_live_group = queue_sync_parser.add_mutually_exclusive_group()
+    queue_sync_parser_live_group.add_argument(
+        "--live",
+        dest="live",
+        action="store_true",
+        default=None,
+        help="Force live PR delivery for auto-approved items",
+    )
+    queue_sync_parser_live_group.add_argument(
+        "--no-live",
+        dest="live",
+        action="store_false",
+        help="Force dry-run delivery for auto-approved items",
+    )
+    queue_sync_parser.set_defaults(func=_cmd_queue_sync)
 
     return parser
 

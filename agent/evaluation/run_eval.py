@@ -28,7 +28,9 @@ from a11y_fixer.domain.guardrail_rules import brier_score, expected_calibration_
 
 BENCHMARK_CASES_PATH = Path(__file__).resolve().parent / "benchmark_cases.json"
 PHASES_PATH = Path(__file__).resolve().parent / "phases.yaml"
-DEFAULT_RESULTS_PATH = Path(__file__).resolve().parent / "results" / "results_summary.json"
+DEFAULT_RESULTS_PATH = (
+    Path(__file__).resolve().parent / "results" / "results_summary.json"
+)
 
 
 @dataclass
@@ -41,9 +43,24 @@ class CaseResult:
     cleared: bool
     latency_seconds: float
     error: str | None = None
+    scoring_details: dict | None = None  # Per-criterion breakdown from qa_critic
 
 
 def load_benchmark_cases(path: Path = BENCHMARK_CASES_PATH) -> list[dict]:
+    """Load benchmark test cases from JSON file.
+    
+    On fresh systems where evaluation/benchmark_cases.json doesn't exist yet,
+    returns an empty list. This allows the application and tests to work
+    without requiring the file to be pre-generated or version-controlled.
+    
+    Args:
+        path: Path to benchmark_cases.json (defaults to evaluation/benchmark_cases.json)
+    
+    Returns:
+        List of benchmark case dictionaries, or empty list if file doesn't exist
+    """
+    if not path.exists():
+        return []
     return json.loads(path.read_text(encoding="utf-8"))
 
 
@@ -71,22 +88,26 @@ def _matches_filter(case: dict, filter_spec: dict) -> bool:
         if case_from is not None and n < _case_number(case_from):
             return False
         return not (case_to is not None and n > _case_number(case_to))
-    return case.get("page") == filter_spec.get("page") and case.get("wcag") == filter_spec.get("wcag")
+    return case.get("page") == filter_spec.get("page") and case.get(
+        "wcag"
+    ) == filter_spec.get("wcag")
 
 
-def filter_cases_by_phase(cases: list[dict], phase_name: str) -> tuple[list[dict], dict]:
+def filter_cases_by_phase(
+    cases: list[dict], phase_name: str
+) -> tuple[list[dict], dict]:
     """Filter benchmark cases by phase definition.
-    
+
     Returns: (filtered_cases, phase_definition)
     """
     phases = load_phases()
     if phase_name not in phases:
         available = ", ".join(sorted(phases.keys()))
         raise ValueError(f"Phase '{phase_name}' not found. Available: {available}")
-    
+
     phase_def = phases[phase_name]
     filters = phase_def.get("filters", [])
-    
+
     # Apply all filters (OR logic — case matches if it satisfies ANY filter)
     filtered = []
     for case in cases:
@@ -94,16 +115,22 @@ def filter_cases_by_phase(cases: list[dict], phase_name: str) -> tuple[list[dict
             if _matches_filter(case, filter_spec):
                 filtered.append(case)
                 break  # Don't add duplicates
-    
+
     return filtered, phase_def
 
 
-def filter_cases_by_range(cases: list[dict], case_from: str | None, case_to: str | None) -> list[dict]:
+def filter_cases_by_range(
+    cases: list[dict], case_from: str | None, case_to: str | None
+) -> list[dict]:
     """Filter benchmark cases to an inclusive `case-NN` id range, for ad-hoc
     end-to-end runs (e.g. `--case-from case-01 --case-to case-05`) without
     needing a named entry in phases.yaml.
     """
-    return [case for case in cases if _matches_filter(case, {"case_from": case_from, "case_to": case_to})]
+    return [
+        case
+        for case in cases
+        if _matches_filter(case, {"case_from": case_from, "case_to": case_to})
+    ]
 
 
 def filter_cases_by_ids(cases: list[dict], case_ids: list[str]) -> list[dict]:
@@ -112,7 +139,6 @@ def filter_cases_by_ids(cases: list[dict], case_ids: list[str]) -> list[dict]:
     requested id with no matching case is simply absent from the result.
     """
     return [case for case in cases if _matches_filter(case, {"case_ids": case_ids})]
-
 
 
 def _confidence(result: CaseResult) -> float:
@@ -124,7 +150,10 @@ def _group_clearance_by_rule(results: list[CaseResult]) -> dict[str, dict]:
     by_rule: dict[str, list[CaseResult]] = {}
     for result in results:
         by_rule.setdefault(result.rule, []).append(result)
-    return {rule: {"total": len(rs), "cleared": sum(1 for r in rs if r.cleared)} for rule, rs in by_rule.items()}
+    return {
+        rule: {"total": len(rs), "cleared": sum(1 for r in rs if r.cleared)}
+        for rule, rs in by_rule.items()
+    }
 
 
 def compute_metrics(results: list[CaseResult]) -> dict[str, Any]:
@@ -170,7 +199,8 @@ async def _run_one_case(
     pr_config: config.PRDeliveryConfig,
     fixture: Path,
     output_dir: Path,
-    runner: AxeAuditRunner,
+    runner: AxeAuditRunner | None,
+    p_ik_floor: float | None = None,
 ) -> CaseResult:
     start = time.monotonic()
     message = (
@@ -184,47 +214,176 @@ async def _run_one_case(
 
     # Retry up to 3 times for non-deterministic empty responses
     MAX_ATTEMPTS = 3
-    CASE_TIMEOUT_SECONDS = 120  # 5-minute hard cap per case to prevent credit runaway
-    for attempt in range(MAX_ATTEMPTS):
-        thread_config = {"configurable": {"thread_id": f"{case['id']}-attempt{attempt + 1}", "recursion_limit": 50}}
-        try:
-            result = await asyncio.wait_for(
-                graph.ainvoke({"messages": [{"role": "user", "content": message}]}, config=thread_config),
-                timeout=CASE_TIMEOUT_SECONDS,
-            )
-            result = await cli.resolve_interrupts(graph, thread_config, result, auto_approve=True)
-            response = result.get("structured_response")
-
-            # Only retry if structured_response is None; other errors don't retry
-            if response is None:
-                if attempt < MAX_ATTEMPTS - 1:
-                    continue  # Try again with fresh thread_id
-                # All retries exhausted
-                return CaseResult(
-                    case_id=case["id"], rule=case["rule"], page=case["page"], route="human",
-                    rubric_score=0.0, cleared=False, latency_seconds=time.monotonic() - start,
-                    error="no structured response produced after retries",
+    CASE_TIMEOUT_SECONDS = 300  # 5-minute hard cap per case to prevent credit runaway
+    try:
+        for attempt in range(MAX_ATTEMPTS):
+            thread_config = {
+                "configurable": {
+                    "thread_id": f"{case['id']}-attempt{attempt + 1}",
+                    "recursion_limit": 50,
+                }
+            }
+            try:
+                result = await asyncio.wait_for(
+                    graph.ainvoke(
+                        {"messages": [{"role": "user", "content": message}]},
+                        config=thread_config,
+                    ),
+                    timeout=CASE_TIMEOUT_SECONDS,
                 )
+                result = await cli.resolve_interrupts(
+                    graph, thread_config, result, auto_approve=True
+                )
+                response = result.get("structured_response")
 
-            # Successfully got a response
-            cli.warn_on_overconfidence(case["id"], response.rationale)
-            outcome = cli.deliver_violation(case, response, fixture=fixture, pr_config=pr_config, output_dir=output_dir)
-            cleared = _recheck_cleared(runner, case)
-            return CaseResult(
-                case_id=case["id"], rule=case["rule"], page=case["page"], route=outcome["route"],
-                rubric_score=response.score, cleared=cleared, latency_seconds=time.monotonic() - start,
-            )
-        except asyncio.TimeoutError:
-            return CaseResult(
-                case_id=case["id"], rule=case["rule"], page=case["page"], route="human",
-                rubric_score=0.0, cleared=False, latency_seconds=time.monotonic() - start,
-                error=f"case timed out after {CASE_TIMEOUT_SECONDS}s",
-            )
-        except Exception as exc:  # noqa: BLE001 - one case's failure must not abort the whole benchmark run
-            return CaseResult(
-                case_id=case["id"], rule=case["rule"], page=case["page"], route="human",
-                rubric_score=0.0, cleared=False, latency_seconds=time.monotonic() - start, error=str(exc),
-            )
+                # Only retry if structured_response is None; other errors don't retry
+                if response is None:
+                    if attempt < MAX_ATTEMPTS - 1:
+                        continue  # Try again with fresh thread_id
+                    # All retries exhausted
+                    return CaseResult(
+                        case_id=case["id"],
+                        rule=case["rule"],
+                        page=case["page"],
+                        route="human",
+                        rubric_score=0.0,
+                        cleared=False,
+                        latency_seconds=time.monotonic() - start,
+                        error="no structured response produced after retries",
+                    )
+
+                # Successfully got a response
+                cli.warn_on_overconfidence(case["id"], response.rationale)
+                # FIX: Check clearance BEFORE fixture reset. deliver_violation() calls
+                # _capture_and_reset_git_changes() which reverts all code changes, so the
+                # violation recheck must happen while the fix is still applied.
+                # In worktree mode runner=None: skip axe recheck (worktree is torn down after); cleared=False conservative default
+                cleared = _recheck_cleared(runner, case) if runner is not None else False
+                outcome = cli.deliver_violation(
+                    case,
+                    response,
+                    fixture=fixture,
+                    pr_config=pr_config,
+                    output_dir=output_dir,
+                    p_ik_floor=p_ik_floor,
+                )
+                return CaseResult(
+                    case_id=case["id"],
+                    rule=case["rule"],
+                    page=case["page"],
+                    route=outcome["route"],
+                    rubric_score=response.score,
+                    cleared=cleared,
+                    latency_seconds=time.monotonic() - start,
+                    scoring_details=response.scoring_details,
+                )
+            except asyncio.TimeoutError:
+                return CaseResult(
+                    case_id=case["id"],
+                    rule=case["rule"],
+                    page=case["page"],
+                    route="human",
+                    rubric_score=0.0,
+                    cleared=False,
+                    latency_seconds=time.monotonic() - start,
+                    error=f"case timed out after {CASE_TIMEOUT_SECONDS}s",
+                )
+            except (
+                Exception
+            ) as exc:  # noqa: BLE001 - one case's failure must not abort the whole benchmark run
+                return CaseResult(
+                    case_id=case["id"],
+                    rule=case["rule"],
+                    page=case["page"],
+                    route="human",
+                    rubric_score=0.0,
+                    cleared=False,
+                    latency_seconds=time.monotonic() - start,
+                    error=str(exc),
+                )
+    finally:
+        # FIX: Always reset fixture state, even on error/timeout
+        # Idempotent: safe to call even if already reset by deliver_violation()
+        try:
+            cli._capture_and_reset_git_changes(fixture)
+        except Exception:
+            pass  # Ignore cleanup errors
+
+
+def _save_observability_logs(
+    results: list[CaseResult], phase_name: str = "all"
+) -> Path:
+    """Save detailed observability logs to observability/log/ folder.
+
+    Creates:
+    - scores_breakdown.json: Per-criterion scoring details for analysis
+    - metrics_summary.json: Phase-level metrics and calibration info
+    """
+    import datetime
+
+    log_dir = config.agent_root() / "observability" / "log"
+    log_dir.mkdir(parents=True, exist_ok=True)
+
+    timestamp = datetime.datetime.now(datetime.timezone.utc).isoformat()
+
+    # Build detailed breakdown with all scoring info
+    scores_breakdown = {
+        "phase": phase_name,
+        "timestamp": timestamp,
+        "total_cases": len(results),
+        "cases": [],
+    }
+
+    for result in results:
+        case_log = {
+            "case_id": result.case_id,
+            "rule": result.rule,
+            "page": result.page,
+            "rubric_score": result.rubric_score,
+            "cleared": result.cleared,
+            "route": result.route,
+            "latency_seconds": result.latency_seconds,
+            "error": result.error,
+        }
+
+        # Include detailed scoring breakdown if available
+        if result.scoring_details:
+            case_log["scoring_details"] = result.scoring_details
+
+        scores_breakdown["cases"].append(case_log)
+
+    # Save scoring breakdown
+    scores_file = log_dir / f"scores-breakdown-{phase_name}.json"
+    scores_file.write_text(json.dumps(scores_breakdown, indent=2), encoding="utf-8")
+    print(
+        f"📊 Observability: Saved scoring breakdown to {scores_file.relative_to(config.agent_root())}"
+    )  # noqa: T201
+
+    # Save metrics summary
+    metrics_summary = {
+        "phase": phase_name,
+        "timestamp": timestamp,
+        "summary": compute_metrics(results),
+        "cases_by_route": {
+            "auto": len([r for r in results if r.route == "auto"]),
+            "human": len([r for r in results if r.route == "human"]),
+        },
+        "cases_by_error": {
+            "cleared": len([r for r in results if r.cleared]),
+            "errored": len([r for r in results if r.error is not None]),
+            "pending_review": len(
+                [r for r in results if not r.cleared and r.error is None]
+            ),
+        },
+    }
+
+    metrics_file = log_dir / f"metrics-summary-{phase_name}.json"
+    metrics_file.write_text(json.dumps(metrics_summary, indent=2), encoding="utf-8")
+    print(
+        f"📊 Observability: Saved metrics summary to {metrics_file.relative_to(config.agent_root())}"
+    )  # noqa: T201
+
+    return log_dir
 
 
 async def _arun_eval(
@@ -232,31 +391,101 @@ async def _arun_eval(
     cases_path: Path = BENCHMARK_CASES_PATH,
     output_path: Path = DEFAULT_RESULTS_PATH,
     live: bool | None = False,
+    use_worktree: bool = False,
 ) -> dict[str, Any]:
-    from a11y_fixer.deep_agent import abuild_agent  # noqa: PLC0415 - deferred: keeps compute_metrics importable with no MCP/network cost
+    from a11y_fixer.deep_agent import (
+        abuild_agent,
+        abuild_graph,
+        aresolve_tools,
+    )  # noqa: PLC0415 - deferred: keeps compute_metrics importable with no MCP/network cost
 
     cases = load_benchmark_cases(cases_path)
     pr_config = config.resolve_pr_delivery(live)
     fixture = config.fixture_path()
     output_dir = config.agent_root() / "evaluation" / "results" / "prs"
 
-    graph = await abuild_agent()
+    # FIX 2: Load calibrated P(IK) floor from previous Phase 2 results (if available)
+    # This threads calibration through for Phase 4 validation
+    p_ik_floor = None
+    if output_path.exists():
+        try:
+            results_data = json.loads(output_path.read_text(encoding="utf-8"))
+            p_ik_floor = results_data.get("calibrated_p_ik_floor")
+            if p_ik_floor is not None:
+                print(
+                    f"📊 Loaded calibrated P(IK) floor: {p_ik_floor:.3f} from previous Phase 2 results"
+                )  # noqa: T201
+        except Exception:  # noqa: BLE001
+            pass  # Ignore if results file malformed
 
-    # Start server once for all cases to reuse browser session across cases
-    runner = AxeAuditRunner(fixture_path=fixture)
-    runner.start_server()
-    try:
-        results = [
-            await _run_one_case(graph, case, pr_config=pr_config, fixture=fixture, output_dir=output_dir, runner=runner) for case in cases
-        ]
-    finally:
-        runner.stop_server()
+    if use_worktree:
+        # Worktree mode: resolve MCP tools once, then per-case isolated worktree
+        # prevents fixture bleed between cases. Axe re-audit skipped (runner=None)
+        # because each worktree is torn down after its case finishes.
+        from a11y_fixer.adapters.sandbox.git_worktree import (  # noqa: PLC0415
+            create_worktree,
+            remove_worktree,
+        )
+
+        print("🌲 Worktree mode: one isolated git worktree per benchmark case")  # noqa: T201
+        resolved = await aresolve_tools()
+        results = []
+        for case in cases:
+            branch_name = f"a11y-fixer/{case['id']}"
+            worktree = create_worktree(
+                config.repo_root(),
+                base_dir=config.repo_root(),
+                branch_name=branch_name,
+                link_dirs=("Hallucinate.io/node_modules",),
+            )
+            try:
+                wt_fixture = worktree.path / "Hallucinate.io"
+                graph = abuild_graph(resolved, fixture_path=wt_fixture)
+                result = await _run_one_case(
+                    graph,
+                    case,
+                    pr_config=pr_config,
+                    fixture=wt_fixture,
+                    output_dir=output_dir,
+                    runner=None,  # No axe recheck in worktree mode
+                    p_ik_floor=p_ik_floor,
+                )
+            finally:
+                remove_worktree(worktree)
+            results.append(result)
+    else:
+        graph = await abuild_agent()
+
+        # Start server once for all cases to reuse browser session across cases
+        runner = AxeAuditRunner(fixture_path=fixture)
+        runner.start_server()
+        try:
+            results = [
+                await _run_one_case(
+                    graph,
+                    case,
+                    pr_config=pr_config,
+                    fixture=fixture,
+                    output_dir=output_dir,
+                    runner=runner,
+                    p_ik_floor=p_ik_floor,
+                )
+                for case in cases
+            ]
+        finally:
+            runner.stop_server()
 
     summary = compute_metrics(results)
     output_path.parent.mkdir(parents=True, exist_ok=True)
     output_path.write_text(
-        json.dumps({"summary": summary, "cases": [vars(r) for r in results]}, indent=2), encoding="utf-8"
+        json.dumps({"summary": summary, "cases": [vars(r) for r in results]}, indent=2),
+        encoding="utf-8",
     )
+
+    # Save detailed observability logs
+    phase_name = output_path.stem.replace("results_", "").replace("_summary", "")
+    _save_observability_logs(results, phase_name=phase_name)
+
     return summary
 
 
@@ -265,11 +494,21 @@ def run_eval(
     cases_path: Path = BENCHMARK_CASES_PATH,
     output_path: Path = DEFAULT_RESULTS_PATH,
     live: bool | None = False,
+    use_worktree: bool = False,
 ) -> dict[str, Any]:
-    return asyncio.run(_arun_eval(cases_path=cases_path, output_path=output_path, live=live))
+    return asyncio.run(
+        _arun_eval(
+            cases_path=cases_path,
+            output_path=output_path,
+            live=live,
+            use_worktree=use_worktree,
+        )
+    )
 
 
-def _resolve_phase(args: argparse.Namespace, all_cases: list[dict]) -> tuple[Path, str, bool] | None:
+def _resolve_phase(
+    args: argparse.Namespace, all_cases: list[dict]
+) -> tuple[Path, str, bool] | None:
     """Resolve `--phase` into `(cases_path, description, live)`.
 
     Returns `None` if the phase matched zero cases - the caller should print
@@ -307,7 +546,9 @@ def _resolve_phase(args: argparse.Namespace, all_cases: list[dict]) -> tuple[Pat
     return temp_cases_path, cases_path_desc, live
 
 
-def _resolve_case_range(args: argparse.Namespace, all_cases: list[dict]) -> tuple[Path, str, bool] | None:
+def _resolve_case_range(
+    args: argparse.Namespace, all_cases: list[dict]
+) -> tuple[Path, str, bool] | None:
     """Resolve `--case-from`/`--case-to` into `(cases_path, description, live)`,
     for an ad-hoc end-to-end range that has no named entry in phases.yaml.
 
@@ -315,7 +556,9 @@ def _resolve_case_range(args: argparse.Namespace, all_cases: list[dict]) -> tupl
     """
     filtered_cases = filter_cases_by_range(all_cases, args.case_from, args.case_to)
     if not filtered_cases:
-        print(f"case range {args.case_from!r} to {args.case_to!r} matched 0 cases")  # noqa: T201
+        print(
+            f"case range {args.case_from!r} to {args.case_to!r} matched 0 cases"
+        )  # noqa: T201
         return None
 
     label = f"{args.case_from or 'case-01'} to {args.case_to or 'case-22'}"
@@ -324,22 +567,30 @@ def _resolve_case_range(args: argparse.Namespace, all_cases: list[dict]) -> tupl
     return temp_cases_path, f"Cases {label}", args.live
 
 
-def _resolve_case_ids(args: argparse.Namespace, all_cases: list[dict]) -> tuple[Path, str, bool] | None:
+def _resolve_case_ids(
+    args: argparse.Namespace, all_cases: list[dict]
+) -> tuple[Path, str, bool] | None:
     """Resolve `--case-ids` into `(cases_path, description, live)`, for an
     explicit, possibly non-contiguous list (e.g. case-01,case-04,case-15).
 
     Returns `None` if none of the requested ids matched a real case.
     """
-    requested = [case_id.strip() for case_id in args.case_ids.split(",") if case_id.strip()]
+    requested = [
+        case_id.strip() for case_id in args.case_ids.split(",") if case_id.strip()
+    ]
     filtered_cases = filter_cases_by_ids(all_cases, requested)
 
     found_ids = {case["id"] for case in filtered_cases}
     missing = [case_id for case_id in requested if case_id not in found_ids]
     if missing:
-        print(f"warning: requested case id(s) not found, skipping: {', '.join(missing)}")  # noqa: T201
+        print(
+            f"warning: requested case id(s) not found, skipping: {', '.join(missing)}"
+        )  # noqa: T201
 
     if not filtered_cases:
-        print(f"none of the requested case ids matched a real case: {args.case_ids}")  # noqa: T201
+        print(
+            f"none of the requested case ids matched a real case: {args.case_ids}"
+        )  # noqa: T201
         return None
 
     temp_cases_path = Path(__file__).resolve().parent / "_temp_case_ids_cases.json"
@@ -347,16 +598,24 @@ def _resolve_case_ids(args: argparse.Namespace, all_cases: list[dict]) -> tuple[
     return temp_cases_path, f"Cases {', '.join(sorted(found_ids))}", args.live
 
 
-def _resolve_run_target(args: argparse.Namespace, all_cases: list[dict]) -> tuple[Path, str, bool, bool] | None:
+def _resolve_run_target(
+    args: argparse.Namespace, all_cases: list[dict]
+) -> tuple[Path, str, bool, bool] | None:
     """Resolve which cases to run: `--case-ids`, `--case-from`/`--case-to`, `--phase`, or `--cases`.
 
     Returns `(cases_path, description, live, uses_temp_file)`, or `None` if
     the caller should print an error and exit (conflicting flags, or a
     filter matched 0 cases).
     """
-    ad_hoc_modes = [bool(args.case_ids), bool(args.case_from or args.case_to), bool(args.phase)]
+    ad_hoc_modes = [
+        bool(args.case_ids),
+        bool(args.case_from or args.case_to),
+        bool(args.phase),
+    ]
     if sum(ad_hoc_modes) > 1:
-        print("--case-ids, --case-from/--case-to, and --phase are mutually exclusive")  # noqa: T201
+        print(
+            "--case-ids, --case-from/--case-to, and --phase are mutually exclusive"
+        )  # noqa: T201
         return None
 
     if args.case_ids:
@@ -443,6 +702,16 @@ Examples:
         action="store_true",
         help="Force dry-run (overrides phase default)",
     )
+    parser.add_argument(
+        "--worktree",
+        action="store_true",
+        default=False,
+        help=(
+            "Run each case in an isolated git worktree so fixture changes never "
+            "bleed across cases. MCP tools are resolved once; axe re-audit is "
+            "skipped (worktree is torn down after each case)."
+        ),
+    )
 
     args = parser.parse_args(argv)
 
@@ -469,12 +738,14 @@ Examples:
     print(f"🔴 Live PR delivery: {live}\n")
 
     if live:
-        response = input("⚠️  WARNING: Live PR delivery is enabled! Continue? (type 'yes'): ")
+        response = input(
+            "⚠️  WARNING: Live PR delivery is enabled! Continue? (type 'yes'): "
+        )
         if response.strip().lower() != "yes":
             print("Cancelled.")
             return 1
 
-    summary = run_eval(cases_path=cases_path, output_path=output_path, live=live)
+    summary = run_eval(cases_path=cases_path, output_path=output_path, live=live, use_worktree=args.worktree)
     print(json.dumps(summary, indent=2))  # noqa: T201
 
     # Clean up temp file if created

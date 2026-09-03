@@ -70,6 +70,10 @@ class ViolationStatus:
     best_solution_hash: str = ""
     best_score: float = 0.0
 
+    # HITL queue tracking (deduplication)
+    hitl_queue_path: Optional[str] = None  # Path to current queue entry
+    hitl_queue_score: Optional[float] = None  # Score of queued solution
+
     # Timeline
     created_at: datetime = field(default_factory=lambda: datetime.now(UTC))
     updated_at: datetime = field(default_factory=lambda: datetime.now(UTC))
@@ -91,6 +95,8 @@ class ViolationStatus:
             "current_solution_hash": self.current_solution_hash,
             "best_solution_hash": self.best_solution_hash,
             "best_score": self.best_score,
+            "hitl_queue_path": self.hitl_queue_path,
+            "hitl_queue_score": self.hitl_queue_score,
             "created_at": self.created_at.isoformat(),
             "updated_at": self.updated_at.isoformat(),
             "closed_at": self.closed_at.isoformat() if self.closed_at else None,
@@ -101,6 +107,12 @@ class ViolationStatus:
     @classmethod
     def from_dict(cls, data: dict) -> ViolationStatus:
         """Deserialize from JSON storage."""
+        # Handle missing/null datetime fields gracefully with defaults
+        def parse_datetime(dt_str: str | None) -> datetime:
+            if not dt_str:
+                return datetime.now(UTC)
+            return datetime.fromisoformat(dt_str)
+
         return cls(
             violation_id=data["violation_id"],
             rule_id=data["rule_id"],
@@ -111,10 +123,12 @@ class ViolationStatus:
             current_solution_hash=data.get("current_solution_hash", ""),
             best_solution_hash=data.get("best_solution_hash", ""),
             best_score=data.get("best_score", 0.0),
-            created_at=datetime.fromisoformat(data["created_at"]),
-            updated_at=datetime.fromisoformat(data["updated_at"]),
+            hitl_queue_path=data.get("hitl_queue_path"),
+            hitl_queue_score=data.get("hitl_queue_score"),
+            created_at=parse_datetime(data.get("created_at")),
+            updated_at=parse_datetime(data.get("updated_at")),
             closed_at=(
-                datetime.fromisoformat(data["closed_at"])
+                parse_datetime(data.get("closed_at"))
                 if data.get("closed_at")
                 else None
             ),

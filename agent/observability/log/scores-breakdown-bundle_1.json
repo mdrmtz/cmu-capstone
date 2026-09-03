@@ -1,0 +1,47 @@
+{
+  "phase": "bundle_1",
+  "timestamp": "2026-09-02T21:12:27.820895+00:00",
+  "total_cases": 4,
+  "cases": [
+    {
+      "case_id": "case-01",
+      "rule": "html-has-lang",
+      "page": "/about",
+      "rubric_score": 19.0,
+      "cleared": false,
+      "route": "auto",
+      "latency_seconds": 75.9621106669947,
+      "error": null
+    },
+    {
+      "case_id": "case-02",
+      "rule": "color-contrast",
+      "page": "/about",
+      "rubric_score": 0.0,
+      "cleared": false,
+      "route": "human",
+      "latency_seconds": 301.0285972089914,
+      "error": "unhandled errors in a TaskGroup (1 sub-exception)"
+    },
+    {
+      "case_id": "case-03",
+      "rule": "html-has-lang",
+      "page": "/contact",
+      "rubric_score": 16.0,
+      "cleared": false,
+      "route": "human",
+      "latency_seconds": 123.2531961670029,
+      "error": null
+    },
+    {
+      "case_id": "case-04",
+      "rule": "html-has-lang",
+      "page": "/pricing",
+      "rubric_score": 0.0,
+      "cleared": false,
+      "route": "human",
+      "latency_seconds": 16.412227041990263,
+      "error": "Request blocked: PII detected (invalid_json_after_redaction)"
+    }
+  ]
+}

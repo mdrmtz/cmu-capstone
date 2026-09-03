@@ -1,0 +1,60 @@
+{
+  "summary": {
+    "total_cases": 3,
+    "violation_clearance_rate": 0.3333333333333333,
+    "human_escalation_rate": 0.6666666666666666,
+    "error_rate": 0.6666666666666666,
+    "mean_latency_seconds": 143.06416955565996,
+    "brier_score": 0.013333333333333327,
+    "expected_calibration_error": 0.06666666666666665,
+    "by_rule": {
+      "color-contrast": {
+        "total": 1,
+        "cleared": 1
+      },
+      "image-alt": {
+        "total": 2,
+        "cleared": 0
+      }
+    }
+  },
+  "cases": [
+    {
+      "case_id": "case-14",
+      "rule": "color-contrast",
+      "page": "/",
+      "route": "auto",
+      "rubric_score": 16.0,
+      "cleared": true,
+      "latency_seconds": 104.18214816699037,
+      "error": null,
+      "scoring_details": {
+        "ast_valid": true,
+        "build_passed": true,
+        "visual_stability": null
+      }
+    },
+    {
+      "case_id": "case-15",
+      "rule": "image-alt",
+      "page": "/pricing",
+      "route": "human",
+      "rubric_score": 0.0,
+      "cleared": false,
+      "latency_seconds": 24.974552041996503,
+      "error": "Request blocked: PII detected (invalid_json_after_redaction)",
+      "scoring_details": null
+    },
+    {
+      "case_id": "case-16",
+      "rule": "image-alt",
+      "page": "/about",
+      "route": "human",
+      "rubric_score": 0.0,
+      "cleared": false,
+      "latency_seconds": 300.03580845799297,
+      "error": "case timed out after 300s",
+      "scoring_details": null
+    }
+  ]
+}

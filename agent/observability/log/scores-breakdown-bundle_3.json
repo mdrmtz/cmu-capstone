@@ -1,0 +1,49 @@
+{
+  "phase": "bundle_3",
+  "timestamp": "2026-09-02T22:08:38.811991+00:00",
+  "total_cases": 3,
+  "cases": [
+    {
+      "case_id": "case-08",
+      "rule": "image-alt",
+      "page": "/features",
+      "rubric_score": 19.0,
+      "cleared": true,
+      "route": "auto",
+      "latency_seconds": 87.618464166997,
+      "error": null
+    },
+    {
+      "case_id": "case-09",
+      "rule": "html-has-lang",
+      "page": "/",
+      "rubric_score": 19.5,
+      "cleared": false,
+      "route": "auto",
+      "latency_seconds": 151.47515199999907,
+      "error": null,
+      "scoring_details": {
+        "build_error": null,
+        "ast_error": null,
+        "wcag_judge_confidence": 90,
+        "visual_error": null
+      }
+    },
+    {
+      "case_id": "case-10",
+      "rule": "link-name",
+      "page": "/features",
+      "rubric_score": 19.0,
+      "cleared": true,
+      "route": "auto",
+      "latency_seconds": 67.81848995800829,
+      "error": null,
+      "scoring_details": {
+        "build_pass": 8.0,
+        "ast_valid": 4.0,
+        "wcag_compliance": 4.0,
+        "visual_stability": 3.0
+      }
+    }
+  ]
+}

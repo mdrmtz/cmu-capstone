@@ -1,0 +1,40 @@
+{
+  "phase": "bundle_7",
+  "timestamp": "2026-09-02T23:52:45.522037+00:00",
+  "total_cases": 3,
+  "cases": [
+    {
+      "case_id": "case-20",
+      "rule": "color-contrast",
+      "page": "/",
+      "rubric_score": 19.5,
+      "cleared": true,
+      "route": "auto",
+      "latency_seconds": 200.33356920900405,
+      "error": null
+    },
+    {
+      "case_id": "case-21",
+      "rule": "button-name",
+      "page": "/pricing",
+      "rubric_score": 15.0,
+      "cleared": true,
+      "route": "human",
+      "latency_seconds": 235.8865359580086,
+      "error": null
+    },
+    {
+      "case_id": "case-22",
+      "rule": "link-name",
+      "page": "/about",
+      "rubric_score": 19.0,
+      "cleared": true,
+      "route": "auto",
+      "latency_seconds": 2694.295483166992,
+      "error": null,
+      "scoring_details": {
+        "scoring_details": "This fix fully resolves the violation, but it may impact SEO slightly since the `lang` attribute was missing."
+      }
+    }
+  ]
+}

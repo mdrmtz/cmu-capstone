@@ -299,10 +299,13 @@ class TestDeliverViolation:
     def test_deliver_violation_human_route(self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
         """Test human route queues the violation."""
         monkeypatch.setenv("A11Y_HITL_QUEUE_DIR", str(tmp_path))
+        # Mock config.agent_root() to return tmp_path for test isolation
+        monkeypatch.setattr("a11y_fixer.config.agent_root", lambda: tmp_path / "agent")
         import subprocess
 
         repo = tmp_path / "repo"
         repo.mkdir()
+        (tmp_path / "agent").mkdir()  # Create agent root for test
         subprocess.run(["git", "init"], cwd=repo, capture_output=True, check=True)
         subprocess.run(["git", "config", "user.email", "test@test.com"], cwd=repo, capture_output=True, check=True)
         subprocess.run(["git", "config", "user.name", "Test"], cwd=repo, capture_output=True, check=True)

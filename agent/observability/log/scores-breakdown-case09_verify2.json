@@ -1,0 +1,17 @@
+{
+  "phase": "case09_verify2",
+  "timestamp": "2026-09-02T19:52:43.476573+00:00",
+  "total_cases": 1,
+  "cases": [
+    {
+      "case_id": "case-09",
+      "rule": "html-has-lang",
+      "page": "/",
+      "rubric_score": 0.0,
+      "cleared": false,
+      "route": "human",
+      "latency_seconds": 120.02916800000821,
+      "error": "case timed out after 120s"
+    }
+  ]
+}

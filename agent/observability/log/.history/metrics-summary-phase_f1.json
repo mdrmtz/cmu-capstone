@@ -1,0 +1,28 @@
+{
+  "phase": "phase_f1",
+  "timestamp": "2026-09-02T08:58:44.782876+00:00",
+  "summary": {
+    "total_cases": 2,
+    "violation_clearance_rate": 0.0,
+    "human_escalation_rate": 0.5,
+    "error_rate": 0.5,
+    "mean_latency_seconds": 223.25033537499257,
+    "brier_score": 0.42781250000000004,
+    "expected_calibration_error": 0.4625,
+    "by_rule": {
+      "image-alt": {
+        "total": 2,
+        "cleared": 0
+      }
+    }
+  },
+  "cases_by_route": {
+    "auto": 1,
+    "human": 1
+  },
+  "cases_by_error": {
+    "cleared": 0,
+    "errored": 1,
+    "pending_review": 1
+  }
+}

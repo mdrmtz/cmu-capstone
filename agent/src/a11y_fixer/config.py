@@ -158,8 +158,8 @@ def resolve_pr_delivery(cli_live: bool | None) -> PRDeliveryConfig:
     """Resolve live vs. dry-run delivery.
 
     `cli_live=True` forces live (raises if no token). `cli_live=False` forces
-    dry-run. `cli_live=None` follows `GITHUB_TOKEN` presence: live if set,
-    dry-run otherwise.
+    dry-run. `cli_live=None` defaults to dry-run (safe default) unless
+    explicitly overridden with --live.
     """
     token = os.environ.get("GITHUB_TOKEN", "").strip() or None
     repo = os.environ.get("GITHUB_REPO", "").strip() or None
@@ -169,7 +169,8 @@ def resolve_pr_delivery(cli_live: bool | None) -> PRDeliveryConfig:
         raise RuntimeError(msg)
 
     if cli_live is None:
-        live = token is not None
+        # Default to dry-run (safe default) - user must explicitly pass --live
+        live = False
     else:
         live = cli_live
 

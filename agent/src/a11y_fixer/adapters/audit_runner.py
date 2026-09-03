@@ -121,18 +121,42 @@ class AxeAuditRunner:
             msg = "npx not found on PATH"
             raise AuditRunnerError(msg)
 
-        cmd = [npx, "@axe-core/cli", *urls, "--tags", ",".join(self.tags), "--stdout"]
+        # No --browser flag: @axe-core/cli's parseBrowser() only accepts an *omitted*
+        # value (defaults internally to the 'chrome-headless' sentinel, which
+        # selects its dedicated ServiceBuilder + headless ChromeOptions code path)
+        # or a prefix of chrome/firefox/ie/safari/edge. Passing the literal string
+        # "chrome-headless" is rejected with "Unknown browser chrome-headless" -
+        # confirmed by reading node_modules/@axe-core/cli/dist/src/lib/utils.js.
+        #
+        # --chromedriver-path: use the bundled chromedriver binary from node_modules
+        # to avoid auto-detection failures when system chromedriver is absent or
+        # version-mismatched (this was the actual root cause of the 300 s hangs -
+        # a version-mismatched chromedriver stalls session creation indefinitely).
+        # Graceful fallback when node_modules is missing.
+        chromedriver_bin = self.fixture_path / "node_modules" / "chromedriver" / "bin" / "chromedriver"
+        cmd = [
+            npx, "@axe-core/cli",
+            "--timeout", "60",  # per-page axe timeout in seconds (default 90)
+            *([f"--chromedriver-path={chromedriver_bin}"] if chromedriver_bin.exists() else []),
+            *urls,
+            "--tags", ",".join(self.tags),
+            "--stdout",
+        ]
+        # Dynamic subprocess timeout: 90 s per URL + 30 s overhead, floored at module default.
+        per_url_budget = 90
+        dynamic_timeout = min(DEFAULT_AUDIT_TIMEOUT_SECONDS, len(urls) * per_url_budget + 30)
         # Fixed argv (caller-supplied urls, no shell interpolation).
         result = subprocess.run(  # noqa: S603
             cmd,
             cwd=self.fixture_path,
             capture_output=True,
             text=True,
-            timeout=DEFAULT_AUDIT_TIMEOUT_SECONDS,
+            timeout=dynamic_timeout,
             check=False,
         )
         if result.returncode != 0:
-            msg = f"axe-core cli failed (exit {result.returncode}):\n{result.stderr[-2000:]}"
+            stderr_tail = result.stderr[-2000:] if result.stderr else "(no stderr)"
+            msg = f"axe-core cli failed (exit {result.returncode}):\n{stderr_tail}"
             raise AuditRunnerError(msg)
 
         reports = self._parse_axe_output(result.stdout)

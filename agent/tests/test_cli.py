@@ -18,7 +18,6 @@ def test_build_parser_audit_defaults() -> None:
     parser = cli.build_parser()
     args = parser.parse_args(["audit"])
     assert args.command == "audit"
-    assert args.output
     assert args.url is None
 
 
@@ -123,14 +122,17 @@ def test_cmd_audit_writes_report(tmp_path: Path, monkeypatch: pytest.MonkeyPatch
     fake_report = {"total_violation_instances": 3, "pages": [{"url": "/", "violation_rules": ["html-has-lang"]}]}
     monkeypatch.setattr(cli.AxeAuditRunner, "run", lambda self: fake_report)  # noqa: ARG005
 
-    output_path = tmp_path / "audit.json"
+    # Mock config.agent_root to return tmp_path, so output goes there
+    monkeypatch.setattr(config, "agent_root", lambda: tmp_path)
+    expected_output = tmp_path / "evaluation" / "results" / "audit.json"
+
     parser = cli.build_parser()
-    args = parser.parse_args(["audit", "--output", str(output_path)])
+    args = parser.parse_args(["audit"])
 
     exit_code = cli._cmd_audit(args)  # noqa: SLF001
 
     assert exit_code == 0
-    assert json.loads(output_path.read_text(encoding="utf-8")) == fake_report
+    assert json.loads(expected_output.read_text(encoding="utf-8")) == fake_report
 
 
 def test_cmd_audit_uses_crawler_discovery_for_non_default_fixture(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
@@ -142,14 +144,19 @@ def test_cmd_audit_uses_crawler_discovery_for_non_default_fixture(tmp_path: Path
 
     monkeypatch.setattr(audit_crawler, "discover_and_audit", _fake_discover_and_audit)
 
-    output_path = tmp_path / "audit.json"
+    # Mock config.agent_root to return a different tmp_path for output
+    output_tmp = tmp_path / "agent_root"
+    output_tmp.mkdir()
+    monkeypatch.setattr(config, "agent_root", lambda: output_tmp)
+    expected_output = output_tmp / "evaluation" / "results" / "audit.json"
+
     parser = cli.build_parser()
-    args = parser.parse_args(["audit", "--output", str(output_path)])
+    args = parser.parse_args(["audit"])
 
     exit_code = cli._cmd_audit(args)  # noqa: SLF001
 
     assert exit_code == 0
-    assert json.loads(output_path.read_text(encoding="utf-8")) == fake_report
+    assert json.loads(expected_output.read_text(encoding="utf-8")) == fake_report
 
 
 async def test_acmd_run_uses_crawler_discovery_for_non_default_fixture(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
@@ -184,15 +191,18 @@ def test_cmd_audit_url_mode_joins_discovered_routes_with_the_base_url(
     monkeypatch.setattr(audit_crawler, "discover_routes", _fake_discover_routes)
     monkeypatch.setattr(cli.AxeAuditRunner, "audit_urls", _fake_audit_urls)
 
-    output_path = tmp_path / "audit.json"
+    # Mock config.agent_root to return tmp_path, so output goes there
+    monkeypatch.setattr(config, "agent_root", lambda: tmp_path)
+    expected_output = tmp_path / "evaluation" / "results" / "audit.json"
+
     parser = cli.build_parser()
-    args = parser.parse_args(["audit", "--url", "https://example.com", "--output", str(output_path)])
+    args = parser.parse_args(["audit", "--url", "https://example.com"])
 
     exit_code = cli._cmd_audit(args)  # noqa: SLF001
 
     assert exit_code == 0
     assert captured_urls == ["https://example.com/", "https://example.com/about"]
-    assert json.loads(output_path.read_text(encoding="utf-8")) == fake_report
+    assert json.loads(expected_output.read_text(encoding="utf-8")) == fake_report
 
 
 def test_cmd_audit_url_mode_falls_back_to_the_given_url_when_discovery_finds_nothing(
@@ -210,9 +220,11 @@ def test_cmd_audit_url_mode_falls_back_to_the_given_url_when_discovery_finds_not
     monkeypatch.setattr(audit_crawler, "discover_routes", _fake_discover_routes)
     monkeypatch.setattr(cli.AxeAuditRunner, "audit_urls", _fake_audit_urls)
 
-    output_path = tmp_path / "audit.json"
+    # Mock config.agent_root to return tmp_path, so output goes there
+    monkeypatch.setattr(config, "agent_root", lambda: tmp_path)
+
     parser = cli.build_parser()
-    args = parser.parse_args(["audit", "--url", "https://example.com/", "--output", str(output_path)])
+    args = parser.parse_args(["audit", "--url", "https://example.com/"])
 
     exit_code = cli._cmd_audit(args)  # noqa: SLF001
 
@@ -271,6 +283,8 @@ def _violation() -> dict:
 
 def test_deliver_violation_routes_human_to_review_queue(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(config, "hitl_queue_dir", lambda: tmp_path / "hitl_queue")
+    monkeypatch.setattr("a11y_fixer.config.agent_root", lambda: tmp_path / "agent")
+    (tmp_path / "agent").mkdir()
     repo = tmp_path / "repo"
     repo.mkdir()
     subprocess.run(["git", "init", "-q"], cwd=repo, check=True)  # noqa: S603, S607
@@ -348,10 +362,12 @@ def test_deliver_violation_routes_auto_to_dry_run_pr(tmp_path: Path) -> None:
     assert outcome["route"] == "auto"
 
 
-def test_deliver_violation_assess_risk_overrides_auto_to_human_for_high_risk_rule(tmp_path: Path) -> None:
+def test_deliver_violation_assess_risk_overrides_auto_to_human_for_high_risk_rule(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     """assess_risk may escalate a model's "auto" self-report - html-has-lang is
     on HIGH_RISK_RULES (site-wide blast radius) regardless of rubric score.
     """
+    monkeypatch.setattr("a11y_fixer.config.agent_root", lambda: tmp_path / "agent")
+    (tmp_path / "agent").mkdir()
     repo = tmp_path / "repo"
     repo.mkdir()
     subprocess.run(["git", "init", "-q"], cwd=repo, check=True)  # noqa: S603, S607
@@ -380,8 +396,10 @@ def test_deliver_violation_assess_risk_overrides_auto_to_human_for_high_risk_rul
     assert queued["risk_assessments"][0]["high_blast_radius"] is True
 
 
-def test_deliver_violation_path_guardrail_escalates_disallowed_extension(tmp_path: Path) -> None:
+def test_deliver_violation_path_guardrail_escalates_disallowed_extension(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     """validate_write_path (2b) escalates on its own, independent of assess_risk."""
+    monkeypatch.setattr("a11y_fixer.config.agent_root", lambda: tmp_path / "agent")
+    (tmp_path / "agent").mkdir()
     repo = tmp_path / "repo"
     repo.mkdir()
     subprocess.run(["git", "init", "-q"], cwd=repo, check=True)  # noqa: S603, S607
@@ -412,11 +430,13 @@ def test_deliver_violation_path_guardrail_escalates_disallowed_extension(tmp_pat
     assert queued["risk_assessments"][0]["route"] == "auto"
 
 
-def test_deliver_violation_epistemic_gate_recorded_on_low_confidence(tmp_path: Path) -> None:
+def test_deliver_violation_epistemic_gate_recorded_on_low_confidence(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     """epistemic_gate (2c) is genuinely called and its verdict recorded - even though it
     always agrees with assess_risk's own low_confidence check at this call site today
     (both derive from the same p_ik = score / 20, and 15/20 == 0.75 exactly).
     """
+    monkeypatch.setattr("a11y_fixer.config.agent_root", lambda: tmp_path / "agent")
+    (tmp_path / "agent").mkdir()
     repo = tmp_path / "repo"
     repo.mkdir()
     subprocess.run(["git", "init", "-q"], cwd=repo, check=True)  # noqa: S603, S607
@@ -485,6 +505,8 @@ def _audit_report(cases: list[tuple[str, str]]) -> dict:
 
 
 def test_cmd_run_continues_after_one_violation_fails(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr("a11y_fixer.config.agent_root", lambda: tmp_path / "agent")
+    (tmp_path / "agent").mkdir()
     audit_path = tmp_path / "audit.json"
     audit_path.write_text(json.dumps(_audit_report([("/a", "rule-a"), ("/b", "rule-b")])), encoding="utf-8")
 
@@ -543,6 +565,8 @@ def test_cmd_run_rejects_malformed_audit_report_before_building_agent(
 def test_cmd_run_warns_on_overconfident_rationale(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ) -> None:
+    monkeypatch.setattr("a11y_fixer.config.agent_root", lambda: tmp_path / "agent")
+    (tmp_path / "agent").mkdir()
     audit_path = tmp_path / "audit.json"
     audit_path.write_text(json.dumps(_audit_report([("/a", "rule-a")])), encoding="utf-8")
 

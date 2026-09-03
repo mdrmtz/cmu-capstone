@@ -44,6 +44,7 @@ class DockerSandboxBackend(BaseSandbox):
         node_modules_volume: str | None = None,
         extra_run_args: list[str] | None = None,
         default_timeout: int = DEFAULT_EXECUTE_TIMEOUT,
+        mount_target: str = "/workspace",
     ) -> None:
         self._workdir = workdir.resolve()
         self._image = image
@@ -51,6 +52,7 @@ class DockerSandboxBackend(BaseSandbox):
         self._node_modules_volume = node_modules_volume
         self._extra_run_args = extra_run_args or []
         self._default_timeout = default_timeout
+        self._mount_target = mount_target
         self._started = False
 
     @property
@@ -58,7 +60,7 @@ class DockerSandboxBackend(BaseSandbox):
         return self._container_name
 
     def start(self) -> None:
-        """Start the ephemeral container, bind-mounting `workdir` at `/workspace`.
+        """Start the ephemeral container, bind-mounting `workdir` at `mount_target`.
 
         `node_modules` is mounted as a named Docker volume rather than bind
         or symlinked from the host: platform-specific prebuilt binaries
@@ -76,10 +78,10 @@ class DockerSandboxBackend(BaseSandbox):
             "--name",
             self._container_name,
             "-v",
-            f"{self._workdir}:/workspace",
+            f"{self._workdir}:{self._mount_target}",
         ]
         if self._node_modules_volume:
-            cmd += ["-v", f"{self._node_modules_volume}:/workspace/node_modules"]
+            cmd += ["-v", f"{self._node_modules_volume}:{self._mount_target}/node_modules"]
         cmd += self._extra_run_args
         cmd += [self._image, "sleep", "infinity"]
         result = subprocess.run(cmd, capture_output=True, text=True, timeout=DEFAULT_START_TIMEOUT, check=False)  # noqa: S603

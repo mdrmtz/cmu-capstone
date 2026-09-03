@@ -1,0 +1,50 @@
+{
+  "phase": "bundle_2",
+  "timestamp": "2026-09-02T21:34:44.574838+00:00",
+  "total_cases": 3,
+  "cases": [
+    {
+      "case_id": "case-05",
+      "rule": "link-name",
+      "page": "/about",
+      "rubric_score": 16.0,
+      "cleared": true,
+      "route": "human",
+      "latency_seconds": 136.7841223750147,
+      "error": null,
+      "scoring_details": {
+        "build_pass": true,
+        "ast_pass": true,
+        "wcag_score": 0.8,
+        "layout_stability": null
+      }
+    },
+    {
+      "case_id": "case-06",
+      "rule": "link-name",
+      "page": "/contact",
+      "rubric_score": 19.0,
+      "cleared": false,
+      "route": "auto",
+      "latency_seconds": 80.27912904100958,
+      "error": null
+    },
+    {
+      "case_id": "case-07",
+      "rule": "image-alt",
+      "page": "/blog",
+      "rubric_score": 19.25,
+      "cleared": true,
+      "route": "auto",
+      "latency_seconds": 80.41517741701682,
+      "error": null,
+      "scoring_details": {
+        "build_pass": true,
+        "ast_valid": true,
+        "css_drift": 1.5,
+        "cls": 0.02,
+        "wcag_score": 0.85
+      }
+    }
+  ]
+}

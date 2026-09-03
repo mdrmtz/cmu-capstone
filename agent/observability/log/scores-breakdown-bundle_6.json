@@ -1,0 +1,37 @@
+{
+  "phase": "bundle_6",
+  "timestamp": "2026-09-02T22:59:34.816051+00:00",
+  "total_cases": 3,
+  "cases": [
+    {
+      "case_id": "case-17",
+      "rule": "color-contrast",
+      "page": "/blog",
+      "rubric_score": 0.0,
+      "cleared": false,
+      "route": "human",
+      "latency_seconds": 300.0251668750134,
+      "error": "case timed out after 300s"
+    },
+    {
+      "case_id": "case-18",
+      "rule": "link-name",
+      "page": "/features",
+      "rubric_score": 19.0,
+      "cleared": true,
+      "route": "auto",
+      "latency_seconds": 119.77890091697918,
+      "error": null
+    },
+    {
+      "case_id": "case-19",
+      "rule": "html-has-lang",
+      "page": "/about",
+      "rubric_score": 10.0,
+      "cleared": false,
+      "route": "auto",
+      "latency_seconds": 175.143869291991,
+      "error": null
+    }
+  ]
+}

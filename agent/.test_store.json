@@ -1,0 +1,20 @@
+{
+  "63a567c521e8": {
+    "violation_id": "63a567c521e8",
+    "rule_id": "test-rule",
+    "selector": "test-selector",
+    "state": "NEW",
+    "current_pr_number": null,
+    "current_score": null,
+    "current_solution_hash": null,
+    "best_solution_hash": null,
+    "best_score": null,
+    "hitl_queue_path": null,
+    "hitl_queue_score": null,
+    "created_at": "2026-09-02T07:44:40.720379+00:00",
+    "updated_at": "2026-09-02T07:44:40.720945+00:00",
+    "closed_at": null,
+    "close_reason": null,
+    "superseded_by_pr": null
+  }
+}

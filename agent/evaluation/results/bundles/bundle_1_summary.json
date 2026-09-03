@@ -1,0 +1,67 @@
+{
+  "summary": {
+    "total_cases": 4,
+    "violation_clearance_rate": 0.0,
+    "human_escalation_rate": 0.75,
+    "error_rate": 0.5,
+    "mean_latency_seconds": 129.16403277124482,
+    "brier_score": 0.385625,
+    "expected_calibration_error": 0.4375,
+    "by_rule": {
+      "html-has-lang": {
+        "total": 3,
+        "cleared": 0
+      },
+      "color-contrast": {
+        "total": 1,
+        "cleared": 0
+      }
+    }
+  },
+  "cases": [
+    {
+      "case_id": "case-01",
+      "rule": "html-has-lang",
+      "page": "/about",
+      "route": "auto",
+      "rubric_score": 19.0,
+      "cleared": false,
+      "latency_seconds": 75.9621106669947,
+      "error": null,
+      "scoring_details": null
+    },
+    {
+      "case_id": "case-02",
+      "rule": "color-contrast",
+      "page": "/about",
+      "route": "human",
+      "rubric_score": 0.0,
+      "cleared": false,
+      "latency_seconds": 301.0285972089914,
+      "error": "unhandled errors in a TaskGroup (1 sub-exception)",
+      "scoring_details": null
+    },
+    {
+      "case_id": "case-03",
+      "rule": "html-has-lang",
+      "page": "/contact",
+      "route": "human",
+      "rubric_score": 16.0,
+      "cleared": false,
+      "latency_seconds": 123.2531961670029,
+      "error": null,
+      "scoring_details": null
+    },
+    {
+      "case_id": "case-04",
+      "rule": "html-has-lang",
+      "page": "/pricing",
+      "route": "human",
+      "rubric_score": 0.0,
+      "cleared": false,
+      "latency_seconds": 16.412227041990263,
+      "error": "Request blocked: PII detected (invalid_json_after_redaction)",
+      "scoring_details": null
+    }
+  ]
+}

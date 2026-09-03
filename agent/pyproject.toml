@@ -38,7 +38,7 @@ where = ["src"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
-pythonpath = ["src"]
+pythonpath = ["src", "."]
 addopts = "-m 'not e2e'"
 markers = [
     "e2e: end-to-end tests that require git/npm/docker and are skipped by default",

@@ -1,0 +1,62 @@
+{
+  "summary": {
+    "total_cases": 3,
+    "violation_clearance_rate": 1.0,
+    "human_escalation_rate": 0.3333333333333333,
+    "error_rate": 0.0,
+    "mean_latency_seconds": 1043.505196111335,
+    "brier_score": 0.021875000000000002,
+    "expected_calibration_error": 0.10833333333333339,
+    "by_rule": {
+      "color-contrast": {
+        "total": 1,
+        "cleared": 1
+      },
+      "button-name": {
+        "total": 1,
+        "cleared": 1
+      },
+      "link-name": {
+        "total": 1,
+        "cleared": 1
+      }
+    }
+  },
+  "cases": [
+    {
+      "case_id": "case-20",
+      "rule": "color-contrast",
+      "page": "/",
+      "route": "auto",
+      "rubric_score": 19.5,
+      "cleared": true,
+      "latency_seconds": 200.33356920900405,
+      "error": null,
+      "scoring_details": null
+    },
+    {
+      "case_id": "case-21",
+      "rule": "button-name",
+      "page": "/pricing",
+      "route": "human",
+      "rubric_score": 15.0,
+      "cleared": true,
+      "latency_seconds": 235.8865359580086,
+      "error": null,
+      "scoring_details": null
+    },
+    {
+      "case_id": "case-22",
+      "rule": "link-name",
+      "page": "/about",
+      "route": "auto",
+      "rubric_score": 19.0,
+      "cleared": true,
+      "latency_seconds": 2694.295483166992,
+      "error": null,
+      "scoring_details": {
+        "scoring_details": "This fix fully resolves the violation, but it may impact SEO slightly since the `lang` attribute was missing."
+      }
+    }
+  ]
+}

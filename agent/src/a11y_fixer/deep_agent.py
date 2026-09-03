@@ -5,11 +5,18 @@ module replaces it entirely per the plan's Phase B migration - `deepagents.
 create_deep_agent()` is the sole orchestration layer, and every injected
 dependency (model, tools, subagents, skills, memory, permissions,
 interrupt_on) is a keyword argument to a single call.
+
+Phase worktree integration note: `aresolve_tools()` / `abuild_graph()` split
+the old monolithic `abuild_agent()` into two parts so that the expensive MCP
+setup (npx process spawns) runs once per benchmark run, while the fast graph
+wiring runs per benchmark case with a per-case fixture path (worktree path).
 """
 
 from __future__ import annotations
 
 import asyncio
+from dataclasses import dataclass, field
+from pathlib import Path
 from typing import Literal
 
 from deepagents import FilesystemPermission
@@ -46,6 +53,7 @@ class ViolationResponse(BaseModel):
     rationale: str
     score: float = Field(ge=0.0, le=20.0)
     route: Literal["auto", "human"]
+    scoring_details: dict | None = None  # Per-criterion breakdown from qa_critic
 
 
 @tool
@@ -100,40 +108,99 @@ def _default_permissions(virtual_fixture: str) -> list[FilesystemPermission]:
     ]
 
 
-async def abuild_agent(
+@dataclass
+class ResolvedTools:
+    """Pre-resolved tools and subagents for per-case graph construction.
+
+    `aresolve_tools()` populates this once; `abuild_graph()` consumes it per
+    benchmark case — separating the slow MCP setup (npx spawns) from the fast
+    graph wiring so 22 benchmark cases don't each pay the MCP startup cost.
+
+    `other_subagents` stores [compliance_planner, qa_critic, audit_crawler]
+    in that order; `abuild_graph()` inserts a freshly wired `codebase_compiler`
+    at index 1 to preserve the original [cp, cc, qc, ac] subagent order.
+    """
+
+    model_spec: str
+    top_level_tools: list
+    cc_mcp_tools: list  # angular-cli MCP tools, cached to avoid npx respawn
+    other_subagents: list = field(default_factory=list)  # [cp, qc, ac]
+
+
+async def aresolve_tools() -> ResolvedTools:
+    """Connect to MCP servers once and return ResolvedTools for abuild_graph().
+
+    Expensive: spawns npx for the angular-cli MCP. Call once per benchmark run,
+    then pass the result to abuild_graph() for each case.
+    """
+    config.configure_model_providers()
+    model_spec = config.selected_llm_backend().model
+    wiki_pipeline.init_wiki(config.wiki_dir())
+
+    top_level_tools, (cp_subagent, cc_subagent, qc_subagent, ac_subagent) = (
+        await asyncio.gather(
+            aget_tools(["docs-langchain", "reference-langchain"]),
+            asyncio.gather(
+                compliance_planner.build(),
+                codebase_compiler.build(model_spec),
+                qa_critic.build(),
+                audit_crawler.build(),
+            ),
+        )
+    )
+    # Extract angular-cli MCP tools from cc_subagent (SubAgent is a TypedDict).
+    # Strip locate_selector_in_component: build_from_tools() re-adds it so it
+    # captures the per-case fixture path rather than the default one.
+    cc_mcp_tools = [
+        t for t in cc_subagent["tools"]
+        if getattr(t, "name", None) != "locate_selector_in_component"
+    ]
+    return ResolvedTools(
+        model_spec=model_spec,
+        top_level_tools=list(top_level_tools),
+        cc_mcp_tools=cc_mcp_tools,
+        other_subagents=[cp_subagent, qc_subagent, ac_subagent],
+    )
+
+
+def abuild_graph(
+    resolved: ResolvedTools,
     *,
+    fixture_path: Path | None = None,
     backend: BackendProtocol | None = None,
     checkpointer: BaseCheckpointSaver | None = None,
 ) -> CompiledStateGraph:
-    """Async composition root: resolves every MCP-backed tool/subagent, then
-    calls `create_deep_agent()` exactly once.
+    """Sync, fast graph construction — no network I/O.
+
+    Called per evaluation case. Pass `fixture_path` to scope permissions and
+    path mappings to an isolated worktree copy of the repo.
     """
     from deepagents import (
         create_deep_agent,
     )  # noqa: PLC0415 - deferred: keeps module import side-effect-free for tests
 
-    config.configure_model_providers()
-    model_spec = config.selected_llm_backend().model
-    virtual_fixture = config.to_virtual_path(config.fixture_path())
-    wiki_pipeline.init_wiki(config.wiki_dir())
-
-    top_level_tools, subagents = await asyncio.gather(
-        aget_tools(["docs-langchain", "reference-langchain"]),
-        asyncio.gather(
-            compliance_planner.build(),
-            codebase_compiler.build(model_spec),
-            qa_critic.build(),
-            audit_crawler.build(),
-        ),
-    )
-
+    resolved_fixture = fixture_path or config.fixture_path()
+    virtual_fixture = config.to_virtual_path(resolved_fixture)
     resolved_backend = backend or FilesystemBackend(root_dir=str(config.repo_root()))
 
+    cc_subagent = codebase_compiler.build_from_tools(
+        resolved.cc_mcp_tools, resolved.model_spec, fixture_path=resolved_fixture
+    )
+    # Preserve original subagent order: compliance_planner, codebase_compiler,
+    # qa_critic, audit_crawler — order matters for how create_deep_agent
+    # exposes them to the top-level agent's task() tool.
+    all_subagents = [
+        resolved.other_subagents[0],  # compliance_planner
+        cc_subagent,                   # codebase_compiler (per-case fixture path)
+        resolved.other_subagents[1],  # qa_critic
+        resolved.other_subagents[2],  # audit_crawler
+    ]
+
     return create_deep_agent(
-        model=model_spec,
-        tools=[run_axe_audit, *top_level_tools],
+        model=resolved.model_spec,
+        tools=[run_axe_audit, *resolved.top_level_tools],
         system_prompt=TOP_LEVEL_SYSTEM_PROMPT,
-        subagents=list(subagents),
+        subagents=all_subagents,
         skills=[
             config.to_virtual_path(config.skills_dir() / "a11y-fixer"),
             config.to_virtual_path(config.skills_dir() / "cmu-capstone-docs"),
@@ -158,6 +225,21 @@ async def abuild_agent(
         # BaseCheckpointSaver instance to persist state across HITL interrupts.
         checkpointer=checkpointer or InMemorySaver(),
     )
+
+
+async def abuild_agent(
+    *,
+    backend: BackendProtocol | None = None,
+    checkpointer: BaseCheckpointSaver | None = None,
+) -> CompiledStateGraph:
+    """Async composition root: resolves every MCP-backed tool/subagent, then
+    calls `create_deep_agent()` exactly once.
+
+    Thin wrapper over `aresolve_tools()` + `abuild_graph()` for callers that
+    don't need the per-case split (CLI, one-shot runs).
+    """
+    resolved = await aresolve_tools()
+    return abuild_graph(resolved, backend=backend, checkpointer=checkpointer)
 
 
 def build_agent(

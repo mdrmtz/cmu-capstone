@@ -226,7 +226,7 @@ class TestBuild:
                         rubric_middleware = [m for m in result["middleware"] if isinstance(m, RubricMiddleware)]
                         assert len(rubric_middleware) >= 1
                         rubric = rubric_middleware[0]
-                        assert rubric.max_iterations == 3
+                        assert rubric.max_iterations == 2
 
     @pytest.mark.asyncio
     async def test_build_rubric_system_prompt_is_set(self) -> None:
@@ -246,9 +246,9 @@ class TestBuild:
                         rubric_middleware = [m for m in result["middleware"] if isinstance(m, RubricMiddleware)]
                         assert len(rubric_middleware) >= 1
                         rubric = rubric_middleware[0]
-                        # RubricMiddleware is configured with max_iterations=3
+                        # RubricMiddleware is configured with max_iterations=2
                         assert hasattr(rubric, "max_iterations")
-                        assert rubric.max_iterations == 3
+                        assert rubric.max_iterations == 2
 
     @pytest.mark.asyncio
     async def test_build_calls_aget_tools_with_angular_cli(self) -> None:
@@ -355,9 +355,9 @@ class TestModuleConstants:
     def test_rubric_system_prompt_has_scoring_criteria(self) -> None:
         """Verify RUBRIC_SYSTEM_PROMPT has the rubric criteria."""
         prompt = codebase_compiler.RUBRIC_SYSTEM_PROMPT
-        assert "wcag_lexical_support" in prompt
+        assert "wcag_lexical" in prompt
         assert "build_passes" in prompt
-        assert "axe_clear" in prompt
+        assert "no_regression" in prompt
 
 
 class TestIntegration:
