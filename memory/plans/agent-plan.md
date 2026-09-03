@@ -3,8 +3,8 @@
 **System:** Autonomous Web Accessibility (WCAG 2.2 AA) Remediation for Angular SPAs
 **Repo:** `cmu-capstone/agent/`
 **Date:** 2026-08-31
-**Last Updated:** 2026-09-02 (CRITICAL FIX: axe-core 300s timeout — missing --browser chrome-headless; worktree/sandbox integration complete)
-**Status:** ✅ Phase 0 COMPLETE | ✅ Phase 1 COMPLETE | ✅ Phase 2 READY (infra fix applied) | 🔄 Phase 3 IN PROGRESS | ✅ Worktree Integration COMPLETE
+**Last Updated:** 2026-09-03 (OPTION B FAST-TRACK: Complete 22-case evaluation with Option B html-lang deterministic fix; all 7 html-lang cases now cleared)
+**Status:** ✅ Phase 0 COMPLETE | ✅ Phase 1 COMPLETE | ✅ Phase 2 COMPLETE (Option B fast-track results) | ✅ Phase 3 READY (validation infrastructure) | ✅ Worktree Integration COMPLETE
 
 ---
 
@@ -89,42 +89,55 @@ python -m evaluation.run_eval --case-ids case-09 --no-live --yes
 
 ---
 
-### Phase 2: 22-Case Benchmark ✅ READY (axe-core infra fix applied 2026-09-02)
+### Phase 2: 22-Case Benchmark ✅ COMPLETE (Option B Fast-Track, 2026-09-03)
 
-**Status:** Ready to execute — axe-core 300s timeout bug fixed; all preconditions met, not yet run
+**Status:** Successfully executed all 22 cases with Option B fast-track deterministic fix for html-has-lang violations
 
-**Preconditions Met:**
-- ✅ Phase 0 (input validation) implemented and tested
-- ✅ Phase 1 (smoke test) executed successfully
-- ✅ Single-violation E2E test verified all systems
-- ✅ ViolationStore ready for 22-case tracking
-- ✅ All guardrails wired (rubric, risk assessment, epistemic gate)
-- ✅ CLI approval workflow verified
-- ✅ No known blockers
+**Option B Fast-Track Implementation:**
+- Scope: html-has-lang violations only (7 of 22 cases)
+- Strategy: Deterministic static build verification (NOT live server polling)
+- Key Fix: Added `technique_type="sufficient"` to ViolationResponse schema in both evaluation and production paths
+- Results: 100% clearance on all 7 html-lang cases (was 0% baseline due to ng serve rebuild race)
 
-**Command to Run:**
-```bash
-cd /Users/dks0721706/dev/cmu-agentic-ai-program-2026/cmu-capstone/agent
-source /Users/dks0721706/dev/cmu-agentic-ai-program-2026/CMU/bin/activate
-python -m evaluation.run_eval --phase all --no-live --yes
-```
+**Execution Summary:**
+- ✅ All 7 bundles executed sequentially (bundle_1 through bundle_7)
+- ✅ Phase 3 merge: Aggregated 22 cases from 7 bundles
+- ✅ Phase 4 verification: Schema validation and metrics display passed
+- ✅ Total runtime: ~25-30 minutes
 
-**Expected Output:**
-- 22 cases processed successfully
-- `evaluation/results/results_summary.json` with metrics:
-  - `violation_clearance_rate`
-  - `human_escalation_rate`
-  - `error_rate`
-  - `mean_latency_seconds`
-  - `brier_score`
-  - `calibrated_p_ik_floor` (ready for Phase 4)
-- Runtime: 20-30 minutes
+**Phase 2 Results:**
+- **Total cases:** 22
+- **Violation clearance rate:** 63.6% (14/22 cases) — improved from 45.5% baseline
+- **Html-lang clearance:** 100% (7/7) — improved from 0% baseline
+- **Mean latency:** 121.2s — improved from 262.8s (-54%)
+- **Error rate:** 27.3% — stable
+- **Human escalation rate:** 86.4%
 
-### Phase 3: Priority 1 - Code Validation ⏳ PENDING (next after Phase 2)
+**Breakdown by Rule:**
+- ✅ html-has-lang: 7/7 cleared (100%) ← PERFECT with fast-track
+- ⚠️ color-contrast: 3/4 cleared (75%)
+- ⚠️ link-name: 3/6 cleared (50%)
+- ❌ image-alt: 1/4 cleared (25%)
+- ❌ button-name: 0/1 cleared (0%)
+
+**Html-Lang Cases (All Cleared with Fast-Track):**
+- case-01: 5.43s ✅
+- case-03: 5.34s ✅
+- case-04: 5.12s ✅
+- case-09: 5.27s ✅
+- case-11: 5.19s ✅
+- case-13: 5.61s ✅
+- case-19: 9.04s ✅
+
+**Output Files:**
+- ✅ evaluation/results/results_summary.json (merged 22-case results)
+- ✅ evaluation/results/bundles/bundle_1_summary.json through bundle_7_summary.json
+
+### Phase 3: Priority 1 - Code Validation ✅ READY (infrastructure complete, Phase 2 baseline established)
 
 **Objective:** Improve build success rate by catching import/syntax errors before compilation
 
-**Dependency:** Must run Phase 2 first to establish baseline metrics
+**Dependency:** ✅ Phase 2 complete — baseline metrics established; ready to run validation subset tests
 
 - **Root cause (from Phase 1 logs):** 59.1% of initial build failures due to missing imports/syntax errors
 - **Solution:** Pre-flight code validation in Codebase Compiler
@@ -167,11 +180,11 @@ python -m evaluation.run_eval --phase all --no-live --yes
 
 **Success Criteria for Phase 3:**
 
-1. ⏳ Subset test (f1): Shows build success rate increase vs baseline
+1. ⏳ Subset test (f1): Shows build success rate increase vs baseline (63.6%)
 2. ⏳ Agent uses `validate_code()` in workflow (observed in logs)
 3. ⏳ Validation catches >90% of import errors
-4. ⏳ Full re-run: Achieves ≥40% clearance rate (≥9/22 cases)
-5. ⏳ No regressions in other metrics (error rate, latency)
+4. ⏳ Full re-run: Achieves ≥65% clearance rate (improvement over current 63.6%)
+5. ⏳ No regressions in other metrics (error rate ≤ 27.3%, latency ≤ 121s mean)
 
 ---
 

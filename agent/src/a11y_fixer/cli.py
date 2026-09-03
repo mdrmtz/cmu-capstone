@@ -621,6 +621,7 @@ async def _acmd_run(args: argparse.Namespace) -> int:
                     wcag=html_lang_fix.wcag_sc,
                     selector=violation["selector"],
                     technique_id=html_lang_fix.technique_id,
+                    technique_type="sufficient",
                     code=html_lang_fix.template_code,
                     rationale=html_lang_fix.rationale,
                     score=20.0,  # Deterministic, build-verified

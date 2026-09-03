@@ -1,43 +1,51 @@
 {
   "phase": "bundle_4",
-  "timestamp": "2026-09-02T22:27:15.210946+00:00",
+  "timestamp": "2026-09-03T04:39:38.126864+00:00",
   "total_cases": 3,
   "cases": [
     {
       "case_id": "case-11",
       "rule": "html-has-lang",
       "page": "/blog",
-      "rubric_score": 19.0,
-      "cleared": false,
-      "route": "auto",
-      "latency_seconds": 105.52267512501567,
-      "error": null
+      "rubric_score": 20.0,
+      "cleared": true,
+      "route": "human",
+      "latency_seconds": 5.1897331250074785,
+      "error": null,
+      "scoring_details": {
+        "build_error": null,
+        "ast_error": null,
+        "wcag_judge_confidence": 100,
+        "visual_error": null,
+        "fast_track": "html_lang_applier"
+      }
     },
     {
       "case_id": "case-12",
       "rule": "link-name",
       "page": "/features",
-      "rubric_score": 15.0,
-      "cleared": true,
+      "rubric_score": 0.0,
+      "cleared": false,
       "route": "human",
-      "latency_seconds": 314.1413202499971,
-      "error": null,
-      "scoring_details": {
-        "accessibility": 4,
-        "code_quality": 4,
-        "testing_thoroughness": 3,
-        "documentation": 4
-      }
+      "latency_seconds": 86.83922870800598,
+      "error": "Request blocked: PII detected (invalid_json_after_redaction)"
     },
     {
       "case_id": "case-13",
       "rule": "html-has-lang",
       "page": "/contact",
-      "rubric_score": 0.0,
-      "cleared": false,
+      "rubric_score": 20.0,
+      "cleared": true,
       "route": "human",
-      "latency_seconds": 86.91913429199485,
-      "error": "Request blocked: PII detected (invalid_json_after_redaction)"
+      "latency_seconds": 5.609554166003363,
+      "error": null,
+      "scoring_details": {
+        "build_error": null,
+        "ast_error": null,
+        "wcag_judge_confidence": 100,
+        "visual_error": null,
+        "fast_track": "html_lang_applier"
+      }
     }
   ]
 }

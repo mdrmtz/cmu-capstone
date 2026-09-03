@@ -1,12 +1,12 @@
 {
   "summary": {
     "total_cases": 3,
-    "violation_clearance_rate": 0.6666666666666666,
-    "human_escalation_rate": 0.3333333333333333,
-    "error_rate": 0.0,
-    "mean_latency_seconds": 99.15947627768037,
-    "brier_score": 0.31463541666666667,
-    "expected_calibration_error": 0.37083333333333335,
+    "violation_clearance_rate": 0.3333333333333333,
+    "human_escalation_rate": 1.0,
+    "error_rate": 0.3333333333333333,
+    "mean_latency_seconds": 194.4716312219971,
+    "brier_score": 0.43416666666666665,
+    "expected_calibration_error": 0.5166666666666666,
     "by_rule": {
       "link-name": {
         "total": 2,
@@ -14,7 +14,7 @@
       },
       "image-alt": {
         "total": 1,
-        "cleared": 1
+        "cleared": 0
       }
     }
   },
@@ -24,25 +24,20 @@
       "rule": "link-name",
       "page": "/about",
       "route": "human",
-      "rubric_score": 16.0,
+      "rubric_score": 0.0,
       "cleared": true,
-      "latency_seconds": 136.7841223750147,
+      "latency_seconds": 199.44201249998878,
       "error": null,
-      "scoring_details": {
-        "build_pass": true,
-        "ast_pass": true,
-        "wcag_score": 0.8,
-        "layout_stability": null
-      }
+      "scoring_details": null
     },
     {
       "case_id": "case-06",
       "rule": "link-name",
       "page": "/contact",
-      "route": "auto",
-      "rubric_score": 19.0,
+      "route": "human",
+      "rubric_score": 11.0,
       "cleared": false,
-      "latency_seconds": 80.27912904100958,
+      "latency_seconds": 325.46032237500185,
       "error": null,
       "scoring_details": null
     },
@@ -50,18 +45,12 @@
       "case_id": "case-07",
       "rule": "image-alt",
       "page": "/blog",
-      "route": "auto",
-      "rubric_score": 19.25,
-      "cleared": true,
-      "latency_seconds": 80.41517741701682,
-      "error": null,
-      "scoring_details": {
-        "build_pass": true,
-        "ast_valid": true,
-        "css_drift": 1.5,
-        "cls": 0.02,
-        "wcag_score": 0.85
-      }
+      "route": "human",
+      "rubric_score": 0.0,
+      "cleared": false,
+      "latency_seconds": 58.51255879100063,
+      "error": "Request blocked: PII detected (invalid_json_after_redaction)",
+      "scoring_details": null
     }
   ]
 }
