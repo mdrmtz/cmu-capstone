@@ -466,21 +466,25 @@ def test_deliver_violation_epistemic_gate_recorded_on_low_confidence(tmp_path: P
 
 
 def test_deliver_violation_reports_no_changes(tmp_path: Path) -> None:
+    # rule must be OFF the HIGH_RISK_RULES / HIGH_BLAST_RADIUS lists so this
+    # stays a genuine "auto route, nothing captured, nothing to do" case -
+    # see test_deliver_violation_escalates_to_queue_with_no_file_changes
+    # below for the "no changes but still must escalate" case (case-10).
     repo = tmp_path / "repo"
     repo.mkdir()
     subprocess.run(["git", "init", "-q"], cwd=repo, check=True)  # noqa: S603, S607
     subprocess.run(["git", "config", "user.email", "t@example.com"], cwd=repo, check=True)  # noqa: S603, S607
     subprocess.run(["git", "config", "user.name", "T"], cwd=repo, check=True)  # noqa: S603, S607
-    (repo / "index.html").write_text("<html>\n", encoding="utf-8")
+    (repo / "features.component.html").write_text("<a></a>\n", encoding="utf-8")
     subprocess.run(["git", "add", "."], cwd=repo, check=True)  # noqa: S603, S607
     subprocess.run(["git", "commit", "-q", "-m", "init"], cwd=repo, check=True)  # noqa: S603, S607
 
     response = ViolationResponse(
-        rule="html-has-lang", wcag="3.1.1", selector="html", technique_id="H57", technique_type="sufficient",
-        code="", rationale="no-op", score=0.0, route="auto",
+        rule="link-name", wcag="1.1.1", selector=".element-5333", technique_id="H30", technique_type="sufficient",
+        code="", rationale="no-op", score=20.0, route="auto",
     )
     outcome = cli.deliver_violation(
-        {"rule": "html-has-lang", "url": "/", "selector": "html", "html": "<html>"},
+        {"rule": "link-name", "url": "/features", "selector": ".element-5333", "html": "<a></a>"},
         response,
         fixture=repo,
         pr_config=config.PRDeliveryConfig(live=False, github_token=None, github_repo=None),
@@ -488,7 +492,49 @@ def test_deliver_violation_reports_no_changes(tmp_path: Path) -> None:
     )
 
     assert outcome["delivered"] is False
+    assert outcome["route"] == "auto"
     assert "reason" in outcome
+
+
+def test_deliver_violation_escalates_to_queue_with_no_file_changes(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    # Regression test for case-10 (2026-09-03): the agent's response called
+    # for human review, but codebase_compiler happened to leave no captured
+    # git diff (empty response, or a race with a prior reset). That must
+    # still land a HITL queue entry, not be silently dropped.
+    monkeypatch.setattr(config, "hitl_queue_dir", lambda: tmp_path / "hitl_queue")
+    monkeypatch.setattr("a11y_fixer.config.agent_root", lambda: tmp_path / "agent")
+    (tmp_path / "agent").mkdir()
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    subprocess.run(["git", "init", "-q"], cwd=repo, check=True)  # noqa: S603, S607
+    subprocess.run(["git", "config", "user.email", "t@example.com"], cwd=repo, check=True)  # noqa: S603, S607
+    subprocess.run(["git", "config", "user.name", "T"], cwd=repo, check=True)  # noqa: S603, S607
+    (repo / "features.component.html").write_text("<a></a>\n", encoding="utf-8")
+    subprocess.run(["git", "add", "."], cwd=repo, check=True)  # noqa: S603, S607
+    subprocess.run(["git", "commit", "-q", "-m", "init"], cwd=repo, check=True)  # noqa: S603, S607
+    # no post-commit edit: fixture has zero uncommitted diff at delivery time
+
+    response = ViolationResponse(
+        rule="link-name", wcag="1.1.1", selector=".element-5333", technique_id="H30", technique_type="sufficient",
+        code="", rationale="agent reported the fix but produced no diff", score=15.0, route="human",
+    )
+    outcome = cli.deliver_violation(
+        {"rule": "link-name", "url": "/features", "selector": ".element-5333", "html": "<a></a>"},
+        response,
+        fixture=repo,
+        pr_config=config.PRDeliveryConfig(live=False, github_token=None, github_repo=None),
+        output_dir=tmp_path / "prs",
+    )
+
+    assert outcome["delivered"] is False
+    assert outcome["route"] == "human"
+    assert "queue_path" in outcome
+    queue_path = Path(outcome["queue_path"])
+    assert queue_path.exists()
+
+    queued = json.loads(queue_path.read_text(encoding="utf-8"))
+    assert queued["no_file_changes"] is True
+    assert queued["changes"] == []
 
 
 def _audit_report(cases: list[tuple[str, str]]) -> dict:

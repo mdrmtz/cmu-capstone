@@ -194,6 +194,29 @@ def _recheck_cleared(runner: AxeAuditRunner, case: dict) -> bool:
     return case["rule"] not in page_report["violation_rules"]
 
 
+def _describe_exception(exc: BaseException, *, _depth: int = 0) -> str:
+    """Unwrap an ExceptionGroup instead of stringifying it.
+
+    Python 3.11+'s ExceptionGroup.__str__() only reports a sub-exception count
+    ("unhandled errors in a TaskGroup (1 sub-exception)"), not what's actually
+    inside. This repo's own code never raises TaskGroup errors - they come from
+    the MCP SDK's client transport (mcp/client/streamable_http.py uses an
+    anyio.abc.TaskGroup internally), so when asyncio.wait_for()'s 300s
+    cancellation - or a genuine MCP transport hiccup - lands inside that live
+    TaskGroup, it surfaces here as an opaque, undiagnosable ExceptionGroup.
+    This walks .exceptions recursively (nested groups are possible) so the
+    real leaf exception type(s)/message(s) end up in CaseResult.error instead.
+    A depth cap prevents runaway recursion on a pathological/self-referential
+    group; grouped output stays readable for the common 1-2 level case.
+    """
+    if _depth > 5:
+        return f"{type(exc).__name__} (nested too deep to unwrap further)"
+    if isinstance(exc, BaseExceptionGroup):
+        parts = [_describe_exception(sub, _depth=_depth + 1) for sub in exc.exceptions]
+        return f"{type(exc).__name__}[{'; '.join(parts)}]"
+    return f"{type(exc).__name__}: {exc}"
+
+
 async def _wait_for_index_html_rebuild(
     runner: AxeAuditRunner,
     case: dict,
@@ -256,6 +279,11 @@ async def _run_one_case(
     # Retry up to 3 times for non-deterministic empty responses
     MAX_ATTEMPTS = 3
     CASE_TIMEOUT_SECONDS = 300  # 5-minute hard cap per case to prevent credit runaway
+    # Real post-fix data (2026-09-03): masked-timeout cases land at 300.99s and
+    # 301.24s - ~1-1.5s of cancellation/cleanup overhead past the cap. 10s is a
+    # conservative buffer: comfortably catches that overhead while staying far
+    # from genuine fast failures (e.g. case-21's non-timeout failure at 132.79s).
+    TIMEOUT_ATTRIBUTION_TOLERANCE_SECONDS = 10
     try:
         # html-has-lang fast-track: deterministic string-replace fix
         # (domain/html_lang_fix.py) applied + ng-build-verified by
@@ -325,6 +353,7 @@ async def _run_one_case(
                     "recursion_limit": 50,
                 }
             }
+            attempt_start = time.monotonic()
             try:
                 result = await asyncio.wait_for(
                     graph.ainvoke(
@@ -393,6 +422,25 @@ async def _run_one_case(
             except (
                 Exception
             ) as exc:  # noqa: BLE001 - one case's failure must not abort the whole benchmark run
+                # Option 2: asyncio.wait_for()'s 300s cancellation can land inside
+                # the MCP client's live anyio TaskGroup and get re-wrapped into a
+                # generic ExceptionGroup instead of surfacing as a clean
+                # asyncio.TimeoutError - see the except clause above and
+                # memory/AXE-CORE-TIMEOUT-FIX.md's "Related But Distinct Issue"
+                # section. Attribute it correctly by elapsed time (the only
+                # reliable signal - unwrapped exception *content* alone can't
+                # distinguish a cancellation side-effect from a genuine
+                # transport error, since both can surface as the same exception
+                # types) rather than trying to pattern-match the exception.
+                attempt_elapsed = time.monotonic() - attempt_start
+                if attempt_elapsed >= CASE_TIMEOUT_SECONDS - TIMEOUT_ATTRIBUTION_TOLERANCE_SECONDS:
+                    error_msg = (
+                        f"case timed out after {CASE_TIMEOUT_SECONDS}s "
+                        f"(masked as ExceptionGroup by wait_for()/MCP TaskGroup "
+                        f"interaction; raw: {_describe_exception(exc)})"
+                    )
+                else:
+                    error_msg = _describe_exception(exc)
                 return CaseResult(
                     case_id=case["id"],
                     rule=case["rule"],
@@ -401,7 +449,7 @@ async def _run_one_case(
                     rubric_score=0.0,
                     cleared=False,
                     latency_seconds=time.monotonic() - start,
-                    error=str(exc),
+                    error=error_msg,
                 )
     finally:
         # FIX: Always reset fixture state, even on error/timeout

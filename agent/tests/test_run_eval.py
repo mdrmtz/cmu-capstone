@@ -268,7 +268,7 @@ def test_main_case_range_defaults_to_dry_run_and_matches_range(
     seen: dict[str, object] = {}
 
     def fake_run_eval(
-        *, cases_path: Path, output_path: Path, live: bool
+        *, cases_path: Path, output_path: Path, live: bool, use_worktree: bool = False
     ) -> dict:  # noqa: ARG001
         seen["live"] = live
         seen["cases"] = json.loads(cases_path.read_text(encoding="utf-8"))
@@ -314,7 +314,7 @@ def test_main_case_ids_non_contiguous_list_and_warns_on_missing(
     seen: dict[str, object] = {}
 
     def fake_run_eval(
-        *, cases_path: Path, output_path: Path, live: bool
+        *, cases_path: Path, output_path: Path, live: bool, use_worktree: bool = False
     ) -> dict:  # noqa: ARG001
         seen["cases"] = json.loads(cases_path.read_text(encoding="utf-8"))
         return {"total_cases": len(seen["cases"])}

@@ -1,0 +1,1900 @@
+Title: Example: classify and act
+Link: https://docs.langchain.com/oss/javascript/deepagents/dynamic-subagents#example-classify-and-act
+Page: oss/javascript/deepagents/dynamic-subagents
+Content: ### Classify and act
+
+Items are classified first, then each item is handled by a specialized subagent based on its classification. This lets you process mixed inputs where different items need different expertise.
+
+```mermaid theme={"theme":{"light":"catppuccin-latte","dark":"catppuccin-mocha"}}
+graph LR
+    Task[Task] --> Classify{Classifier}
+    Classify --> |bug| A[Agent A]
+    Classify --> |feature| B[Agent B]
+    Classify --> |question| C[Agent C]
+```
+
+**Use cases:** Triaging support tickets, error logs, user feedback, or any batch of items that need different handling depending on their type.
+
+<Accordion title="Example: classify and act">
+  **What you configure**
+
+  <CodeGroup>
+    ```ts Google theme={"theme":{"light":"catppuccin-latte","dark":"catppuccin-mocha"}}
+    import { createDeepAgent } from "deepagents";
+    import { createCodeInterpreterMiddleware } from "@langchain/quickjs";
+
+    const agent = createDeepAgent({
+      model: "google-genai:gemini-3.6-flash",
+      subagents: [
+        {
+          name: "bug-fixer",
+          description: "Investigates bug reports and provides reproduction steps",
+          systemPrompt: "You are a bug triage specialist. Investigate each bug report and provide clear reproduction steps.",
+        },
+        {
+          name: "feature-analyst",
+          description: "Evaluates feature requests for feasibility and effort",
+          systemPrompt: "You are a product analyst. Evaluate each feature request for technical feasibility, estimated effort, and potential impact.",
+        },
+        {
+          name: "support-agent",
+          description: "Answers user questions based on documentation",
+          systemPrompt: "You are a support specialist. Answer user questions clearly based on the available documentation.",
+        },
+      ],
+      middleware: [createCodeInterpreterMiddleware()],
+    });
+    ```
+
+    ```ts OpenAI theme={"theme":{"light":"catppuccin-latte","dark":"catppuccin-mocha"}}
+    import { createDeepAgent } from "deepagents";
+    import { createCodeInterpreterMiddleware } from "@langchain/quickjs";
+
+    const agent = createDeepAgent({
+      model: "openai:gpt-5.5",
+      subagents: [
+        {
+          name: "bug-fixer",
+          description: "Investigates bug reports and provides reproduction steps",
+          systemPrompt: "You are a bug triage specialist. Investigate each bug report and provide clear reproduction steps.",
+        },
+        {
+          name: "feature-analyst",
+          description: "Evaluates feature requests for feasibility and effort",
+          systemPrompt: "You are a product analyst. Evaluate each feature request for technical feasibility, estimated effort, and potential impact.",
+        },
+        {
+          name: "support-agent",
+          description: "Answers user questions based on documentation",
+          systemPrompt: "You are a support specialist. Answer user questions clearly based on the available documentation.",
+        },
+      ],
+      middleware: [createCodeInterpreterMiddleware()],
+    });
+    ```
+
+    ```ts Anthropic theme={"theme":{"light":"catppuccin-latte","dark":"catppuccin-mocha"}}
+    import { createDeepAgent } from "deepagents";
+    import { createCodeInterpreterMiddleware } from "@langchain/quickjs";
+
+    const agent = createDeepAgent({
+      model: "anthropic:claude-sonnet-4-6",
+      subagents: [
+        {
+          name: "bug-fixer",
+          description: "Investigates bug reports and provides reproduction steps",
+          systemPrompt: "You are a bug triage specialist. Investigate each bug report and provide clear reproduction steps.",
+        },
+        {
+          name: "feature-analyst",
+          description: "Evaluates feature requests for feasibility and effort",
+          systemPrompt: "You are a product analyst. Evaluate each feature request for technical feasibility, estimated effort, and potential impact.",
+        },
+        {
+          name: "support-agent",
+          description: "Answers user questions based on documentation",
+          systemPrompt: "You are a support specialist. Answer user questions clearly based on the available documentation.",
+        },
+      ],
+      middleware: [createCodeInterpreterMiddleware()],
+    });
+    ```
+
+    ```ts OpenRouter theme={"theme":{"light":"catppuccin-latte","dark":"catppuccin-mocha"}}
+    import { createDeepAgent } from "deepagents";
+    import { createCodeInterpreterMiddleware } from "@langchain/quickjs";
+
+    const agent = createDeepAgent({
+      model: "openrouter:openrouter:z-ai/glm-5.2",
+      subagents: [
+        {
+          name: "bug-fixer",
+          description: "Investigates bug reports and provides reproduction steps",
+          systemPrompt: "You are a bug triage specialist. Investigate each bug report and provide clear reproduction steps.",
+        },
+        {
+          name: "feature-analyst",
+          description: "Evaluates feature requests for feasibility and effort",
+          systemPrompt: "You are a product analyst. Evaluate each feature request for technical feasibility, estimated effort, and potential impact.",
+        },
+        {
+          name: "support-agent",
+          description: "Answers user questions based on documentation",
+          systemPrompt: "You are a support specialist. Answer user questions clearly based on the available documentation.",
+        },
+      ],
+      middleware: [createCodeInterpreterMiddleware()],
+    });
+    ```
+
+    ```ts Fireworks theme={"theme":{"light":"catppuccin-latte","dark":"catppuccin-mocha"}}
+    import { createDeepAgent } from "deepagents";
+    import { createCodeInterpreterMiddleware } from "@langchain/quickjs";
+
+    const agent = createDeepAgent({
+      model: "fireworks:accounts/fireworks/models/glm-5p2",
+      subagents: [
+        {
+          name: "bug-fixer",
+          description: "Investigates bug reports and provides reproduction steps",
+          systemPrompt: "You are a bug triage specialist. Investigate each bug report and provide clear reproduction steps.",
+        },
+        {
+          name: "feature-analyst",
+          description: "Evaluates feature requests for feasibility and effort",
+          systemPrompt: "You are a product analyst. Evaluate each feature request for technical feasibility, estimated effort, and potential impact.",
+        },
+        {
+          name: "support-agent",
+          description: "Answers user questions based on documentation",
+          systemPrompt: "You are a support specialist. Answer user questions clearly based on the available documentation.",
+        },
+      ],
+      middleware: [createCodeInterpreterMiddleware()],
+    });
+    ```
+
+    ```ts Baseten theme={"theme":{"light":"catppuccin-latte","dark":"catppuccin-mocha"}}
+    import { createDeepAgent } from "deepagents";
+    import { createCodeInterpreterMiddleware } from "@langchain/quickjs";
+
+    const agent = createDeepAgent({
+      model: "baseten:zai-org/GLM-5.2",
+      subagents: [
+        {
+          name: "bug-fixer",
+          description: "Investigates bug reports and provides reproduction steps",
+          systemPrompt: "You are a bug triage specialist. Investigate each bug report and provide clear reproduction steps.",
+        },
+        {
+          name: "feature-analyst",
+          description: "Evaluates feature requests for feasibility and effort",
+          systemPrompt: "You are a product analyst. Evaluate each feature request for technical feasibility, estimated effort, and potential impact.",
+        },
+        {
+          name: "support-agent",
+          description: "Answers user questions based on documentation",
+          systemPrompt: "You are a support specialist. Answer user questions clearly based on the available documentation.",
+        },
+      ],
+      middleware: [createCodeInterpreterMiddleware()],
+    });
+    ```
+
+    ```ts Ollama theme={"theme":{"light":"catppuccin-latte","dark":"catppuccin-mocha"}}
+    import { createDeepAgent } from "deepagents";
+    import { createCodeInterpreterMiddleware } from "@langchain/quickjs";
+
+    const agent = createDeepAgent({
+      model: "ollama:north-mini-code-1.0",
+      subagents: [
+        {
+          name: "bug-fixer",
+          description: "Investigates bug reports and provides reproduction steps",
+          systemPrompt: "You are a bug triage specialist. Investigate each bug report and provide clear reproduction steps.",
+        },
+        {
+          name: "feature-analyst",
+          description: "Evaluates feature requests for feasibility and effort",
+          systemPrompt: "You are a product analyst. Evaluate each feature request for technical feasibility, estimated effort, and potential impact.",
+        },
+        {
+          name: "support-agent",
+          description: "Answers user questions based on documentation",
+          systemPrompt: "You are a support specialist. Answer user questions clearly based on the available documentation.",
+        },
+      ],
+      middleware: [createCodeInterpreterMiddleware()],
+    });
+    ```
+  </CodeGroup>
+
+  **What the agent writes**
+
+  ```ts theme={"theme":{"light":"catppuccin-latte","dark":"catppuccin-mocha"}}
+  // The agent has already classified each ticket; this routes every item to
+  // the right specialist and collects the handled results.
+  const SPECIALIST = { bug: "bug-fixer", feature: "feature-analyst", question: "support-agent" };
+
+  const handled = await Promise.all(
+    tickets.map((ticket) =>
+      task({
+        description: `Handle this ${ticket.category}:\n${ticket.text}`,
+        subagentType: SPECIALIST[ticket.category],
+      }),
+    ),
+  );
+  // ... group handled results by category into a single triage report
+  handled;
+  ```
+</Accordion>
+Title: Example: classify and act
+Link: https://docs.langchain.com/oss/python/deepagents/dynamic-subagents#example-classify-and-act
+Page: oss/python/deepagents/dynamic-subagents
+Content: ### Classify and act
+
+Items are classified first, then each item is handled by a specialized subagent based on its classification. This lets you process mixed inputs where different items need different expertise.
+
+```mermaid theme={"theme":{"light":"catppuccin-latte","dark":"catppuccin-mocha"}}
+graph LR
+    Task[Task] --> Classify{Classifier}
+    Classify --> |bug| A[Agent A]
+    Classify --> |feature| B[Agent B]
+    Classify --> |question| C[Agent C]
+```
+
+**Use cases:** Triaging support tickets, error logs, user feedback, or any batch of items that need different handling depending on their type.
+
+<Accordion title="Example: classify and act">
+  **What you configure**
+
+  <CodeGroup>
+    ```python Google theme={"theme":{"light":"catppuccin-latte","dark":"catppuccin-mocha"}}
+    from deepagents import create_deep_agent
+    from langchain_quickjs import CodeInterpreterMiddleware
+
+    agent = create_deep_agent(
+        model="google_genai:gemini-3.6-flash",
+        subagents=[
+            {
+                "name": "bug-fixer",
+                "description": "Investigates bug reports and provides reproduction steps",
+                "system_prompt": "You are a bug triage specialist. Investigate each bug report and provide clear reproduction steps.",
+            },
+            {
+                "name": "feature-analyst",
+                "description": "Evaluates feature requests for feasibility and effort",
+                "system_prompt": "You are a product analyst. Evaluate each feature request for technical feasibility, estimated effort, and potential impact.",
+            },
+            {
+                "name": "support-agent",
+                "description": "Answers user questions based on documentation",
+                "system_prompt": "You are a support specialist. Answer user questions clearly based on the available documentation.",
+            },
+        ],
+        middleware=[CodeInterpreterMiddleware()],
+    )
+    ```
+
+    ```python OpenAI theme={"theme":{"light":"catppuccin-latte","dark":"catppuccin-mocha"}}
+    from deepagents import create_deep_agent
+    from langchain_quickjs import CodeInterpreterMiddleware
+
+    agent = create_deep_agent(
+        model="openai:gpt-5.5",
+        subagents=[
+            {
+                "name": "bug-fixer",
+                "description": "Investigates bug reports and provides reproduction steps",
+                "system_prompt": "You are a bug triage specialist. Investigate each bug report and provide clear reproduction steps.",
+            },
+            {
+                "name": "feature-analyst",
+                "description": "Evaluates feature requests for feasibility and effort",
+                "system_prompt": "You are a product analyst. Evaluate each feature request for technical feasibility, estimated effort, and potential impact.",
+            },
+            {
+                "name": "support-agent",
+                "description": "Answers user questions based on documentation",
+                "system_prompt": "You are a support specialist. Answer user questions clearly based on the available documentation.",
+            },
+        ],
+        middleware=[CodeInterpreterMiddleware()],
+    )
+    ```
+
+    ```python Anthropic theme={"theme":{"light":"catppuccin-latte","dark":"catppuccin-mocha"}}
+    from deepagents import create_deep_agent
+    from langchain_quickjs import CodeInterpreterMiddleware
+
+    agent = create_deep_agent(
+        model="anthropic:claude-sonnet-4-6",
+        subagents=[
+            {
+                "name": "bug-fixer",
+                "description": "Investigates bug reports and provides reproduction steps",
+                "system_prompt": "You are a bug triage specialist. Investigate each bug report and provide clear reproduction steps.",
+            },
+            {
+                "name": "feature-analyst",
+                "description": "Evaluates feature requests for feasibility and effort",
+                "system_prompt": "You are a product analyst. Evaluate each feature request for technical feasibility, estimated effort, and potential impact.",
+            },
+            {
+                "name": "support-agent",
+                "description": "Answers user questions based on documentation",
+                "system_prompt": "You are a support specialist. Answer user questions clearly based on the available documentation.",
+            },
+        ],
+        middleware=[CodeInterpreterMiddleware()],
+    )
+    ```
+
+    ```python OpenRouter theme={"theme":{"light":"catppuccin-latte","dark":"catppuccin-mocha"}}
+    from deepagents import create_deep_agent
+    from langchain_quickjs import CodeInterpreterMiddleware
+
+    agent = create_deep_agent(
+        model="openrouter:z-ai/glm-5.2",
+        subagents=[
+            {
+                "name": "bug-fixer",
+                "description": "Investigates bug reports and provides reproduction steps",
+                "system_prompt": "You are a bug triage specialist. Investigate each bug report and provide clear reproduction steps.",
+            },
+            {
+                "name": "feature-analyst",
+                "description": "Evaluates feature requests for feasibility and effort",
+                "system_prompt": "You are a product analyst. Evaluate each feature request for technical feasibility, estimated effort, and potential impact.",
+            },
+            {
+                "name": "support-agent",
+                "description": "Answers user questions based on documentation",
+                "system_prompt": "You are a support specialist. Answer user questions clearly based on the available documentation.",
+            },
+        ],
+        middleware=[CodeInterpreterMiddleware()],
+    )
+    ```
+
+    ```python Fireworks theme={"theme":{"light":"catppuccin-latte","dark":"catppuccin-mocha"}}
+    from deepagents import create_deep_agent
+    from langchain_quickjs import CodeInterpreterMiddleware
+
+    agent = create_deep_agent(
+        model="fireworks:accounts/fireworks/models/glm-5p2",
+        subagents=[
+            {
+                "name": "bug-fixer",
+                "description": "Investigates bug reports and provides reproduction steps",
+                "system_prompt": "You are a bug triage specialist. Investigate each bug report and provide clear reproduction steps.",
+            },
+            {
+                "name": "feature-analyst",
+                "description": "Evaluates feature requests for feasibility and effort",
+                "system_prompt": "You are a product analyst. Evaluate each feature request for technical feasibility, estimated effort, and potential impact.",
+            },
+            {
+                "name": "support-agent",
+                "description": "Answers user questions based on documentation",
+                "system_prompt": "You are a support specialist. Answer user questions clearly based on the available documentation.",
+            },
+        ],
+        middleware=[CodeInterpreterMiddleware()],
+    )
+    ```
+
+    ```python Baseten theme={"theme":{"light":"catppuccin-latte","dark":"catppuccin-mocha"}}
+    from deepagents import create_deep_agent
+    from langchain_quickjs import CodeInterpreterMiddleware
+
+    agent = create_deep_agent(
+        model="baseten:zai-org/GLM-5.2",
+        subagents=[
+            {
+                "name": "bug-fixer",
+                "description": "Investigates bug reports and provides reproduction steps",
+                "system_prompt": "You are a bug triage specialist. Investigate each bug report and provide clear reproduction steps.",
+            },
+            {
+                "name": "feature-analyst",
+                "description": "Evaluates feature requests for feasibility and effort",
+                "system_prompt": "You are a product analyst. Evaluate each feature request for technical feasibility, estimated effort, and potential impact.",
+            },
+            {
+                "name": "support-agent",
+                "description": "Answers user questions based on documentation",
+                "system_prompt": "You are a support specialist. Answer user questions clearly based on the available documentation.",
+            },
+        ],
+        middleware=[CodeInterpreterMiddleware()],
+    )
+    ```
+
+    ```python Ollama theme={"theme":{"light":"catppuccin-latte","dark":"catppuccin-mocha"}}
+    from deepagents import create_deep_agent
+    from langchain_quickjs import CodeInterpreterMiddleware
+
+    agent = create_deep_agent(
+        model="ollama:north-mini-code-1.0",
+        subagents=[
+            {
+                "name": "bug-fixer",
+                "description": "Investigates bug reports and provides reproduction steps",
+                "system_prompt": "You are a bug triage specialist. Investigate each bug report and provide clear reproduction steps.",
+            },
+            {
+                "name": "feature-analyst",
+                "description": "Evaluates feature requests for feasibility and effort",
+                "system_prompt": "You are a product analyst. Evaluate each feature request for technical feasibility, estimated effort, and potential impact.",
+            },
+            {
+                "name": "support-agent",
+                "description": "Answers user questions based on documentation",
+                "system_prompt": "You are a support specialist. Answer user questions clearly based on the available documentation.",
+            },
+        ],
+        middleware=[CodeInterpreterMiddleware()],
+    )
+    ```
+  </CodeGroup>
+
+  **What the agent writes**
+
+  ```ts theme={"theme":{"light":"catppuccin-latte","dark":"catppuccin-mocha"}}
+  // The agent has already classified each ticket; this routes every item to
+  // the right specialist and collects the handled results.
+  const SPECIALIST = { bug: "bug-fixer", feature: "feature-analyst", question: "support-agent" };
+
+  const handled = await Promise.all(
+    tickets.map((ticket) =>
+      task({
+        description: `Handle this ${ticket.category}:\n${ticket.text}`,
+        subagentType: SPECIALIST[ticket.category],
+      }),
+    ),
+  );
+  // ... group handled results by category into a single triage report
+  handled;
+  ```
+</Accordion>
+Title: All tools and toolkits
+Link: https://docs.langchain.com/oss/python/integrations/tools/index#all-tools-and-toolkits
+Page: oss/python/integrations/tools/index
+Content: ## All tools and toolkits
+
+<div class="integration-downloads-table">
+  | Integration                                                                                                                   | Downloads                                                                                                                                                                                                                                                                      |
+  | :---------------------------------------------------------------------------------------------------------------------------- | :----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+  | [`Google imagen`](/oss/python/integrations/tools/google_imagen)                                                               | <span data-sort-value="33000000"><a href="https://pypi.org/project/langchain-google-vertexai/" target="_blank">  <img src="https://static.pepy.tech/badge/langchain-google-vertexai/month" alt="Downloads per month" noZoom class="rounded not-prose" /></a></span>            |
+  | [`BrowserToolkit`](/oss/python/integrations/tools/bedrock_agentcore_browser)                                                  | <span data-sort-value="12000000"><a href="https://pypi.org/project/langchain-aws/" target="_blank">  <img src="https://static.pepy.tech/badge/langchain-aws/month" alt="Downloads per month" noZoom class="rounded not-prose" /></a></span>                                    |
+  | [`CodeInterpreterToolkit`](/oss/python/integrations/tools/bedrock_agentcore_code_interpreter)                                 | <span data-sort-value="12000000"><a href="https://pypi.org/project/langchain-aws/" target="_blank">  <img src="https://static.pepy.tech/badge/langchain-aws/month" alt="Downloads per month" noZoom class="rounded not-prose" /></a></span>                                    |
+  | [`Gmail toolkit`](/oss/python/integrations/tools/google_gmail)                                                                | <span data-sort-value="11000000"><a href="https://pypi.org/project/langchain-google-community/" target="_blank">  <img src="https://static.pepy.tech/badge/langchain-google-community/month" alt="Downloads per month" noZoom class="rounded not-prose" /></a></span>          |
+  | [`Google calendar toolkit`](/oss/python/integrations/tools/google_calendar)                                                   | <span data-sort-value="11000000"><a href="https://pypi.org/project/langchain-google-community/" target="_blank">  <img src="https://static.pepy.tech/badge/langchain-google-community/month" alt="Downloads per month" noZoom class="rounded not-prose" /></a></span>          |
+  | [`Google cloud text-to-speech`](/oss/python/integrations/tools/google_cloud_texttospeech)                                     | <span data-sort-value="11000000"><a href="https://pypi.org/project/langchain-google-community/" target="_blank">  <img src="https://static.pepy.tech/badge/langchain-google-community/month" alt="Downloads per month" noZoom class="rounded not-prose" /></a></span>          |
+  | [`Google search`](/oss/python/integrations/tools/google_search)                                                               | <span data-sort-value="11000000"><a href="https://pypi.org/project/langchain-google-community/" target="_blank">  <img src="https://static.pepy.tech/badge/langchain-google-community/month" alt="Downloads per month" noZoom class="rounded not-prose" /></a></span>          |
+  | [`Databricks unity catalog (Uc)`](/oss/python/integrations/tools/databricks)                                                  | <span data-sort-value="2000000"><a href="https://pypi.org/project/databricks-langchain/" target="_blank">  <img src="https://static.pepy.tech/badge/databricks-langchain/month" alt="Downloads per month" noZoom class="rounded not-prose" /></a></span>                       |
+  | [`Azure Logic Apps`](/oss/python/integrations/tools/azure_logic_apps)                                                         | <span data-sort-value="1000000"><a href="https://pypi.org/project/langchain-azure-ai/" target="_blank">  <img src="https://static.pepy.tech/badge/langchain-azure-ai/month" alt="Downloads per month" noZoom class="rounded not-prose" /></a></span>                           |
+  | [`Microsoft Foundry tools`](/oss/python/integrations/tools/azure_ai)                                                          | <span data-sort-value="1000000"><a href="https://pypi.org/project/langchain-azure-ai/" target="_blank">  <img src="https://static.pepy.tech/badge/langchain-azure-ai/month" alt="Downloads per month" noZoom class="rounded not-prose" /></a></span>                           |
+  | [`Microsoft Foundry Tools (formerly Azure AI Services) tools`](/oss/python/integrations/tools/azure_ai_services)              | <span data-sort-value="1000000"><a href="https://pypi.org/project/langchain-azure-ai/" target="_blank">  <img src="https://static.pepy.tech/badge/langchain-azure-ai/month" alt="Downloads per month" noZoom class="rounded not-prose" /></a></span>                           |
+  | [`Tavily crawl`](/oss/python/integrations/tools/tavily_crawl)                                                                 | <span data-sort-value="658000"><a href="https://pypi.org/project/langchain-tavily/" target="_blank">  <img src="https://static.pepy.tech/badge/langchain-tavily/month" alt="Downloads per month" noZoom class="rounded not-prose" /></a></span>                                |
+  | [`Tavily extract`](/oss/python/integrations/tools/tavily_extract)                                                             | <span data-sort-value="658000"><a href="https://pypi.org/project/langchain-tavily/" target="_blank">  <img src="https://static.pepy.tech/badge/langchain-tavily/month" alt="Downloads per month" noZoom class="rounded not-prose" /></a></span>                                |
+  | [`Tavily map`](/oss/python/integrations/tools/tavily_map)                                                                     | <span data-sort-value="658000"><a href="https://pypi.org/project/langchain-tavily/" target="_blank">  <img src="https://static.pepy.tech/badge/langchain-tavily/month" alt="Downloads per month" noZoom class="rounded not-prose" /></a></span>                                |
+  | [`Tavily search`](/oss/python/integrations/tools/tavily_search)                                                               | <span data-sort-value="658000"><a href="https://pypi.org/project/langchain-tavily/" target="_blank">  <img src="https://static.pepy.tech/badge/langchain-tavily/month" alt="Downloads per month" noZoom class="rounded not-prose" /></a></span>                                |
+  | [`WatsonxSQLDatabaseToolkit`](/oss/python/integrations/tools/ibm_watsonx_sql)                                                 | <span data-sort-value="514000"><a href="https://pypi.org/project/langchain-ibm/" target="_blank">  <img src="https://static.pepy.tech/badge/langchain-ibm/month" alt="Downloads per month" noZoom class="rounded not-prose" /></a></span>                                      |
+  | [`WatsonxToolkit`](/oss/python/integrations/tools/ibm_watsonx)                                                                | <span data-sort-value="514000"><a href="https://pypi.org/project/langchain-ibm/" target="_blank">  <img src="https://static.pepy.tech/badge/langchain-ibm/month" alt="Downloads per month" noZoom class="rounded not-prose" /></a></span>                                      |
+  | [`Perplexity search`](/oss/python/integrations/tools/perplexity_search)                                                       | <span data-sort-value="317000"><a href="https://pypi.org/project/langchain-perplexity/" target="_blank">  <img src="https://static.pepy.tech/badge/langchain-perplexity/month" alt="Downloads per month" noZoom class="rounded not-prose" /></a></span>                        |
+  | [`Composio`](/oss/python/integrations/tools/composio)                                                                         | <span data-sort-value="307000"><a href="https://pypi.org/project/composio-langchain/" target="_blank">  <img src="https://static.pepy.tech/badge/composio-langchain/month" alt="Downloads per month" noZoom class="rounded not-prose" /></a></span>                            |
+  | [`Exa search`](/oss/python/integrations/tools/exa_search)                                                                     | <span data-sort-value="211000"><a href="https://pypi.org/project/langchain-exa/" target="_blank">  <img src="https://static.pepy.tech/badge/langchain-exa/month" alt="Downloads per month" noZoom class="rounded not-prose" /></a></span>                                      |
+  | [`Oracle AI vector search generate summary`](/oss/python/integrations/tools/oracleai)                                         | <span data-sort-value="201000"><a href="https://pypi.org/project/langchain-oracledb/" target="_blank">  <img src="https://static.pepy.tech/badge/langchain-oracledb/month" alt="Downloads per month" noZoom class="rounded not-prose" /></a></span>                            |
+  | [`Azure container apps dynamic sessions`](/oss/python/integrations/tools/azure_dynamic_sessions)                              | <span data-sort-value="51000"><a href="https://pypi.org/project/langchain-azure-dynamic-sessions/" target="_blank">  <img src="https://static.pepy.tech/badge/langchain-azure-dynamic-sessions/month" alt="Downloads per month" noZoom class="rounded not-prose" /></a></span> |
+  | [`Upstage groundedness check`](/oss/python/integrations/tools/upstage_groundedness_check)                                     | <span data-sort-value="47000"><a href="https://pypi.org/project/langchain-upstage/" target="_blank">  <img src="https://static.pepy.tech/badge/langchain-upstage/month" alt="Downloads per month" noZoom class="rounded not-prose" /></a></span>                               |
+  | [`Scalekit`](https://docs.scalekit.com/agentkit/quickstart/)                                                                  | <span data-sort-value="31000"><a href="https://pypi.org/project/scalekit-sdk-python/" target="_blank">  <img src="https://static.pepy.tech/badge/scalekit-sdk-python/month" alt="Downloads per month" noZoom class="rounded not-prose" /></a></span>                           |
+  | [`ApifyActorsTool`](https://docs.apify.com/integrations/langchain)                                                            | <span data-sort-value="24000"><a href="https://pypi.org/project/langchain-apify/" target="_blank">  <img src="https://static.pepy.tech/badge/langchain-apify/month" alt="Downloads per month" noZoom class="rounded not-prose" /></a></span>                                   |
+  | [`Memory`](https://github.com/skynetcmd/m3-memory/blob/main/docs/integrations/LANGCHAIN.md)                                   | <span data-sort-value="24000"><a href="https://pypi.org/project/m3-memory/" target="_blank">  <img src="https://static.pepy.tech/badge/m3-memory/month" alt="Downloads per month" noZoom class="rounded not-prose" /></a></span>                                               |
+  | [`MemgraphToolkit`](https://github.com/memgraph/langchain-memgraph)                                                           | <span data-sort-value="10000"><a href="https://pypi.org/project/langchain-memgraph/" target="_blank">  <img src="https://static.pepy.tech/badge/langchain-memgraph/month" alt="Downloads per month" noZoom class="rounded not-prose" /></a></span>                             |
+  | [`Brightdataserp`](https://docs.brightdata.com/scraping-automation/serp-api/introduction)                                     | <span data-sort-value="9000"><a href="https://pypi.org/project/langchain-brightdata/" target="_blank">  <img src="https://static.pepy.tech/badge/langchain-brightdata/month" alt="Downloads per month" noZoom class="rounded not-prose" /></a></span>                          |
+  | [`Brightdataunlocker`](https://docs.brightdata.com/scraping-automation/web-unlocker/introduction)                             | <span data-sort-value="9000"><a href="https://pypi.org/project/langchain-brightdata/" target="_blank">  <img src="https://static.pepy.tech/badge/langchain-brightdata/month" alt="Downloads per month" noZoom class="rounded not-prose" /></a></span>                          |
+  | [`Brightdatawebscraperapi`](https://docs.brightdata.com/datasets/scrapers/overview)                                           | <span data-sort-value="9000"><a href="https://pypi.org/project/langchain-brightdata/" target="_blank">  <img src="https://static.pepy.tech/badge/langchain-brightdata/month" alt="Downloads per month" noZoom class="rounded not-prose" /></a></span>                          |
+  | [`Mcp toolbox for databases`](/oss/python/integrations/tools/mcp_toolbox)                                                     | <span data-sort-value="9000"><a href="https://pypi.org/project/toolbox-langchain/" target="_blank">  <img src="https://static.pepy.tech/badge/toolbox-langchain/month" alt="Downloads per month" noZoom class="rounded not-prose" /></a></span>                                |
+  | [`AdeuToolkit`](https://adeu.ai)                                                                                              | <span data-sort-value="7000"><a href="https://pypi.org/project/langchain-adeu/" target="_blank">  <img src="https://static.pepy.tech/badge/langchain-adeu/month" alt="Downloads per month" noZoom class="rounded not-prose" /></a></span>                                      |
+  | [`e2a`](https://e2a.dev)                                                                                                      | <span data-sort-value="7000"><a href="https://pypi.org/project/e2a/" target="_blank">  <img src="https://static.pepy.tech/badge/e2a/month" alt="Downloads per month" noZoom class="rounded not-prose" /></a></span>                                                            |
+  | [`Parallel extract`](/oss/python/integrations/tools/parallel_extract)                                                         | <span data-sort-value="6000"><a href="https://pypi.org/project/langchain-parallel/" target="_blank">  <img src="https://static.pepy.tech/badge/langchain-parallel/month" alt="Downloads per month" noZoom class="rounded not-prose" /></a></span>                              |
+  | [`Parallel FindAll`](/oss/python/integrations/tools/parallel_findall)                                                         | <span data-sort-value="6000"><a href="https://pypi.org/project/langchain-parallel/" target="_blank">  <img src="https://static.pepy.tech/badge/langchain-parallel/month" alt="Downloads per month" noZoom class="rounded not-prose" /></a></span>                              |
+  | [`Parallel Monitor`](/oss/python/integrations/tools/parallel_monitor)                                                         | <span data-sort-value="6000"><a href="https://pypi.org/project/langchain-parallel/" target="_blank">  <img src="https://static.pepy.tech/badge/langchain-parallel/month" alt="Downloads per month" noZoom class="rounded not-prose" /></a></span>                              |
+  | [`Parallel search`](/oss/python/integrations/tools/parallel_search)                                                           | <span data-sort-value="6000"><a href="https://pypi.org/project/langchain-parallel/" target="_blank">  <img src="https://static.pepy.tech/badge/langchain-parallel/month" alt="Downloads per month" noZoom class="rounded not-prose" /></a></span>                              |
+  | [`Parallel Task API`](/oss/python/integrations/tools/parallel_task)                                                           | <span data-sort-value="6000"><a href="https://pypi.org/project/langchain-parallel/" target="_blank">  <img src="https://static.pepy.tech/badge/langchain-parallel/month" alt="Downloads per month" noZoom class="rounded not-prose" /></a></span>                              |
+  | [`StripeAgentToolkit`](/oss/python/integrations/tools/stripe)                                                                 | <span data-sort-value="6000"><a href="https://pypi.org/project/stripe-agent-toolkit/" target="_blank">  <img src="https://static.pepy.tech/badge/stripe-agent-toolkit/month" alt="Downloads per month" noZoom class="rounded not-prose" /></a></span>                          |
+  | [`MadeOnSol`](https://madeonsol.com/api-docs)                                                                                 | <span data-sort-value="5000"><a href="https://pypi.org/project/madeonsol-x402/" target="_blank">  <img src="https://static.pepy.tech/badge/madeonsol-x402/month" alt="Downloads per month" noZoom class="rounded not-prose" /></a></span>                                      |
+  | [`Cdp agentkit toolkit`](/oss/python/integrations/tools/cdp_agentkit)                                                         | <span data-sort-value="4000"><a href="https://pypi.org/project/coinbase-agentkit-langchain/" target="_blank">  <img src="https://static.pepy.tech/badge/coinbase-agentkit-langchain/month" alt="Downloads per month" noZoom class="rounded not-prose" /></a></span>            |
+  | [`Compass defi toolkit`](https://pypi.org/project/langchain-compass/)                                                         | <span data-sort-value="4000"><a href="https://pypi.org/project/langchain-compass/" target="_blank">  <img src="https://static.pepy.tech/badge/langchain-compass/month" alt="Downloads per month" noZoom class="rounded not-prose" /></a></span>                                |
+  | [`DomPrunerFetchTool`](https://github.com/dong7812/dompruner-py)                                                              | <span data-sort-value="4000"><a href="https://pypi.org/project/dompruner/" target="_blank">  <img src="https://static.pepy.tech/badge/dompruner/month" alt="Downloads per month" noZoom class="rounded not-prose" /></a></span>                                                |
+  | [`Google drive`](/oss/python/integrations/tools/google_drive)                                                                 | <span data-sort-value="4000"><a href="https://pypi.org/project/langchain-googledrive/" target="_blank">  <img src="https://static.pepy.tech/badge/langchain-googledrive/month" alt="Downloads per month" noZoom class="rounded not-prose" /></a></span>                        |
+  | [`Scavio`](https://scavio.dev/docs/langchain)                                                                                 | <span data-sort-value="4000"><a href="https://pypi.org/project/langchain-scavio/" target="_blank">  <img src="https://static.pepy.tech/badge/langchain-scavio/month" alt="Downloads per month" noZoom class="rounded not-prose" /></a></span>                                  |
+  | [`SmartScraperTool`](https://github.com/ScrapeGraphAI/langchain-scrapegraph)                                                  | <span data-sort-value="4000"><a href="https://pypi.org/project/langchain-scrapegraph/" target="_blank">  <img src="https://static.pepy.tech/badge/langchain-scrapegraph/month" alt="Downloads per month" noZoom class="rounded not-prose" /></a></span>                        |
+  | [`Taiga`](https://github.com/Shikenso-Analytics/langchain-taiga)                                                              | <span data-sort-value="4000"><a href="https://pypi.org/project/langchain-taiga/" target="_blank">  <img src="https://static.pepy.tech/badge/langchain-taiga/month" alt="Downloads per month" noZoom class="rounded not-prose" /></a></span>                                    |
+  | [`LinkupSearchTool`](https://github.com/LinkupPlatform/langchain-linkup)                                                      | <span data-sort-value="3000"><a href="https://pypi.org/project/langchain-linkup/" target="_blank">  <img src="https://static.pepy.tech/badge/langchain-linkup/month" alt="Downloads per month" noZoom class="rounded not-prose" /></a></span>                                  |
+  | [`NimbleExtractTool`](https://docs.nimbleway.com/integrations/connectors/langchain)                                           | <span data-sort-value="3000"><a href="https://pypi.org/project/langchain-nimble/" target="_blank">  <img src="https://static.pepy.tech/badge/langchain-nimble/month" alt="Downloads per month" noZoom class="rounded not-prose" /></a></span>                                  |
+  | [`NimbleSearchTool`](https://docs.nimbleway.com/integrations/connectors/langchain)                                            | <span data-sort-value="3000"><a href="https://pypi.org/project/langchain-nimble/" target="_blank">  <img src="https://static.pepy.tech/badge/langchain-nimble/month" alt="Downloads per month" noZoom class="rounded not-prose" /></a></span>                                  |
+  | [`BlopusFetch`](https://blopus.ai/docs/)                                                                                      | <span data-sort-value="2000"><a href="https://pypi.org/project/langchain-blopus/" target="_blank">  <img src="https://static.pepy.tech/badge/langchain-blopus/month" alt="Downloads per month" noZoom class="rounded not-prose" /></a></span>                                  |
+  | [`BlopusSearch`](https://blopus.ai/docs/)                                                                                     | <span data-sort-value="2000"><a href="https://pypi.org/project/langchain-blopus/" target="_blank">  <img src="https://static.pepy.tech/badge/langchain-blopus/month" alt="Downloads per month" noZoom class="rounded not-prose" /></a></span>                                  |
+  | [`ERC20Toolkit`](https://github.com/Conrad-sudo/langchain-erc20)                                                              | <span data-sort-value="2000"><a href="https://pypi.org/project/langchain-erc20/" target="_blank">  <img src="https://static.pepy.tech/badge/langchain-erc20/month" alt="Downloads per month" noZoom class="rounded not-prose" /></a></span>                                    |
+  | [`GraphTool`](https://dev.writer.com/home/introduction)                                                                       | <span data-sort-value="2000"><a href="https://pypi.org/project/langchain-writer/" target="_blank">  <img src="https://static.pepy.tech/badge/langchain-writer/month" alt="Downloads per month" noZoom class="rounded not-prose" /></a></span>                                  |
+  | [`Lians`](https://www.lians.ai)                                                                                               | <span data-sort-value="2000"><a href="https://pypi.org/project/lians-sdk/" target="_blank">  <img src="https://static.pepy.tech/badge/lians-sdk/month" alt="Downloads per month" noZoom class="rounded not-prose" /></a></span>                                                |
+  | [`SkimReader`](https://skim402.com/docs)                                                                                      | <span data-sort-value="2000"><a href="https://pypi.org/project/langchain-skim/" target="_blank">  <img src="https://static.pepy.tech/badge/langchain-skim/month" alt="Downloads per month" noZoom class="rounded not-prose" /></a></span>                                      |
+  | [`ToolGuardLayer`](https://github.com/sriram7737/pramagent)                                                                   | <span data-sort-value="2000"><a href="https://pypi.org/project/pramagent/" target="_blank">  <img src="https://static.pepy.tech/badge/pramagent/month" alt="Downloads per month" noZoom class="rounded not-prose" /></a></span>                                                |
+  | [`UniswapV2Toolkit`](https://github.com/Conrad-sudo/langchain-uniswap-v2)                                                     | <span data-sort-value="2000"><a href="https://pypi.org/project/langchain-uniswap-v2/" target="_blank">  <img src="https://static.pepy.tech/badge/langchain-uniswap-v2/month" alt="Downloads per month" noZoom class="rounded not-prose" /></a></span>                          |
+  | [`You.com search`](https://you.com/docs/integrations/langchain)                                                               | <span data-sort-value="2000"><a href="https://pypi.org/project/langchain-youdotcom/" target="_blank">  <img src="https://static.pepy.tech/badge/langchain-youdotcom/month" alt="Downloads per month" noZoom class="rounded not-prose" /></a></span>                            |
+  | [`Ads4gpts`](https://github.com/ADS4GPTs/ads4gpts)                                                                            | <span data-sort-value="1000"><a href="https://pypi.org/project/ads4gpts-langchain/" target="_blank">  <img src="https://static.pepy.tech/badge/ads4gpts-langchain/month" alt="Downloads per month" noZoom class="rounded not-prose" /></a></span>                              |
+  | [`AtomicMailToolkit`](https://atomic-mail.github.io/atomic-mail-agentic/langchain)                                            | <span data-sort-value="1000"><a href="https://pypi.org/project/langchain-atomicmail/" target="_blank">  <img src="https://static.pepy.tech/badge/langchain-atomicmail/month" alt="Downloads per month" noZoom class="rounded not-prose" /></a></span>                          |
+  | [`AidressToolkit`](https://aidress.ai)                                                                                        | <span data-sort-value="1000"><a href="https://pypi.org/project/langchain-aidress/" target="_blank">  <img src="https://static.pepy.tech/badge/langchain-aidress/month" alt="Downloads per month" noZoom class="rounded not-prose" /></a></span>                                |
+  | [`GateCoreToolkit`](https://gatecoreai.com/docs/)                                                                             | <span data-sort-value="1000"><a href="https://pypi.org/project/gatecore-langchain/" target="_blank">  <img src="https://static.pepy.tech/badge/gatecore-langchain/month" alt="Downloads per month" noZoom class="rounded not-prose" /></a></span>                              |
+  | [`HindsightTools`](https://docs.hindsight.vectorize.io/sdks/integrations/langgraph)                                           | <span data-sort-value="1000"><a href="https://pypi.org/project/hindsight-langgraph/" target="_blank">  <img src="https://static.pepy.tech/badge/hindsight-langgraph/month" alt="Downloads per month" noZoom class="rounded not-prose" /></a></span>                            |
+  | [`LexMexTool`](https://lex-mex.xyz)                                                                                           | <span data-sort-value="1000"><a href="https://pypi.org/project/langchain-lexmex/" target="_blank">  <img src="https://static.pepy.tech/badge/langchain-lexmex/month" alt="Downloads per month" noZoom class="rounded not-prose" /></a></span>                                  |
+  | [`Robocorp toolkit`](https://github.com/robocorp/robocorp)                                                                    | <span data-sort-value="1000"><a href="https://pypi.org/project/langchain-robocorp/" target="_blank">  <img src="https://static.pepy.tech/badge/langchain-robocorp/month" alt="Downloads per month" noZoom class="rounded not-prose" /></a></span>                              |
+  | [`SerpApi Search Tools`](https://serpapi.github.io/serpapi-search-tools-python/docs/sdk-examples/langchain.html)              | <span data-sort-value="1000"><a href="https://pypi.org/project/serpapi-search-tools/" target="_blank">  <img src="https://static.pepy.tech/badge/serpapi-search-tools/month" alt="Downloads per month" noZoom class="rounded not-prose" /></a></span>                          |
+  | [`TokPortalToolkit`](https://github.com/tokportal/langchain-tokportal)                                                        | <span data-sort-value="1000"><a href="https://pypi.org/project/langchain-tokportal/" target="_blank">  <img src="https://static.pepy.tech/badge/langchain-tokportal/month" alt="Downloads per month" noZoom class="rounded not-prose" /></a></span>                            |
+  | [`GandrText2SpeechTool`](https://gandr.ai/docs)                                                                               | <span data-sort-value="952"><a href="https://pypi.org/project/gandr-langchain/" target="_blank">  <img src="https://static.pepy.tech/badge/gandr-langchain/month" alt="Downloads per month" noZoom class="rounded not-prose" /></a></span>                                     |
+  | [`Salesforce`](https://github.com/colesmcintosh/langchain-salesforce)                                                         | <span data-sort-value="943"><a href="https://pypi.org/project/langchain-salesforce/" target="_blank">  <img src="https://static.pepy.tech/badge/langchain-salesforce/month" alt="Downloads per month" noZoom class="rounded not-prose" /></a></span>                           |
+  | [`Prolog`](https://langchain-prolog.readthedocs.io/en/stable/)                                                                | <span data-sort-value="941"><a href="https://pypi.org/project/langchain-prolog/" target="_blank">  <img src="https://static.pepy.tech/badge/langchain-prolog/month" alt="Downloads per month" noZoom class="rounded not-prose" /></a></span>                                   |
+  | [`AgentRAMTools`](https://agentram.dev/langchain-agent-memory-tutorial.html)                                                  | <span data-sort-value="881"><a href="https://pypi.org/project/langgraph-agentram/" target="_blank">  <img src="https://static.pepy.tech/badge/langgraph-agentram/month" alt="Downloads per month" noZoom class="rounded not-prose" /></a></span>                               |
+  | [`1Claw`](https://docs.1claw.xyz/docs/integrations/langchain)                                                                 | <span data-sort-value="830"><a href="https://pypi.org/project/langchain-1claw/" target="_blank">  <img src="https://static.pepy.tech/badge/langchain-1claw/month" alt="Downloads per month" noZoom class="rounded not-prose" /></a></span>                                     |
+  | [`SpidraScrape`](https://docs.spidra.io)                                                                                      | <span data-sort-value="827"><a href="https://pypi.org/project/langchain-spidra/" target="_blank">  <img src="https://static.pepy.tech/badge/langchain-spidra/month" alt="Downloads per month" noZoom class="rounded not-prose" /></a></span>                                   |
+  | [`WaveSpeedImageGeneration`](https://github.com/WaveSpeedAI/langchain-wavespeed)                                              | <span data-sort-value="796"><a href="https://pypi.org/project/langchain-wavespeed/" target="_blank">  <img src="https://static.pepy.tech/badge/langchain-wavespeed/month" alt="Downloads per month" noZoom class="rounded not-prose" /></a></span>                             |
+  | [`WaveSpeedRunModel`](https://github.com/WaveSpeedAI/langchain-wavespeed)                                                     | <span data-sort-value="796"><a href="https://pypi.org/project/langchain-wavespeed/" target="_blank">  <img src="https://static.pepy.tech/badge/langchain-wavespeed/month" alt="Downloads per month" noZoom class="rounded not-prose" /></a></span>                             |
+  | [`WaveSpeedVideoGeneration`](https://github.com/WaveSpeedAI/langchain-wavespeed)                                              | <span data-sort-value="796"><a href="https://pypi.org/project/langchain-wavespeed/" target="_blank">  <img src="https://static.pepy.tech/badge/langchain-wavespeed/month" alt="Downloads per month" noZoom class="rounded not-prose" /></a></span>                             |
+  | [`ERC8004Toolkit`](https://github.com/Conrad-sudo/langchain-erc8004)                                                          | <span data-sort-value="793"><a href="https://pypi.org/project/langchain-erc8004/" target="_blank">  <img src="https://static.pepy.tech/badge/langchain-erc8004/month" alt="Downloads per month" noZoom class="rounded not-prose" /></a></span>                                 |
+  | [`AlfrescoToolkit`](https://github.com/OpenDMA/langchain-opendma/blob/main/docs/Toolkit.md#alfrescotoolkit)                   | <span data-sort-value="784"><a href="https://pypi.org/project/langchain-opendma/" target="_blank">  <img src="https://static.pepy.tech/badge/langchain-opendma/month" alt="Downloads per month" noZoom class="rounded not-prose" /></a></span>                                 |
+  | [`DocumentumToolkit`](https://github.com/OpenDMA/langchain-opendma/blob/main/docs/Toolkit.md#documentumtoolkit)               | <span data-sort-value="784"><a href="https://pypi.org/project/langchain-opendma/" target="_blank">  <img src="https://static.pepy.tech/badge/langchain-opendma/month" alt="Downloads per month" noZoom class="rounded not-prose" /></a></span>                                 |
+  | [`FileNetP8Toolkit`](https://github.com/OpenDMA/langchain-opendma/blob/main/docs/Toolkit.md#filenetp8toolkit)                 | <span data-sort-value="784"><a href="https://pypi.org/project/langchain-opendma/" target="_blank">  <img src="https://static.pepy.tech/badge/langchain-opendma/month" alt="Downloads per month" noZoom class="rounded not-prose" /></a></span>                                 |
+  | [`OnBaseToolkit`](https://github.com/OpenDMA/langchain-opendma/blob/main/docs/Toolkit.md#onbasetoolkit)                       | <span data-sort-value="784"><a href="https://pypi.org/project/langchain-opendma/" target="_blank">  <img src="https://static.pepy.tech/badge/langchain-opendma/month" alt="Downloads per month" noZoom class="rounded not-prose" /></a></span>                                 |
+  | [`OpenDMAToolkit`](https://github.com/OpenDMA/langchain-opendma/blob/main/docs/Toolkit.md)                                    | <span data-sort-value="784"><a href="https://pypi.org/project/langchain-opendma/" target="_blank">  <img src="https://static.pepy.tech/badge/langchain-opendma/month" alt="Downloads per month" noZoom class="rounded not-prose" /></a></span>                                 |
+  | [`Ampersend`](https://docs.ampersend.ai)                                                                                      | <span data-sort-value="738"><a href="https://pypi.org/project/langchain-ampersend/" target="_blank">  <img src="https://static.pepy.tech/badge/langchain-ampersend/month" alt="Downloads per month" noZoom class="rounded not-prose" /></a></span>                             |
+  | [`WebzNewsSearch`](https://docs.webz.io/docs/webz/news-search-api-mcp)                                                        | <span data-sort-value="682"><a href="https://pypi.org/project/langchain-webz/" target="_blank">  <img src="https://static.pepy.tech/badge/langchain-webz/month" alt="Downloads per month" noZoom class="rounded not-prose" /></a></span>                                       |
+  | [`RelayShield`](https://api.relayshield.net/developers)                                                                       | <span data-sort-value="663"><a href="https://pypi.org/project/langchain-relayshield/" target="_blank">  <img src="https://static.pepy.tech/badge/langchain-relayshield/month" alt="Downloads per month" noZoom class="rounded not-prose" /></a></span>                         |
+  | [`Oxylabs`](https://github.com/oxylabs/langchain-oxylabs)                                                                     | <span data-sort-value="640"><a href="https://pypi.org/project/langchain-oxylabs/" target="_blank">  <img src="https://static.pepy.tech/badge/langchain-oxylabs/month" alt="Downloads per month" noZoom class="rounded not-prose" /></a></span>                                 |
+  | [`Opedd`](https://opedd.com/for-ai-agents)                                                                                    | <span data-sort-value="639"><a href="https://pypi.org/project/langchain-opedd/" target="_blank">  <img src="https://static.pepy.tech/badge/langchain-opedd/month" alt="Downloads per month" noZoom class="rounded not-prose" /></a></span>                                     |
+  | [`PerseusVaultToolkit`](https://github.com/Perseus-Computing-LLC/langchain-perseus-vault)                                     | <span data-sort-value="636"><a href="https://pypi.org/project/langchain-perseus-vault/" target="_blank">  <img src="https://static.pepy.tech/badge/langchain-perseus-vault/month" alt="Downloads per month" noZoom class="rounded not-prose" /></a></span>                     |
+  | [`LiveTennisToolkit`](https://docs.livetennisapi.com)                                                                         | <span data-sort-value="586"><a href="https://pypi.org/project/langchain-livetennis/" target="_blank">  <img src="https://static.pepy.tech/badge/langchain-livetennis/month" alt="Downloads per month" noZoom class="rounded not-prose" /></a></span>                           |
+  | [`Lumify Sports Intelligence`](https://lumify.ai/docs/ai)                                                                     | <span data-sort-value="582"><a href="https://pypi.org/project/langchain-lumify/" target="_blank">  <img src="https://static.pepy.tech/badge/langchain-lumify/month" alt="Downloads per month" noZoom class="rounded not-prose" /></a></span>                                   |
+  | [`Synmerco`](https://synmerco.com/docs)                                                                                       | <span data-sort-value="571"><a href="https://pypi.org/project/synmerco-langchain/" target="_blank">  <img src="https://static.pepy.tech/badge/synmerco-langchain/month" alt="Downloads per month" noZoom class="rounded not-prose" /></a></span>                               |
+  | [`AmazonProductTool`](https://www.scrapingbee.com/documentation/langchain/)                                                   | <span data-sort-value="564"><a href="https://pypi.org/project/langchain-scrapingbee/" target="_blank">  <img src="https://static.pepy.tech/badge/langchain-scrapingbee/month" alt="Downloads per month" noZoom class="rounded not-prose" /></a></span>                         |
+  | [`AmazonSearchTool`](https://www.scrapingbee.com/documentation/langchain/)                                                    | <span data-sort-value="564"><a href="https://pypi.org/project/langchain-scrapingbee/" target="_blank">  <img src="https://static.pepy.tech/badge/langchain-scrapingbee/month" alt="Downloads per month" noZoom class="rounded not-prose" /></a></span>                         |
+  | [`ChatGPTTool`](https://www.scrapingbee.com/documentation/langchain/)                                                         | <span data-sort-value="564"><a href="https://pypi.org/project/langchain-scrapingbee/" target="_blank">  <img src="https://static.pepy.tech/badge/langchain-scrapingbee/month" alt="Downloads per month" noZoom class="rounded not-prose" /></a></span>                         |
+  | [`CheckUsageTool`](https://www.scrapingbee.com/documentation/langchain/)                                                      | <span data-sort-value="564"><a href="https://pypi.org/project/langchain-scrapingbee/" target="_blank">  <img src="https://static.pepy.tech/badge/langchain-scrapingbee/month" alt="Downloads per month" noZoom class="rounded not-prose" /></a></span>                         |
+  | [`GoogleSearchTool`](https://www.scrapingbee.com/documentation/langchain/)                                                    | <span data-sort-value="564"><a href="https://pypi.org/project/langchain-scrapingbee/" target="_blank">  <img src="https://static.pepy.tech/badge/langchain-scrapingbee/month" alt="Downloads per month" noZoom class="rounded not-prose" /></a></span>                         |
+  | [`Mixpeek`](https://mixpeek.com/docs/agent-integrations/langchain)                                                            | <span data-sort-value="564"><a href="https://pypi.org/project/langchain-mixpeek/" target="_blank">  <img src="https://static.pepy.tech/badge/langchain-mixpeek/month" alt="Downloads per month" noZoom class="rounded not-prose" /></a></span>                                 |
+  | [`ScrapeUrlTool`](https://www.scrapingbee.com/documentation/langchain/)                                                       | <span data-sort-value="564"><a href="https://pypi.org/project/langchain-scrapingbee/" target="_blank">  <img src="https://static.pepy.tech/badge/langchain-scrapingbee/month" alt="Downloads per month" noZoom class="rounded not-prose" /></a></span>                         |
+  | [`WalmartProductTool`](https://www.scrapingbee.com/documentation/langchain/)                                                  | <span data-sort-value="564"><a href="https://pypi.org/project/langchain-scrapingbee/" target="_blank">  <img src="https://static.pepy.tech/badge/langchain-scrapingbee/month" alt="Downloads per month" noZoom class="rounded not-prose" /></a></span>                         |
+  | [`WalmartSearchTool`](https://www.scrapingbee.com/documentation/langchain/)                                                   | <span data-sort-value="564"><a href="https://pypi.org/project/langchain-scrapingbee/" target="_blank">  <img src="https://static.pepy.tech/badge/langchain-scrapingbee/month" alt="Downloads per month" noZoom class="rounded not-prose" /></a></span>                         |
+  | [`YouTubeMetadataTool`](https://www.scrapingbee.com/documentation/langchain/)                                                 | <span data-sort-value="564"><a href="https://pypi.org/project/langchain-scrapingbee/" target="_blank">  <img src="https://static.pepy.tech/badge/langchain-scrapingbee/month" alt="Downloads per month" noZoom class="rounded not-prose" /></a></span>                         |
+  | [`YouTubeSearchTool`](https://www.scrapingbee.com/documentation/langchain/)                                                   | <span data-sort-value="564"><a href="https://pypi.org/project/langchain-scrapingbee/" target="_blank">  <img src="https://static.pepy.tech/badge/langchain-scrapingbee/month" alt="Downloads per month" noZoom class="rounded not-prose" /></a></span>                         |
+  | [`Querit`](https://querit.com/docs)                                                                                           | <span data-sort-value="563"><a href="https://pypi.org/project/langchain-querit/" target="_blank">  <img src="https://static.pepy.tech/badge/langchain-querit/month" alt="Downloads per month" noZoom class="rounded not-prose" /></a></span>                                   |
+  | [`Manifest`](https://omfang.io/manifest-docs)                                                                                 | <span data-sort-value="552"><a href="https://pypi.org/project/manifest-api/" target="_blank">  <img src="https://static.pepy.tech/badge/manifest-api/month" alt="Downloads per month" noZoom class="rounded not-prose" /></a></span>                                           |
+  | [`SailSQLToolkit`](https://docs.lakesail.com/sail/main/guide/integrations/langchain/)                                         | <span data-sort-value="532"><a href="https://pypi.org/project/langchain-sail/" target="_blank">  <img src="https://static.pepy.tech/badge/langchain-sail/month" alt="Downloads per month" noZoom class="rounded not-prose" /></a></span>                                       |
+  | [`FidacyActionFirewall`](https://github.com/fidacy/fidacy-open)                                                               | <span data-sort-value="519"><a href="https://pypi.org/project/langchain-fidacy/" target="_blank">  <img src="https://static.pepy.tech/badge/langchain-fidacy/month" alt="Downloads per month" noZoom class="rounded not-prose" /></a></span>                                   |
+  | [`ApprovalRequiredTool`](https://useagentgate.com/docs)                                                                       | <span data-sort-value="517"><a href="https://pypi.org/project/langchain-agentgate/" target="_blank">  <img src="https://static.pepy.tech/badge/langchain-agentgate/month" alt="Downloads per month" noZoom class="rounded not-prose" /></a></span>                             |
+  | [`LyrenthReadTool`](https://lyrenth.com/docs/integrations)                                                                    | <span data-sort-value="513"><a href="https://pypi.org/project/langchain-lyrenth/" target="_blank">  <img src="https://static.pepy.tech/badge/langchain-lyrenth/month" alt="Downloads per month" noZoom class="rounded not-prose" /></a></span>                                 |
+  | [`Hyperbrowser browser agent`](https://www.hyperbrowser.ai/docs/home)                                                         | <span data-sort-value="512"><a href="https://pypi.org/project/langchain-hyperbrowser/" target="_blank">  <img src="https://static.pepy.tech/badge/langchain-hyperbrowser/month" alt="Downloads per month" noZoom class="rounded not-prose" /></a></span>                       |
+  | [`Hyperbrowser web scraping`](https://www.hyperbrowser.ai/docs/home)                                                          | <span data-sort-value="512"><a href="https://pypi.org/project/langchain-hyperbrowser/" target="_blank">  <img src="https://static.pepy.tech/badge/langchain-hyperbrowser/month" alt="Downloads per month" noZoom class="rounded not-prose" /></a></span>                       |
+  | [`Hydrafetch`](https://docs.hydrafetch.com)                                                                                   | <span data-sort-value="509"><a href="https://pypi.org/project/langchain-hydrafetch/" target="_blank">  <img src="https://static.pepy.tech/badge/langchain-hydrafetch/month" alt="Downloads per month" noZoom class="rounded not-prose" /></a></span>                           |
+  | [`Anakin`](https://anakin.io/docs/documentation)                                                                              | <span data-sort-value="508"><a href="https://pypi.org/project/langchain-anakin/" target="_blank">  <img src="https://static.pepy.tech/badge/langchain-anakin/month" alt="Downloads per month" noZoom class="rounded not-prose" /></a></span>                                   |
+  | [`TendemTools`](https://github.com/Toloka/tendem-mcp/tree/main/integrations/langchain-tendem#readme)                          | <span data-sort-value="504"><a href="https://pypi.org/project/langchain-tendem/" target="_blank">  <img src="https://static.pepy.tech/badge/langchain-tendem/month" alt="Downloads per month" noZoom class="rounded not-prose" /></a></span>                                   |
+  | [`MagicHourToolkit`](https://docs.magichour.ai)                                                                               | <span data-sort-value="485"><a href="https://pypi.org/project/langchain-magic-hour/" target="_blank">  <img src="https://static.pepy.tech/badge/langchain-magic-hour/month" alt="Downloads per month" noZoom class="rounded not-prose" /></a></span>                           |
+  | [`OptionsAhoy`](https://optionsahoy.com/for-agents)                                                                           | <span data-sort-value="472"><a href="https://pypi.org/project/optionsahoy-langchain/" target="_blank">  <img src="https://static.pepy.tech/badge/optionsahoy-langchain/month" alt="Downloads per month" noZoom class="rounded not-prose" /></a></span>                         |
+  | [`SkillLiteTool`](https://github.com/EXboys/langchain-skilllite)                                                              | <span data-sort-value="466"><a href="https://pypi.org/project/langchain-skilllite/" target="_blank">  <img src="https://static.pepy.tech/badge/langchain-skilllite/month" alt="Downloads per month" noZoom class="rounded not-prose" /></a></span>                             |
+  | [`FootballChartsToolkit`](https://www.football-charts.com/developers)                                                         | <span data-sort-value="456"><a href="https://pypi.org/project/langchain-footballcharts/" target="_blank">  <img src="https://static.pepy.tech/badge/langchain-footballcharts/month" alt="Downloads per month" noZoom class="rounded not-prose" /></a></span>                   |
+  | [`ZeroGPUToolkit`](https://docs.zerogpu.ai)                                                                                   | <span data-sort-value="456"><a href="https://pypi.org/project/langchain-zerogpu/" target="_blank">  <img src="https://static.pepy.tech/badge/langchain-zerogpu/month" alt="Downloads per month" noZoom class="rounded not-prose" /></a></span>                                 |
+  | [`Discord`](/oss/python/integrations/tools/discord)                                                                           | <span data-sort-value="445"><a href="https://pypi.org/project/langchain-discord/" target="_blank">  <img src="https://static.pepy.tech/badge/langchain-discord/month" alt="Downloads per month" noZoom class="rounded not-prose" /></a></span>                                 |
+  | [`Valyucontext`](https://docs.valyu.ai/home)                                                                                  | <span data-sort-value="444"><a href="https://pypi.org/project/langchain-valyu/" target="_blank">  <img src="https://static.pepy.tech/badge/langchain-valyu/month" alt="Downloads per month" noZoom class="rounded not-prose" /></a></span>                                     |
+  | [`Anchor browser`](https://docs.anchorbrowser.io/introduction)                                                                | <span data-sort-value="433"><a href="https://pypi.org/project/langchain-anchorbrowser/" target="_blank">  <img src="https://static.pepy.tech/badge/langchain-anchorbrowser/month" alt="Downloads per month" noZoom class="rounded not-prose" /></a></span>                     |
+  | [`ReplyLayerToolkit`](https://replylayer.ai/docs/guides/langchain)                                                            | <span data-sort-value="431"><a href="https://pypi.org/project/langchain-replylayer/" target="_blank">  <img src="https://static.pepy.tech/badge/langchain-replylayer/month" alt="Downloads per month" noZoom class="rounded not-prose" /></a></span>                           |
+  | [`ContextToolkit`](https://docs.context.dev)                                                                                  | <span data-sort-value="429"><a href="https://pypi.org/project/langchain-context/" target="_blank">  <img src="https://static.pepy.tech/badge/langchain-context/month" alt="Downloads per month" noZoom class="rounded not-prose" /></a></span>                                 |
+  | [`Simplepages`](https://simplepages.ai/mcp)                                                                                   | <span data-sort-value="412"><a href="https://pypi.org/project/langchain-simplepages/" target="_blank">  <img src="https://static.pepy.tech/badge/langchain-simplepages/month" alt="Downloads per month" noZoom class="rounded not-prose" /></a></span>                         |
+  | [`SerpdiveSearch`](https://serpdive.com/docs)                                                                                 | <span data-sort-value="405"><a href="https://pypi.org/project/langchain-serpdive/" target="_blank">  <img src="https://static.pepy.tech/badge/langchain-serpdive/month" alt="Downloads per month" noZoom class="rounded not-prose" /></a></span>                               |
+  | [`Firecrawl`](https://docs.firecrawl.dev)                                                                                     | <span data-sort-value="394"><a href="https://pypi.org/project/langchain-firecrawl/" target="_blank">  <img src="https://static.pepy.tech/badge/langchain-firecrawl/month" alt="Downloads per month" noZoom class="rounded not-prose" /></a></span>                             |
+  | [`AlphaAIInsiderNews`](https://alphai.io/developers)                                                                          | <span data-sort-value="393"><a href="https://pypi.org/project/langchain-alphai/" target="_blank">  <img src="https://static.pepy.tech/badge/langchain-alphai/month" alt="Downloads per month" noZoom class="rounded not-prose" /></a></span>                                   |
+  | [`AlphaAIInsiderSummary`](https://alphai.io/developers)                                                                       | <span data-sort-value="393"><a href="https://pypi.org/project/langchain-alphai/" target="_blank">  <img src="https://static.pepy.tech/badge/langchain-alphai/month" alt="Downloads per month" noZoom class="rounded not-prose" /></a></span>                                   |
+  | [`AlphaAINewsSearch`](https://alphai.io/developers)                                                                           | <span data-sort-value="393"><a href="https://pypi.org/project/langchain-alphai/" target="_blank">  <img src="https://static.pepy.tech/badge/langchain-alphai/month" alt="Downloads per month" noZoom class="rounded not-prose" /></a></span>                                   |
+  | [`AlphaAITickerSentiment`](https://alphai.io/developers)                                                                      | <span data-sort-value="393"><a href="https://pypi.org/project/langchain-alphai/" target="_blank">  <img src="https://static.pepy.tech/badge/langchain-alphai/month" alt="Downloads per month" noZoom class="rounded not-prose" /></a></span>                                   |
+  | [`ReserpSearchTool`](https://reserp.ai/docs)                                                                                  | <span data-sort-value="393"><a href="https://pypi.org/project/langchain-reserp/" target="_blank">  <img src="https://static.pepy.tech/badge/langchain-reserp/month" alt="Downloads per month" noZoom class="rounded not-prose" /></a></span>                                   |
+  | [`TalorDataSerpTool`](https://docs.talordata.com/serp-api/integration/sdk-integration/how-to-set-up-talordata-with-langchain) | <span data-sort-value="386"><a href="https://pypi.org/project/langchain-talordata/" target="_blank">  <img src="https://static.pepy.tech/badge/langchain-talordata/month" alt="Downloads per month" noZoom class="rounded not-prose" /></a></span>                             |
+  | [`Tableau`](/oss/python/integrations/tools/tableau)                                                                           | <span data-sort-value="384"><a href="https://pypi.org/project/langchain-tableau/" target="_blank">  <img src="https://static.pepy.tech/badge/langchain-tableau/month" alt="Downloads per month" noZoom class="rounded not-prose" /></a></span>                                 |
+  | [`WebContactsTool`](https://github.com/JosejuX/rapidapi-metadata-extractor/tree/main/langchain-webmetadata-extractor)         | <span data-sort-value="382"><a href="https://pypi.org/project/langchain-webmetadata-extractor/" target="_blank">  <img src="https://static.pepy.tech/badge/langchain-webmetadata-extractor/month" alt="Downloads per month" noZoom class="rounded not-prose" /></a></span>     |
+  | [`WebMarkdownTool`](https://github.com/JosejuX/rapidapi-metadata-extractor/tree/main/langchain-webmetadata-extractor)         | <span data-sort-value="382"><a href="https://pypi.org/project/langchain-webmetadata-extractor/" target="_blank">  <img src="https://static.pepy.tech/badge/langchain-webmetadata-extractor/month" alt="Downloads per month" noZoom class="rounded not-prose" /></a></span>     |
+  | [`WebMetadataExtractTool`](https://github.com/JosejuX/rapidapi-metadata-extractor/tree/main/langchain-webmetadata-extractor)  | <span data-sort-value="382"><a href="https://pypi.org/project/langchain-webmetadata-extractor/" target="_blank">  <img src="https://static.pepy.tech/badge/langchain-webmetadata-extractor/month" alt="Downloads per month" noZoom class="rounded not-prose" /></a></span>     |
+  | [`WebSEOAuditTool`](https://github.com/JosejuX/rapidapi-metadata-extractor/tree/main/langchain-webmetadata-extractor)         | <span data-sort-value="382"><a href="https://pypi.org/project/langchain-webmetadata-extractor/" target="_blank">  <img src="https://static.pepy.tech/badge/langchain-webmetadata-extractor/month" alt="Downloads per month" noZoom class="rounded not-prose" /></a></span>     |
+  | [`Synap`](https://www.maximem.ai/)                                                                                            | <span data-sort-value="375"><a href="https://pypi.org/project/maximem-synap-langchain/" target="_blank">  <img src="https://static.pepy.tech/badge/maximem-synap-langchain/month" alt="Downloads per month" noZoom class="rounded not-prose" /></a></span>                     |
+  | [`Dappier`](https://docs.dappier.com/)                                                                                        | <span data-sort-value="363"><a href="https://pypi.org/project/langchain-dappier/" target="_blank">  <img src="https://static.pepy.tech/badge/langchain-dappier/month" alt="Downloads per month" noZoom class="rounded not-prose" /></a></span>                                 |
+  | [`QuanticData`](https://quanticdata.io/docs/)                                                                                 | <span data-sort-value="362"><a href="https://pypi.org/project/langchain-quanticdata/" target="_blank">  <img src="https://static.pepy.tech/badge/langchain-quanticdata/month" alt="Downloads per month" noZoom class="rounded not-prose" /></a></span>                         |
+  | [`MrScraperToolkit`](https://docs.mrscraper.com)                                                                              | <span data-sort-value="352"><a href="https://pypi.org/project/langchain-mrscraper/" target="_blank">  <img src="https://static.pepy.tech/badge/langchain-mrscraper/month" alt="Downloads per month" noZoom class="rounded not-prose" /></a></span>                             |
+  | [`SuperColony`](https://github.com/TheSuperColony/langchain-supercolony)                                                      | <span data-sort-value="346"><a href="https://pypi.org/project/langchain-supercolony/" target="_blank">  <img src="https://static.pepy.tech/badge/langchain-supercolony/month" alt="Downloads per month" noZoom class="rounded not-prose" /></a></span>                         |
+  | [`generate_latam_financial_data`](https://github.com/jmendozapuche/langchain-latam-synth)                                     | <span data-sort-value="328"><a href="https://pypi.org/project/langchain-latam-synth/" target="_blank">  <img src="https://static.pepy.tech/badge/langchain-latam-synth/month" alt="Downloads per month" noZoom class="rounded not-prose" /></a></span>                         |
+  | [`CatchAllTools`](https://www.newscatcherapi.com/docs/web-search-api/integrations/langchain)                                  | <span data-sort-value="327"><a href="https://pypi.org/project/langchain-catchall/" target="_blank">  <img src="https://static.pepy.tech/badge/langchain-catchall/month" alt="Downloads per month" noZoom class="rounded not-prose" /></a></span>                               |
+  | [`PolarisSearchTool`](https://github.com/Veroq-ai/polaris-sdks/tree/main/python/langchain_polaris)                            | <span data-sort-value="318"><a href="https://pypi.org/project/langchain-polaris/" target="_blank">  <img src="https://static.pepy.tech/badge/langchain-polaris/month" alt="Downloads per month" noZoom class="rounded not-prose" /></a></span>                          
+Title: Text editor tool
+Link: https://docs.langchain.com/oss/javascript/integrations/tools/anthropic#text-editor-tool
+Page: oss/javascript/integrations/tools/anthropic
+Content: ### Text editor tool
+
+The text editor tool (`textEditor_20250728`) enables Claude to view and modify text files, helping debug, fix, and improve code or other text documents. Claude can directly interact with files, providing hands-on assistance rather than just suggesting changes.
+
+Available commands:
+
+* `view` - Examine file contents or list directory contents
+* `str_replace` - Replace specific text in a file
+* `create` - Create a new file with specified content
+* `insert` - Insert text at a specific line number
+
+```typescript theme={"theme":{"light":"catppuccin-latte","dark":"catppuccin-mocha"}}
+import fs from "node:fs";
+import { ChatAnthropic, tools } from "@langchain/anthropic";
+
+const llm = new ChatAnthropic({
+  model: "claude-sonnet-4-6",
+});
+
+const textEditor = tools.textEditor_20250728({
+  async execute(args) {
+    switch (args.command) {
+      case "view":
+        const content = fs.readFileSync(args.path, "utf-8");
+        // Return with line numbers for Claude to reference
+        return content
+          .split("\n")
+          .map((line, i) => `${i + 1}: ${line}`)
+          .join("\n");
+      case "str_replace":
+        let fileContent = fs.readFileSync(args.path, "utf-8");
+        fileContent = fileContent.replace(args.old_str, args.new_str);
+        fs.writeFileSync(args.path, fileContent);
+        return "Successfully replaced text.";
+      case "create":
+        fs.writeFileSync(args.path, args.file_text);
+        return `Successfully created file: ${args.path}`;
+      case "insert":
+        const lines = fs.readFileSync(args.path, "utf-8").split("\n");
+        lines.splice(args.insert_line, 0, args.new_str);
+        fs.writeFileSync(args.path, lines.join("\n"));
+        return `Successfully inserted text at line ${args.insert_line}`;
+      default:
+        return "Unknown command";
+    }
+  },
+  // Optional: limit file content length when viewing
+  maxCharacters: 10000,
+});
+
+const llmWithEditor = llm.bindTools([textEditor]);
+
+const response = await llmWithEditor.invoke(
+  "There's a syntax error in my primes.py file. Can you help me fix it?"
+);
+```
+
+For more information, see [Anthropic's Text Editor Tool documentation](https://docs.anthropic.com/en/docs/agents-and-tools/tool-use/text-editor-tool).
+Title: Javascript
+Link: https://docs.langchain.com/langsmith/rollback-concurrent#javascript
+Page: langsmith/rollback-concurrent
+Content: ## Setup
+
+First, we will define a quick helper function for printing out JS and cURL model outputs (you can skip this if using Python):
+
+<Tabs>
+  <Tab title="Javascript">
+    ```js theme={"theme":{"light":"catppuccin-latte","dark":"catppuccin-mocha"}}
+    function prettyPrint(m) {
+      const padded = " " + m['type'] + " ";
+      const sepLen = Math.floor((80 - padded.length) / 2);
+      const sep = "=".repeat(sepLen);
+      const secondSep = sep + (padded.length % 2 ? "=" : "");
+
+      console.log(`${sep}${padded}${secondSep}`);
+      console.log("\n\n");
+      console.log(m.content);
+    }
+    ```
+  </Tab>
+
+  <Tab title="cURL">
+    ```bash theme={"theme":{"light":"catppuccin-latte","dark":"catppuccin-mocha"}}
+    # PLACE THIS IN A FILE CALLED pretty_print.sh
+    pretty_print() {
+      local type="$1"
+      local content="$2"
+      local padded=" $type "
+      local total_width=80
+      local sep_len=$(( (total_width - ${#padded}) / 2 ))
+      local sep=$(printf '=%.0s' $(eval "echo {1.."${sep_len}"}"))
+      local second_sep=$sep
+      if (( (total_width - ${#padded}) % 2 )); then
+        second_sep="${second_sep}="
+      fi
+
+      echo "${sep}${padded}${second_sep}"
+      echo
+      echo "$content"
+    }
+    ```
+  </Tab>
+</Tabs>
+
+Now, let's import our required packages and instantiate our client, assistant, and thread.
+
+<Tabs>
+  <Tab title="Python">
+    ```python theme={"theme":{"light":"catppuccin-latte","dark":"catppuccin-mocha"}}
+    import asyncio
+
+    import httpx
+    from langchain_core.messages import convert_to_messages
+    from langgraph_sdk import get_client
+
+    client = get_client(url=<DEPLOYMENT_URL>)
+    # Using the graph deployed with the name "agent"
+    assistant_id = "agent"
+    thread = await client.threads.create()
+    ```
+  </Tab>
+
+  <Tab title="Javascript">
+    ```js theme={"theme":{"light":"catppuccin-latte","dark":"catppuccin-mocha"}}
+    import { Client } from "@langchain/langgraph-sdk";
+
+    const client = new Client({ apiUrl: <DEPLOYMENT_URL> });
+    // Using the graph deployed with the name "agent"
+    const assistantId = "agent";
+    const thread = await client.threads.create();
+    ```
+  </Tab>
+
+  <Tab title="cURL">
+    ```bash theme={"theme":{"light":"catppuccin-latte","dark":"catppuccin-mocha"}}
+    curl --request POST \
+      --url <DEPLOYMENT_URL>/threads \
+      --header 'Content-Type: application/json' \
+      --data '{}'
+    ```
+  </Tab>
+</Tabs>
+Title: Progressive rendering utilities
+Link: https://docs.langchain.com/oss/python/langchain/frontend/integrations/openui#progressive-rendering-utilities
+Page: oss/python/langchain/frontend/integrations/openui
+Content: ## Progressive rendering utilities
+
+Wiring [`useStream`](https://reference.langchain.com/javascript/langchain-react/index/useStream) to `Renderer` directly causes results in re-rendering on every streaming token and produces hundreds of no-op re-parses per response. This causes chart components to crash when their data hasn't arrived yet. The utilities below solve these problems:
+
+| Problem                      | Solution                                                                                                             |
+| ---------------------------- | -------------------------------------------------------------------------------------------------------------------- |
+| **Partial string literals**  | `truncateAtOpenString` / `closeOrTruncateOpenString` — drop or close incomplete strings before parsing               |
+| **Mid-token churn**          | `useStableText` — gate Renderer updates on complete statement boundaries (`name = Expr(…)`) rather than every token  |
+| **Chart null-data crashes**  | `chartDataRefsResolved` — verify a chart's `Series` and label arrays are defined before including it in the snapshot |
+| **No `root` yet / fallback** | `buildProgressiveRoot` — synthesise a `root = Stack([…])` from top-level variables when the model hasn't written one |
+| **Snake\_case identifiers**  | `sanitizeIdentifiers` — the parser only accepts camelCase; convert any `snake_case` names the model emits            |
+
+Copy the full block into your project and pass `stable` to `<Renderer>`:
+
+````tsx expandable theme={"theme":{"light":"catppuccin-latte","dark":"catppuccin-mocha"}}
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
+import {
+  type ActionEvent,
+  BuiltinActionType,
+  Renderer,
+} from "@openuidev/react-lang";
+import { openuiLibrary } from "@openuidev/react-ui/genui-lib";
+
+/** Strip any markdown code fence the model may have emitted. */
+function stripCodeFence(text: string): string {
+  return text
+    .replace(/^```[a-z]*\r?\n?/i, "")
+    .replace(/\n?```\s*$/i, "")
+    .trim();
+}
+
+/**
+ * The openui-lang parser only accepts camelCase identifiers.
+ * Convert any snake_case variable names the model emits; string content is untouched.
+ */
+function sanitizeIdentifiers(text: string): string {
+  const toCamel = (s: string) =>
+    s.replace(/_([a-zA-Z0-9])/g, (_, c: string) => c.toUpperCase());
+
+  const snakeVars: string[] = [];
+  for (const m of text.matchAll(/^([a-zA-Z][a-zA-Z0-9]*(?:_[a-zA-Z0-9]+)+)\s*=/gm)) {
+    if (!snakeVars.includes(m[1])) snakeVars.push(m[1]);
+  }
+  if (snakeVars.length === 0) return text;
+
+  let result = "";
+  let inStr = false;
+  let i = 0;
+  while (i < text.length) {
+    if (text[i] === "\\" && inStr) { result += text[i] + (text[i + 1] ?? ""); i += 2; continue; }
+    if (text[i] === '"') { inStr = !inStr; result += text[i++]; continue; }
+    if (!inStr) {
+      let replaced = false;
+      for (const v of snakeVars) {
+        if (text.startsWith(v, i) && !/[a-zA-Z0-9_]/.test(text[i + v.length] ?? "")) {
+          result += toCamel(v); i += v.length; replaced = true; break;
+        }
+      }
+      if (!replaced) result += text[i++];
+    } else {
+      result += text[i++];
+    }
+  }
+  return result;
+}
+
+/**
+ * Walk the text tracking open strings. If the text ends mid-string, truncate to
+ * the last safe newline — this prevents a partial string literal from consuming
+ * any `root = Stack(…)` line we synthesise later.
+ */
+function truncateAtOpenString(text: string): string {
+  let inStr = false;
+  let lastSafeNewline = 0;
+  for (let i = 0; i < text.length; i++) {
+    const ch = text[i];
+    if (ch === "\\" && inStr) { i++; continue; }
+    if (ch === '"') { inStr = !inStr; continue; }
+    if (ch === "\n" && !inStr) lastSafeNewline = i;
+  }
+  return inStr ? text.slice(0, lastSafeNewline) : text;
+}
+
+/**
+ * Like truncateAtOpenString, but synthesises a closing `")` when the partial
+ * line is a TextContent statement. This lets text render token-by-token while
+ * all other partial-string lines are still truncated.
+ */
+function closeOrTruncateOpenString(text: string): string {
+  let inStr = false;
+  let lastSafeNewline = 0;
+  for (let i = 0; i < text.length; i++) {
+    const ch = text[i];
+    if (ch === "\\" && inStr) { i++; continue; }
+    if (ch === '"') { inStr = !inStr; continue; }
+    if (ch === "\n" && !inStr) lastSafeNewline = i;
+  }
+  if (!inStr) return text;
+
+  const safeText = lastSafeNewline > 0 ? text.slice(0, lastSafeNewline) : "";
+  const partialLine = text.slice(lastSafeNewline > 0 ? lastSafeNewline + 1 : 0);
+
+  if (/^[a-zA-Z][a-zA-Z0-9]*\s*=\s*TextContent\(/.test(partialLine)) {
+    return (lastSafeNewline > 0 ? safeText + "\n" : "") + partialLine + '")';
+  }
+  return safeText;
+}
+
+/** Count lines that form a complete assignment ending with `)` or `]`. */
+function countCompleteStatements(text: string): number {
+  let count = 0;
+  for (const line of text.split("\n")) {
+    const t = line.trimEnd();
+    if ((t.endsWith(")") || t.endsWith("]")) && /^[a-zA-Z]/.test(t)) count++;
+  }
+  return count;
+}
+
+const CHART_TYPES = new Set([
+  "BarChart", "LineChart", "AreaChart", "RadarChart",
+  "HorizontalBarChart", "PieChart", "RadialChart",
+  "SingleStackedBarChart", "ScatterChart",
+]);
+
+const OPENUI_KEYWORDS = new Set([
+  "true", "false", "null", "grouped", "stacked", "linear", "natural", "step",
+  "pie", "donut", "string", "number", "action", "row", "column", "card", "sunk",
+  "clear", "info", "warning", "error", "success", "neutral", "danger", "start",
+  "end", "center", "between", "around", "evenly", "stretch", "baseline",
+  "small", "default", "large", "none", "xs", "s", "m", "l", "xl",
+  "horizontal", "vertical",
+]);
+
+/**
+ * Chart components (recharts) crash with `.map() on null` when their labels or
+ * series props are unresolved. Before committing a stable snapshot, verify that
+ * every chart in the text has all its data variables already defined.
+ */
+function chartDataRefsResolved(text: string): boolean {
+  const lines = text.split("\n");
+  const complete = new Set<string>();
+  for (const line of lines) {
+    const t = line.trimEnd();
+    const m = t.match(/^([a-zA-Z][a-zA-Z0-9]*)\s*=/);
+    if (m && (t.endsWith(")") || t.endsWith("]"))) complete.add(m[1]);
+  }
+  for (const line of lines) {
+    const t = line.trimEnd();
+    const m = t.match(/^([a-zA-Z][a-zA-Z0-9]*)\s*=\s*([A-Z][a-zA-Z0-9]*)\(/);
+    if (!m || !CHART_TYPES.has(m[2]) || !t.endsWith(")")) continue;
+    const rhs = t.slice(t.indexOf("=") + 1).replace(/"(?:[^"\\]|\\.)*"/g, '""');
+    for (const [, name] of rhs.matchAll(/\b([a-zA-Z][a-zA-Z0-9]*)\b/g)) {
+      if (/^[a-z]/.test(name) && !OPENUI_KEYWORDS.has(name) && !complete.has(name))
+        return false;
+    }
+  }
+  return true;
+}
+
+/**
+ * If the model hasn't written a `root = Stack(…)` yet, synthesise one from the
+ * top-level variables (those defined but not referenced inside any other expression).
+ * This enables progressive rendering even when the model writes root last.
+ */
+function buildProgressiveRoot(text: string): string {
+  if (!text) return text;
+  const safe = truncateAtOpenString(text);
+  if (/^root\s*=/m.test(safe)) return safe;
+
+  const defs: string[] = [];
+  const seen = new Set<string>();
+  for (const m of safe.matchAll(/^([a-zA-Z_][a-zA-Z0-9_]*)\s*=/gm)) {
+    if (!seen.has(m[1])) { defs.push(m[1]); seen.add(m[1]); }
+  }
+  if (defs.length === 0) return safe;
+
+  const referenced = new Set<string>();
+  for (const line of safe.split("\n")) {
+    const thisVar = line.match(/^([a-zA-Z_][a-zA-Z0-9_]*)\s*=/)?.[1];
+    const stripped = line.replace(/"(?:[^"\\]|\\.)*"/g, '""');
+    for (const v of defs) {
+      if (v !== thisVar && new RegExp(`\\b${v}\\b`).test(stripped)) referenced.add(v);
+    }
+  }
+
+  const topLevel = defs.filter((v) => !referenced.has(v));
+  const rootVars = topLevel.length > 0 ? topLevel : defs;
+  return `${safe.trimEnd()}\nroot = Stack([${rootVars.join(", ")}], "column", "l")`;
+}
+
+/**
+ * Gate Renderer updates to moments when at least one new *complete* statement
+ * has arrived. This eliminates hundreds of no-op re-parses during streaming.
+ *
+ * Special case: TextContent lines update token-by-token (via closeOrTruncate)
+ * so text renders progressively without waiting for the full line to complete.
+ */
+function useStableText(raw: string, isStreaming: boolean): string {
+  const [stable, setStable] = useState<string>("");
+  const lastCount = useRef(0);
+
+  useEffect(() => {
+    const safe = truncateAtOpenString(raw);         // strict — for counting only
+    const enhanced = closeOrTruncateOpenString(raw); // display — closes partial TextContent
+
+    if (!isStreaming) { setStable(enhanced); return; }
+
+    const count = countCompleteStatements(safe);
+    const newComplete = count > lastCount.current && chartDataRefsResolved(safe);
+    const partialTextContent = enhanced !== safe;
+
+    if (newComplete || partialTextContent) {
+      if (newComplete) lastCount.current = count;
+      setStable(enhanced);
+    }
+  }, [raw, isStreaming]);
+
+  return stable;
+}
+
+function AIMessageView({
+  raw,
+  isStreaming,
+  onSubmit,
+}: {
+  raw: string;
+  isStreaming: boolean;
+  onSubmit: (text: string) => void;
+}) {
+  const stable = useStableText(raw, isStreaming);
+  const processed = useMemo(() => buildProgressiveRoot(stable), [stable]);
+
+  const handleAction = useCallback(
+    (event: ActionEvent) => {
+      if (event.type === BuiltinActionType.ContinueConversation) {
+        onSubmit(event.humanFriendlyMessage);
+      }
+    },
+    [onSubmit],
+  );
+
+  if (!processed) return null;
+
+  return (
+    <Renderer
+      response={processed}
+      library={openuiLibrary}
+      isStreaming={isStreaming}
+      onAction={handleAction}
+    />
+  );
+}
+
+export function MessageList({ messages, isLoading, onSubmit }) {
+  const lastAiIdx = messages.reduce(
+    (acc, msg, i) => (msg.getType() === "ai" ? i : acc),
+    -1,
+  );
+
+  return messages.map((msg, i) => {
+    if (msg.getType() === "human") {
+      return (
+        <div key={msg.id ?? i} className="flex justify-end">
+          <div className="user-bubble">
+            {msg.text}
+          </div>
+        </div>
+      );
+    }
+
+    if (msg.getType() === "ai") {
+      const raw = sanitizeIdentifiers(
+        stripCodeFence(msg.text),
+      );
+      if (!raw) return null;
+      return (
+        <div key={msg.id ?? i}>
+          <AIMessageView
+            raw={raw}
+            isStreaming={isLoading && i === lastAiIdx}
+            onSubmit={onSubmit}
+          />
+        </div>
+      );
+    }
+
+    return null;
+  });
+}
+````
+Title: All chat models
+Link: https://docs.langchain.com/oss/python/integrations/chat/index#all-chat-models
+Page: oss/python/integrations/chat/index
+Content: ## All chat models
+
+<div class="integration-downloads-table">
+  | Model                                                                                                    | Stream                             | [Tool calling](/oss/python/langchain/tools) | [Structured output](/oss/python/langchain/structured-output/) | [Multimodal](/oss/python/langchain/messages#multimodal) | Downloads                                                                                                                                                                                                                                                                      |
+  | :------------------------------------------------------------------------------------------------------- | :--------------------------------- | :------------------------------------------ | :------------------------------------------------------------ | :------------------------------------------------------ | :----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+  | [`AzureChatOpenAI`](/oss/python/integrations/chat/azure_chat_openai)                                     | <span data-sort-value="2">✅</span> | <span data-sort-value="2">✅</span>          | <span data-sort-value="2">✅</span>                            | <span data-sort-value="2">✅</span>                      | <span data-sort-value="68000000"><a href="https://pypi.org/project/langchain-openai/" target="_blank">  <img src="https://static.pepy.tech/badge/langchain-openai/month" alt="Downloads per month" noZoom class="rounded not-prose" /></a></span>                              |
+  | [`ChatOpenAI`](/oss/python/integrations/chat/openai)                                                     | <span data-sort-value="2">✅</span> | <span data-sort-value="2">✅</span>          | <span data-sort-value="2">✅</span>                            | <span data-sort-value="2">✅</span>                      | <span data-sort-value="68000000"><a href="https://pypi.org/project/langchain-openai/" target="_blank">  <img src="https://static.pepy.tech/badge/langchain-openai/month" alt="Downloads per month" noZoom class="rounded not-prose" /></a></span>                              |
+  | [`vLLM`](/oss/python/integrations/chat/vllm)                                                             | <span data-sort-value="0" />       | <span data-sort-value="0" />                | <span data-sort-value="0" />                                  | <span data-sort-value="0" />                            | <span data-sort-value="68000000"><a href="https://pypi.org/project/langchain-openai/" target="_blank">  <img src="https://static.pepy.tech/badge/langchain-openai/month" alt="Downloads per month" noZoom class="rounded not-prose" /></a></span>                              |
+  | [`ChatAnthropicVertex`](/oss/python/integrations/chat/google_anthropic_vertex)                           | <span data-sort-value="0" />       | <span data-sort-value="0" />                | <span data-sort-value="0" />                                  | <span data-sort-value="0" />                            | <span data-sort-value="33000000"><a href="https://pypi.org/project/langchain-google-vertexai/" target="_blank">  <img src="https://static.pepy.tech/badge/langchain-google-vertexai/month" alt="Downloads per month" noZoom class="rounded not-prose" /></a></span>            |
+  | [`ChatVertexAI`](/oss/python/integrations/chat/google_vertex_ai) (deprecated)                            | <span data-sort-value="2">✅</span> | <span data-sort-value="2">✅</span>          | <span data-sort-value="2">✅</span>                            | <span data-sort-value="2">✅</span>                      | <span data-sort-value="33000000"><a href="https://pypi.org/project/langchain-google-vertexai/" target="_blank">  <img src="https://static.pepy.tech/badge/langchain-google-vertexai/month" alt="Downloads per month" noZoom class="rounded not-prose" /></a></span>            |
+  | [`ChatAnthropic`](/oss/python/integrations/chat/anthropic)                                               | <span data-sort-value="2">✅</span> | <span data-sort-value="2">✅</span>          | <span data-sort-value="2">✅</span>                            | <span data-sort-value="2">✅</span>                      | <span data-sort-value="22000000"><a href="https://pypi.org/project/langchain-anthropic/" target="_blank">  <img src="https://static.pepy.tech/badge/langchain-anthropic/month" alt="Downloads per month" noZoom class="rounded not-prose" /></a></span>                        |
+  | [`ChatAnthropicTools`](/oss/python/integrations/chat/anthropic_functions)                                | <span data-sort-value="0" />       | <span data-sort-value="0" />                | <span data-sort-value="0" />                                  | <span data-sort-value="0" />                            | <span data-sort-value="22000000"><a href="https://pypi.org/project/langchain-anthropic/" target="_blank">  <img src="https://static.pepy.tech/badge/langchain-anthropic/month" alt="Downloads per month" noZoom class="rounded not-prose" /></a></span>                        |
+  | [`ChatGoogleGenerativeAI`](/oss/python/integrations/chat/google_generative_ai)                           | <span data-sort-value="2">✅</span> | <span data-sort-value="2">✅</span>          | <span data-sort-value="2">✅</span>                            | <span data-sort-value="2">✅</span>                      | <span data-sort-value="17000000"><a href="https://pypi.org/project/langchain-google-genai/" target="_blank">  <img src="https://static.pepy.tech/badge/langchain-google-genai/month" alt="Downloads per month" noZoom class="rounded not-prose" /></a></span>                  |
+  | [`ChatBedrock`](/oss/python/integrations/chat/bedrock)                                                   | <span data-sort-value="2">✅</span> | <span data-sort-value="2">✅</span>          | <span data-sort-value="2">✅</span>                            | <span data-sort-value="2">✅</span>                      | <span data-sort-value="12000000"><a href="https://pypi.org/project/langchain-aws/" target="_blank">  <img src="https://static.pepy.tech/badge/langchain-aws/month" alt="Downloads per month" noZoom class="rounded not-prose" /></a></span>                                    |
+  | [`ChatOllama`](/oss/python/integrations/chat/ollama)                                                     | <span data-sort-value="2">✅</span> | <span data-sort-value="2">✅</span>          | <span data-sort-value="2">✅</span>                            | <span data-sort-value="2">✅</span>                      | <span data-sort-value="3000000"><a href="https://pypi.org/project/langchain-ollama/" target="_blank">  <img src="https://static.pepy.tech/badge/langchain-ollama/month" alt="Downloads per month" noZoom class="rounded not-prose" /></a></span>                               |
+  | [`ChatDatabricks`](/oss/python/integrations/chat/databricks)                                             | <span data-sort-value="2">✅</span> | <span data-sort-value="2">✅</span>          | <span data-sort-value="2">✅</span>                            | <span data-sort-value="1">❌</span>                      | <span data-sort-value="2000000"><a href="https://pypi.org/project/databricks-langchain/" target="_blank">  <img src="https://static.pepy.tech/badge/databricks-langchain/month" alt="Downloads per month" noZoom class="rounded not-prose" /></a></span>                       |
+  | [`ChatGroq`](/oss/python/integrations/chat/groq)                                                         | <span data-sort-value="2">✅</span> | <span data-sort-value="2">✅</span>          | <span data-sort-value="2">✅</span>                            | <span data-sort-value="2">✅</span>                      | <span data-sort-value="2000000"><a href="https://pypi.org/project/langchain-groq/" target="_blank">  <img src="https://static.pepy.tech/badge/langchain-groq/month" alt="Downloads per month" noZoom class="rounded not-prose" /></a></span>                                   |
+  | [`ChatLiteLLM`](/oss/python/integrations/chat/litellm)                                                   | <span data-sort-value="2">✅</span> | <span data-sort-value="2">✅</span>          | <span data-sort-value="2">✅</span>                            | <span data-sort-value="2">✅</span>                      | <span data-sort-value="2000000"><a href="https://pypi.org/project/langchain-litellm/" target="_blank">  <img src="https://static.pepy.tech/badge/langchain-litellm/month" alt="Downloads per month" noZoom class="rounded not-prose" /></a></span>                             |
+  | [`AzureAIChatCompletionsModel`](/oss/python/integrations/chat/azure_ai)                                  | <span data-sort-value="2">✅</span> | <span data-sort-value="2">✅</span>          | <span data-sort-value="2">✅</span>                            | <span data-sort-value="2">✅</span>                      | <span data-sort-value="1000000"><a href="https://pypi.org/project/langchain-azure-ai/" target="_blank">  <img src="https://static.pepy.tech/badge/langchain-azure-ai/month" alt="Downloads per month" noZoom class="rounded not-prose" /></a></span>                           |
+  | [`ChatFireworks`](/oss/python/integrations/chat/fireworks)                                               | <span data-sort-value="2">✅</span> | <span data-sort-value="2">✅</span>          | <span data-sort-value="2">✅</span>                            | <span data-sort-value="1">❌</span>                      | <span data-sort-value="1000000"><a href="https://pypi.org/project/langchain-fireworks/" target="_blank">  <img src="https://static.pepy.tech/badge/langchain-fireworks/month" alt="Downloads per month" noZoom class="rounded not-prose" /></a></span>                         |
+  | [`ChatHuggingFace`](/oss/python/integrations/chat/huggingface)                                           | <span data-sort-value="1">❌</span> | <span data-sort-value="2">✅</span>          | <span data-sort-value="2">✅</span>                            | <span data-sort-value="2">✅</span>                      | <span data-sort-value="1000000"><a href="https://pypi.org/project/langchain-huggingface/" target="_blank">  <img src="https://static.pepy.tech/badge/langchain-huggingface/month" alt="Downloads per month" noZoom class="rounded not-prose" /></a></span>                     |
+  | [`ChatMistralAI`](/oss/python/integrations/chat/mistralai)                                               | <span data-sort-value="2">✅</span> | <span data-sort-value="2">✅</span>          | <span data-sort-value="2">✅</span>                            | <span data-sort-value="1">❌</span>                      | <span data-sort-value="995000"><a href="https://pypi.org/project/langchain-mistralai/" target="_blank">  <img src="https://static.pepy.tech/badge/langchain-mistralai/month" alt="Downloads per month" noZoom class="rounded not-prose" /></a></span>                          |
+  | [`ChatOpenRouter`](/oss/python/integrations/chat/openrouter)                                             | <span data-sort-value="2">✅</span> | <span data-sort-value="2">✅</span>          | <span data-sort-value="2">✅</span>                            | <span data-sort-value="2">✅</span>                      | <span data-sort-value="902000"><a href="https://pypi.org/project/langchain-openrouter/" target="_blank">  <img src="https://static.pepy.tech/badge/langchain-openrouter/month" alt="Downloads per month" noZoom class="rounded not-prose" /></a></span>                        |
+  | [`ChatCohere`](/oss/python/integrations/chat/cohere)                                                     | <span data-sort-value="0" />       | <span data-sort-value="0" />                | <span data-sort-value="0" />                                  | <span data-sort-value="0" />                            | <span data-sort-value="867000"><a href="https://pypi.org/project/langchain-cohere/" target="_blank">  <img src="https://static.pepy.tech/badge/langchain-cohere/month" alt="Downloads per month" noZoom class="rounded not-prose" /></a></span>                                |
+  | [`ChatXAI`](/oss/python/integrations/chat/xai)                                                           | <span data-sort-value="2">✅</span> | <span data-sort-value="2">✅</span>          | <span data-sort-value="2">✅</span>                            | <span data-sort-value="1">❌</span>                      | <span data-sort-value="812000"><a href="https://pypi.org/project/langchain-xai/" target="_blank">  <img src="https://static.pepy.tech/badge/langchain-xai/month" alt="Downloads per month" noZoom class="rounded not-prose" /></a></span>                                      |
+  | [`ChatNVIDIA`](/oss/python/integrations/chat/nvidia_ai_endpoints)                                        | <span data-sort-value="2">✅</span> | <span data-sort-value="2">✅</span>          | <span data-sort-value="2">✅</span>                            | <span data-sort-value="2">✅</span>                      | <span data-sort-value="783000"><a href="https://pypi.org/project/langchain-nvidia-ai-endpoints/" target="_blank">  <img src="https://static.pepy.tech/badge/langchain-nvidia-ai-endpoints/month" alt="Downloads per month" noZoom class="rounded not-prose" /></a></span>      |
+  | [`ChatDeepSeek`](/oss/python/integrations/chat/deepseek)                                                 | <span data-sort-value="2">✅</span> | <span data-sort-value="2">✅</span>          | <span data-sort-value="2">✅</span>                            | <span data-sort-value="1">❌</span>                      | <span data-sort-value="648000"><a href="https://pypi.org/project/langchain-deepseek/" target="_blank">  <img src="https://static.pepy.tech/badge/langchain-deepseek/month" alt="Downloads per month" noZoom class="rounded not-prose" /></a></span>                            |
+  | [`ChatWatsonx`](/oss/python/integrations/chat/ibm_watsonx)                                               | <span data-sort-value="2">✅</span> | <span data-sort-value="2">✅</span>          | <span data-sort-value="2">✅</span>                            | <span data-sort-value="2">✅</span>                      | <span data-sort-value="514000"><a href="https://pypi.org/project/langchain-ibm/" target="_blank">  <img src="https://static.pepy.tech/badge/langchain-ibm/month" alt="Downloads per month" noZoom class="rounded not-prose" /></a></span>                                      |
+  | [`ChatPerplexity`](/oss/python/integrations/chat/perplexity)                                             | <span data-sort-value="2">✅</span> | <span data-sort-value="1">❌</span>          | <span data-sort-value="2">✅</span>                            | <span data-sort-value="1">❌</span>                      | <span data-sort-value="317000"><a href="https://pypi.org/project/langchain-perplexity/" target="_blank">  <img src="https://static.pepy.tech/badge/langchain-perplexity/month" alt="Downloads per month" noZoom class="rounded not-prose" /></a></span>                        |
+  | [`ChatCerebras`](/oss/python/integrations/chat/cerebras)                                                 | <span data-sort-value="2">✅</span> | <span data-sort-value="2">✅</span>          | <span data-sort-value="2">✅</span>                            | <span data-sort-value="1">❌</span>                      | <span data-sort-value="178000"><a href="https://pypi.org/project/langchain-cerebras/" target="_blank">  <img src="https://static.pepy.tech/badge/langchain-cerebras/month" alt="Downloads per month" noZoom class="rounded not-prose" /></a></span>                            |
+  | [`ChatBaseten`](/oss/python/integrations/chat/baseten)                                                   | <span data-sort-value="0" />       | <span data-sort-value="0" />                | <span data-sort-value="0" />                                  | <span data-sort-value="0" />                            | <span data-sort-value="129000"><a href="https://pypi.org/project/langchain-baseten/" target="_blank">  <img src="https://static.pepy.tech/badge/langchain-baseten/month" alt="Downloads per month" noZoom class="rounded not-prose" /></a></span>                              |
+  | [`ChatOCIGenerativeAI`](/oss/python/integrations/chat/oci_generative_ai)                                 | <span data-sort-value="2">✅</span> | <span data-sort-value="2">✅</span>          | <span data-sort-value="2">✅</span>                            | <span data-sort-value="2">✅</span>                      | <span data-sort-value="122000"><a href="https://pypi.org/project/langchain-oci/" target="_blank">  <img src="https://static.pepy.tech/badge/langchain-oci/month" alt="Downloads per month" noZoom class="rounded not-prose" /></a></span>                                      |
+  | [`ChatOCIModelDeployment`](/oss/python/integrations/chat/oci_data_science)                               | <span data-sort-value="2">✅</span> | <span data-sort-value="0" />                | <span data-sort-value="0" />                                  | <span data-sort-value="0" />                            | <span data-sort-value="122000"><a href="https://pypi.org/project/langchain-oci/" target="_blank">  <img src="https://static.pepy.tech/badge/langchain-oci/month" alt="Downloads per month" noZoom class="rounded not-prose" /></a></span>                                      |
+  | [`ChatTogether`](/oss/python/integrations/chat/together)                                                 | <span data-sort-value="2">✅</span> | <span data-sort-value="2">✅</span>          | <span data-sort-value="2">✅</span>                            | <span data-sort-value="2">✅</span>                      | <span data-sort-value="102000"><a href="https://pypi.org/project/langchain-together/" target="_blank">  <img src="https://static.pepy.tech/badge/langchain-together/month" alt="Downloads per month" noZoom class="rounded not-prose" /></a></span>                            |
+  | [`ChatSambaNova`](/oss/python/integrations/chat/sambanova)                                               | <span data-sort-value="2">✅</span> | <span data-sort-value="2">✅</span>          | <span data-sort-value="2">✅</span>                            | <span data-sort-value="2">✅</span>                      | <span data-sort-value="89000"><a href="https://pypi.org/project/langchain-sambanova/" target="_blank">  <img src="https://static.pepy.tech/badge/langchain-sambanova/month" alt="Downloads per month" noZoom class="rounded not-prose" /></a></span>                           |
+  | [`ChatQwen`](/oss/python/integrations/chat/qwen)                                                         | <span data-sort-value="2">✅</span> | <span data-sort-value="2">✅</span>          | <span data-sort-value="2">✅</span>                            | <span data-sort-value="2">✅</span>                      | <span data-sort-value="50000"><a href="https://pypi.org/project/langchain-qwq/" target="_blank">  <img src="https://static.pepy.tech/badge/langchain-qwq/month" alt="Downloads per month" noZoom class="rounded not-prose" /></a></span>                                       |
+  | [`ChatQwQ`](/oss/python/integrations/chat/qwq)                                                           | <span data-sort-value="2">✅</span> | <span data-sort-value="2">✅</span>          | <span data-sort-value="2">✅</span>                            | <span data-sort-value="2">✅</span>                      | <span data-sort-value="50000"><a href="https://pypi.org/project/langchain-qwq/" target="_blank">  <img src="https://static.pepy.tech/badge/langchain-qwq/month" alt="Downloads per month" noZoom class="rounded not-prose" /></a></span>                                       |
+  | [`ChatUpstage`](/oss/python/integrations/chat/upstage)                                                   | <span data-sort-value="0" />       | <span data-sort-value="0" />                | <span data-sort-value="0" />                                  | <span data-sort-value="0" />                            | <span data-sort-value="47000"><a href="https://pypi.org/project/langchain-upstage/" target="_blank">  <img src="https://static.pepy.tech/badge/langchain-upstage/month" alt="Downloads per month" noZoom class="rounded not-prose" /></a></span>                               |
+  | [`ChatClovaX`](https://guide.ncloud-docs.com/docs/clovastudio-dev-langchain)                             | <span data-sort-value="2">✅</span> | <span data-sort-value="2">✅</span>          | <span data-sort-value="2">✅</span>                            | <span data-sort-value="2">✅</span>                      | <span data-sort-value="18000"><a href="https://pypi.org/project/langchain-naver/" target="_blank">  <img src="https://static.pepy.tech/badge/langchain-naver/month" alt="Downloads per month" noZoom class="rounded not-prose" /></a></span>                                   |
+  | [`ChatAI21`](https://docs.ai21.com/home)                                                                 | <span data-sort-value="2">✅</span> | <span data-sort-value="2">✅</span>          | <span data-sort-value="2">✅</span>                            | <span data-sort-value="1">❌</span>                      | <span data-sort-value="11000"><a href="https://pypi.org/project/langchain-ai21/" target="_blank">  <img src="https://static.pepy.tech/badge/langchain-ai21/month" alt="Downloads per month" noZoom class="rounded not-prose" /></a></span>                                     |
+  | [`ChatMoonshot`](https://github.com/ArcadiaLin/langchain-moonshot)                                       | <span data-sort-value="2">✅</span> | <span data-sort-value="2">✅</span>          | <span data-sort-value="2">✅</span>                            | <span data-sort-value="2">✅</span>                      | <span data-sort-value="10000"><a href="https://pypi.org/project/langchain-moonshot/" target="_blank">  <img src="https://static.pepy.tech/badge/langchain-moonshot/month" alt="Downloads per month" noZoom class="rounded not-prose" /></a></span>                             |
+  | [`ChatNebius`](https://github.com/nebius/langchain-nebius)                                               | <span data-sort-value="2">✅</span> | <span data-sort-value="2">✅</span>          | <span data-sort-value="2">✅</span>                            | <span data-sort-value="2">✅</span>                      | <span data-sort-value="6000"><a href="https://pypi.org/project/langchain-nebius/" target="_blank">  <img src="https://static.pepy.tech/badge/langchain-nebius/month" alt="Downloads per month" noZoom class="rounded not-prose" /></a></span>                                  |
+  | [`ChatParallel`](/oss/python/integrations/chat/parallel)                                                 | <span data-sort-value="2">✅</span> | <span data-sort-value="1">❌</span>          | <span data-sort-value="2">✅</span>                            | <span data-sort-value="1">❌</span>                      | <span data-sort-value="6000"><a href="https://pypi.org/project/langchain-parallel/" target="_blank">  <img src="https://static.pepy.tech/badge/langchain-parallel/month" alt="Downloads per month" noZoom class="rounded not-prose" /></a></span>                              |
+  | [`ChatCloudflareWorkersAI`](https://github.com/cloudflare/langchain-cloudflare)                          | <span data-sort-value="1">❌</span> | <span data-sort-value="2">✅</span>          | <span data-sort-value="2">✅</span>                            | <span data-sort-value="1">❌</span>                      | <span data-sort-value="5000"><a href="https://pypi.org/project/langchain-cloudflare/" target="_blank">  <img src="https://static.pepy.tech/badge/langchain-cloudflare/month" alt="Downloads per month" noZoom class="rounded not-prose" /></a></span>                          |
+  | [`ChatAmazonNova`](/oss/python/integrations/chat/amazon_nova)                                            | <span data-sort-value="2">✅</span> | <span data-sort-value="2">✅</span>          | <span data-sort-value="2">✅</span>                            | <span data-sort-value="0" />                            | <span data-sort-value="3000"><a href="https://pypi.org/project/langchain-amazon-nova/" target="_blank">  <img src="https://static.pepy.tech/badge/langchain-amazon-nova/month" alt="Downloads per month" noZoom class="rounded not-prose" /></a></span>                        |
+  | [`ChatGradient`](https://docs.digitalocean.com/products/ai-platform/)                                    | <span data-sort-value="0" />       | <span data-sort-value="0" />                | <span data-sort-value="0" />                                  | <span data-sort-value="0" />                            | <span data-sort-value="3000"><a href="https://pypi.org/project/langchain-gradient/" target="_blank">  <img src="https://static.pepy.tech/badge/langchain-gradient/month" alt="Downloads per month" noZoom class="rounded not-prose" /></a></span>                              |
+  | [`ChatWriter`](https://dev.writer.com/home/introduction)                                                 | <span data-sort-value="2">✅</span> | <span data-sort-value="2">✅</span>          | <span data-sort-value="2">✅</span>                            | <span data-sort-value="1">❌</span>                      | <span data-sort-value="2000"><a href="https://pypi.org/project/langchain-writer/" target="_blank">  <img src="https://static.pepy.tech/badge/langchain-writer/month" alt="Downloads per month" noZoom class="rounded not-prose" /></a></span>                                  |
+  | [`Apertis`](https://docs.apertis.ai/api/sdks/langchain/)                                                 | <span data-sort-value="2">✅</span> | <span data-sort-value="2">✅</span>          | <span data-sort-value="2">✅</span>                            | <span data-sort-value="2">✅</span>                      | <span data-sort-value="924"><a href="https://pypi.org/project/langchain-apertis/" target="_blank">  <img src="https://static.pepy.tech/badge/langchain-apertis/month" alt="Downloads per month" noZoom class="rounded not-prose" /></a></span>                                 |
+  | [`ChatAimlapi`](https://docs.aimlapi.com/)                                                               | <span data-sort-value="2">✅</span> | <span data-sort-value="2">✅</span>          | <span data-sort-value="2">✅</span>                            | <span data-sort-value="2">✅</span>                      | <span data-sort-value="787"><a href="https://pypi.org/project/langchain-aimlapi/" target="_blank">  <img src="https://static.pepy.tech/badge/langchain-aimlapi/month" alt="Downloads per month" noZoom class="rounded not-prose" /></a></span>                                 |
+  | [`ChatInterfaze`](https://interfaze.ai/docs)                                                             | <span data-sort-value="2">✅</span> | <span data-sort-value="2">✅</span>          | <span data-sort-value="2">✅</span>                            | <span data-sort-value="2">✅</span>                      | <span data-sort-value="500"><a href="https://pypi.org/project/interfaze-langchain/" target="_blank">  <img src="https://static.pepy.tech/badge/interfaze-langchain/month" alt="Downloads per month" noZoom class="rounded not-prose" /></a></span>                             |
+  | [`ChatContextual`](https://docs.contextual.ai/)                                                          | <span data-sort-value="1">❌</span> | <span data-sort-value="1">❌</span>          | <span data-sort-value="1">❌</span>                            | <span data-sort-value="1">❌</span>                      | <span data-sort-value="499"><a href="https://pypi.org/project/langchain-contextual/" target="_blank">  <img src="https://static.pepy.tech/badge/langchain-contextual/month" alt="Downloads per month" noZoom class="rounded not-prose" /></a></span>                           |
+  | [`ChatCrusoe`](/oss/python/integrations/chat/crusoe)                                                     | <span data-sort-value="2">✅</span> | <span data-sort-value="2">✅</span>          | <span data-sort-value="2">✅</span>                            | <span data-sort-value="1">❌</span>                      | <span data-sort-value="491"><a href="https://pypi.org/project/langchain-crusoe/" target="_blank">  <img src="https://static.pepy.tech/badge/langchain-crusoe/month" alt="Downloads per month" noZoom class="rounded not-prose" /></a></span>                                   |
+  | [`ChatPredictionGuard`](https://github.com/predictionguard/langchain-predictionguard)                    | <span data-sort-value="0" />       | <span data-sort-value="0" />                | <span data-sort-value="0" />                                  | <span data-sort-value="0" />                            | <span data-sort-value="301"><a href="https://pypi.org/project/langchain-predictionguard/" target="_blank">  <img src="https://static.pepy.tech/badge/langchain-predictionguard/month" alt="Downloads per month" noZoom class="rounded not-prose" /></a></span>                 |
+  | [`ChatBrainiall`](https://app.brainiall.com/docs)                                                        | <span data-sort-value="0" />       | <span data-sort-value="0" />                | <span data-sort-value="0" />                                  | <span data-sort-value="0" />                            | <span data-sort-value="278"><a href="https://pypi.org/project/langchain-brainiall/" target="_blank">  <img src="https://static.pepy.tech/badge/langchain-brainiall/month" alt="Downloads per month" noZoom class="rounded not-prose" /></a></span>                             |
+  | [`ChatSarvam`](https://docs.sarvam.ai/api/integration/langchain)                                         | <span data-sort-value="2">✅</span> | <span data-sort-value="2">✅</span>          | <span data-sort-value="2">✅</span>                            | <span data-sort-value="1">❌</span>                      | <span data-sort-value="272"><a href="https://pypi.org/project/langchain-sarvamcloud/" target="_blank">  <img src="https://static.pepy.tech/badge/langchain-sarvamcloud/month" alt="Downloads per month" noZoom class="rounded not-prose" /></a></span>                         |
+  | [`ChatKinetica`](https://github.com/kineticadb/langchain-kinetica)                                       | <span data-sort-value="0" />       | <span data-sort-value="0" />                | <span data-sort-value="0" />                                  | <span data-sort-value="0" />                            | <span data-sort-value="263"><a href="https://pypi.org/project/langchain-kinetica/" target="_blank">  <img src="https://static.pepy.tech/badge/langchain-kinetica/month" alt="Downloads per month" noZoom class="rounded not-prose" /></a></span>                               |
+  | [`ChatAbso`](https://github.com/lunary-ai/langchain-abso)                                                | <span data-sort-value="0" />       | <span data-sort-value="0" />                | <span data-sort-value="0" />                                  | <span data-sort-value="0" />                            | <span data-sort-value="255"><a href="https://pypi.org/project/langchain-abso/" target="_blank">  <img src="https://static.pepy.tech/badge/langchain-abso/month" alt="Downloads per month" noZoom class="rounded not-prose" /></a></span>                                       |
+  | [`ChatKServe`](https://gitlab.com/bitkaio/langchain/kserve-provider)                                     | <span data-sort-value="2">✅</span> | <span data-sort-value="2">✅</span>          | <span data-sort-value="2">✅</span>                            | <span data-sort-value="2">✅</span>                      | <span data-sort-value="255"><a href="https://pypi.org/project/langchain-kserve/" target="_blank">  <img src="https://static.pepy.tech/badge/langchain-kserve/month" alt="Downloads per month" noZoom class="rounded not-prose" /></a></span>                                   |
+  | [`ChatXinference`](https://github.com/TheSongg/langchain-xinference)                                     | <span data-sort-value="2">✅</span> | <span data-sort-value="2">✅</span>          | <span data-sort-value="2">✅</span>                            | <span data-sort-value="1">❌</span>                      | <span data-sort-value="252"><a href="https://pypi.org/project/langchain-xinference/" target="_blank">  <img src="https://static.pepy.tech/badge/langchain-xinference/month" alt="Downloads per month" noZoom class="rounded not-prose" /></a></span>                           |
+  | [`ChatOpenZoo`](https://github.com/staccDOTsol/langchain-openzoo)                                        | <span data-sort-value="2">✅</span> | <span data-sort-value="2">✅</span>          | <span data-sort-value="2">✅</span>                            | <span data-sort-value="1">❌</span>                      | <span data-sort-value="248"><a href="https://pypi.org/project/langchain-openzoo/" target="_blank">  <img src="https://static.pepy.tech/badge/langchain-openzoo/month" alt="Downloads per month" noZoom class="rounded not-prose" /></a></span>                                 |
+  | [`ChatRunPod`](https://docs.runpod.io/overview)                                                          | <span data-sort-value="0" />       | <span data-sort-value="0" />                | <span data-sort-value="0" />                                  | <span data-sort-value="0" />                            | <span data-sort-value="248"><a href="https://pypi.org/project/langchain-runpod/" target="_blank">  <img src="https://static.pepy.tech/badge/langchain-runpod/month" alt="Downloads per month" noZoom class="rounded not-prose" /></a></span>                                   |
+  | [`ChatAppleFoundationModels`](https://github.com/rajanshxrma/langchain-apple-foundation-models)          | <span data-sort-value="2">✅</span> | <span data-sort-value="2">✅</span>          | <span data-sort-value="2">✅</span>                            | <span data-sort-value="1">❌</span>                      | <span data-sort-value="234"><a href="https://pypi.org/project/langchain-apple-foundation-models/" target="_blank">  <img src="https://static.pepy.tech/badge/langchain-apple-foundation-models/month" alt="Downloads per month" noZoom class="rounded not-prose" /></a></span> |
+  | [`ChatDoubleword`](https://docs.doubleword.ai/inference-api/intro-to-doubleword-inference)               | <span data-sort-value="2">✅</span> | <span data-sort-value="2">✅</span>          | <span data-sort-value="2">✅</span>                            | <span data-sort-value="1">❌</span>                      | <span data-sort-value="233"><a href="https://pypi.org/project/langchain-doubleword/" target="_blank">  <img src="https://static.pepy.tech/badge/langchain-doubleword/month" alt="Downloads per month" noZoom class="rounded not-prose" /></a></span>                           |
+  | [`ChatFeatherlessAI`](https://github.com/featherless-ai-integrations/langchain-featherless-ai)           | <span data-sort-value="2">✅</span> | <span data-sort-value="1">❌</span>          | <span data-sort-value="1">❌</span>                            | <span data-sort-value="1">❌</span>                      | <span data-sort-value="226"><a href="https://pypi.org/project/langchain-featherless-ai/" target="_blank">  <img src="https://static.pepy.tech/badge/langchain-featherless-ai/month" alt="Downloads per month" noZoom class="rounded not-prose" /></a></span>                   |
+  | [`ChatYutoriNavigator`](https://docs.yutori.com)                                                         | <span data-sort-value="0" />       | <span data-sort-value="0" />                | <span data-sort-value="0" />                                  | <span data-sort-value="0" />                            | <span data-sort-value="217"><a href="https://pypi.org/project/langchain-yutori/" target="_blank">  <img src="https://static.pepy.tech/badge/langchain-yutori/month" alt="Downloads per month" noZoom class="rounded not-prose" /></a></span>                                   |
+  | [`ChatDiffbot`](https://github.com/diffbot/langchain-diffbot)                                            | <span data-sort-value="2">✅</span> | <span data-sort-value="1">❌</span>          | <span data-sort-value="1">❌</span>                            | <span data-sort-value="1">❌</span>                      | <span data-sort-value="214"><a href="https://pypi.org/project/langchain-diffbot/" target="_blank">  <img src="https://static.pepy.tech/badge/langchain-diffbot/month" alt="Downloads per month" noZoom class="rounded not-prose" /></a></span>                                 |
+  | [`ModelScopeChatEndpoint`](https://github.com/modelscope/langchain-modelscope)                           | <span data-sort-value="0" />       | <span data-sort-value="0" />                | <span data-sort-value="0" />                                  | <span data-sort-value="0" />                            | <span data-sort-value="194"><a href="https://pypi.org/project/langchain-modelscope-integration/" target="_blank">  <img src="https://static.pepy.tech/badge/langchain-modelscope-integration/month" alt="Downloads per month" noZoom class="rounded not-prose" /></a></span>   |
+  | [`SpendGuardChatModel`](https://agenticspendguard.dev)                                                   | <span data-sort-value="0" />       | <span data-sort-value="0" />                | <span data-sort-value="0" />                                  | <span data-sort-value="0" />                            | <span data-sort-value="178"><a href="https://pypi.org/project/spendguard-sdk/" target="_blank">  <img src="https://static.pepy.tech/badge/spendguard-sdk/month" alt="Downloads per month" noZoom class="rounded not-prose" /></a></span>                                       |
+  | [`ChatPipeshift`](https://github.com/pipeshift-org/langchain-pipeshift)                                  | <span data-sort-value="2">✅</span> | <span data-sort-value="1">❌</span>          | <span data-sort-value="1">❌</span>                            | <span data-sort-value="2">✅</span>                      | <span data-sort-value="175"><a href="https://pypi.org/project/langchain-pipeshift/" target="_blank">  <img src="https://static.pepy.tech/badge/langchain-pipeshift/month" alt="Downloads per month" noZoom class="rounded not-prose" /></a></span>                             |
+  | [`ChatAlephantAI`](https://alephant.io/)                                                                 | <span data-sort-value="0" />       | <span data-sort-value="0" />                | <span data-sort-value="0" />                                  | <span data-sort-value="0" />                            | <span data-sort-value="173"><a href="https://pypi.org/project/langchain-alephantai/" target="_blank">  <img src="https://static.pepy.tech/badge/langchain-alephantai/month" alt="Downloads per month" noZoom class="rounded not-prose" /></a></span>                           |
+  | [`ChatNetmind`](https://github.com/protagolabs/langchain-netmind)                                        | <span data-sort-value="2">✅</span> | <span data-sort-value="2">✅</span>          | <span data-sort-value="2">✅</span>                            | <span data-sort-value="1">❌</span>                      | <span data-sort-value="143"><a href="https://pypi.org/project/langchain-netmind/" target="_blank">  <img src="https://static.pepy.tech/badge/langchain-netmind/month" alt="Downloads per month" noZoom class="rounded not-prose" /></a></span>                                 |
+  | [`ChatDuel`](https://duelagents.com)                                                                     | <span data-sort-value="2">✅</span> | <span data-sort-value="2">✅</span>          | <span data-sort-value="2">✅</span>                            | <span data-sort-value="1">❌</span>                      | <span data-sort-value="142"><a href="https://pypi.org/project/langchain-duel/" target="_blank">  <img src="https://static.pepy.tech/badge/langchain-duel/month" alt="Downloads per month" noZoom class="rounded not-prose" /></a></span>                                       |
+  | [`ChatNeuralwatt`](https://neuralwatt.com)                                                               | <span data-sort-value="2">✅</span> | <span data-sort-value="2">✅</span>          | <span data-sort-value="2">✅</span>                            | <span data-sort-value="1">❌</span>                      | <span data-sort-value="134"><a href="https://pypi.org/project/langchain-neuralwatt/" target="_blank">  <img src="https://static.pepy.tech/badge/langchain-neuralwatt/month" alt="Downloads per month" noZoom class="rounded not-prose" /></a></span>                           |
+  | [`ChatGreenNode`](https://github.com/greennode-ai/langchain-greennode)                                   | <span data-sort-value="2">✅</span> | <span data-sort-value="2">✅</span>          | <span data-sort-value="2">✅</span>                            | <span data-sort-value="2">✅</span>                      | <span data-sort-value="131"><a href="https://pypi.org/project/langchain-greennode/" target="_blank">  <img src="https://static.pepy.tech/badge/langchain-greennode/month" alt="Downloads per month" noZoom class="rounded not-prose" /></a></span>                             |
+  | [`ChatThalam`](https://thalam.ai/docs)                                                                   | <span data-sort-value="2">✅</span> | <span data-sort-value="2">✅</span>          | <span data-sort-value="2">✅</span>                            | <span data-sort-value="2">✅</span>                      | <span data-sort-value="131"><a href="https://pypi.org/project/langchain-thalam/" target="_blank">  <img src="https://static.pepy.tech/badge/langchain-thalam/month" alt="Downloads per month" noZoom class="rounded not-prose" /></a></span>                                   |
+  | [`ChatSeekrFlow`](https://github.com/benfaircloth/langchain-seekrflow)                                   | <span data-sort-value="2">✅</span> | <span data-sort-value="2">✅</span>          | <span data-sort-value="2">✅</span>                            | <span data-sort-value="1">❌</span>                      | <span data-sort-value="130"><a href="https://pypi.org/project/langchain-seekrflow/" target="_blank">  <img src="https://static.pepy.tech/badge/langchain-seekrflow/month" alt="Downloads per month" noZoom class="rounded not-prose" /></a></span>                             |
+  | [`ChatEmpirioLabs`](https://docs.empiriolabs.ai)                                                         | <span data-sort-value="2">✅</span> | <span data-sort-value="2">✅</span>          | <span data-sort-value="2">✅</span>                            | <span data-sort-value="2">✅</span>                      | <span data-sort-value="129"><a href="https://pypi.org/project/langchain-empiriolabs/" target="_blank">  <img src="https://static.pepy.tech/badge/langchain-empiriolabs/month" alt="Downloads per month" noZoom class="rounded not-prose" /></a></span>                         |
+  | [`ChatTelnyx`](https://developers.telnyx.com/docs/inference/models)                                      | <span data-sort-value="2">✅</span> | <span data-sort-value="2">✅</span>          | <span data-sort-value="2">✅</span>                            | <span data-sort-value="1">❌</span>                      | <span data-sort-value="127"><a href="https://pypi.org/project/langchain-telnyx/" target="_blank">  <img src="https://static.pepy.tech/badge/langchain-telnyx/month" alt="Downloads per month" noZoom class="rounded not-prose" /></a></span>                                   |
+  | [`ChatKalibr`](https://kalibr.systems/docs)                                                              | <span data-sort-value="0" />       | <span data-sort-value="0" />                | <span data-sort-value="0" />                                  | <span data-sort-value="0" />                            | <span data-sort-value="124"><a href="https://pypi.org/project/langchain-kalibr/" target="_blank">  <img src="https://static.pepy.tech/badge/langchain-kalibr/month" alt="Downloads per month" noZoom class="rounded not-prose" /></a></span>                                   |
+  | [`1Claw`](https://docs.1claw.xyz)                                                                        | <span data-sort-value="2">✅</span> | <span data-sort-value="2">✅</span>          | <span data-sort-value="2">✅</span>                            | <span data-sort-value="1">❌</span>                      | <span data-sort-value="-1">N/A</span>                                                                                                                                                                                                                                          |
+  | [`Auxen`](https://auxen.ai)                                                                              | <span data-sort-value="2">✅</span> | <span data-sort-value="2">✅</span>          | <span data-sort-value="2">✅</span>                            | <span data-sort-value="1">❌</span>                      | <span data-sort-value="-1">N/A</span>                                                                                                                                                                                                                                          |
+  | [`DaoXE`](https://daoxe.com)                                                                             | <span data-sort-value="2">✅</span> | <span data-sort-value="2">✅</span>          | <span data-sort-value="2">✅</span>                            | <span data-sort-value="2">✅</span>                      | <span data-sort-value="-1">N/A</span>                                                                                                                                                                                                                                          |
+  | [`FuturMix`](https://futurmix.ai/)                                                                       | <span data-sort-value="2">✅</span> | <span data-sort-value="2">✅</span>          | <span data-sort-value="2">✅</span>                            | <span data-sort-value="2">✅</span>                      | <span data-sort-value="-1">N/A</span>                                                                                                                                                                                                                                          |
+  | [`Snowflake Cortex REST API`](https://docs.snowflake.com/en/user-guide/snowflake-cortex/cortex-rest-api) | <span data-sort-value="2">✅</span> | <span data-sort-value="2">✅</span>          | <span data-sort-value="2">✅</span>                            | <span data-sort-value="1">❌</span>                      | <span data-sort-value="-1">N/A</span>                                                                                                                                                                                                                                          |
+  | [`Synthorai`](https://synthorai.io/docs/)                                                                | <span data-sort-value="0" />       | <span data-sort-value="0" />                | <span data-sort-value="0" />                                  | <span data-sort-value="0" />                            | <span data-sort-value="-1">N/A</span>                                                                                                                                                                                                                                          |
+  | [`TokenMix`](https://tokenmix.ai/docs)                                                                   | <span data-sort-value="2">✅</span> | <span data-sort-value="2">✅</span>          | <span data-sort-value="2">✅</span>                            | <span data-sort-value="1">❌</span>                      | <span data-sort-value="-1">N/A</span>                                                                                                                                                                                                                                          |
+  | [`Tuning Engines`](https://www.tuningengines.com/)                                                       | <span data-sort-value="2">✅</span> | <span data-sort-value="2">✅</span>          | <span data-sort-value="2">✅</span>                            | <span data-sort-value="1">❌</span>                      | <span data-sort-value="-1">N/A</span>                                                                                                                                                                                                                                          |
+</div>
+
+<Info>
+  If you'd like to contribute an integration, see [Contributing integrations](/oss/python/contributing#add-a-new-integration).
+</Info>
+
+***
+
+<div className="source-links">
+  <Callout icon="terminal-2">
+    [Connect these docs](/use-these-docs) to Claude, VSCode, and more via MCP for real-time answers.
+  </Callout>
+
+  <Callout icon="edit">
+    [Edit this page on GitHub](https://github.com/langchain-ai/docs/edit/main/src/oss/python/integrations/chat/index.mdx) or [file an issue](https://github.com/langchain-ai/docs/issues/new/choose).
+  </Callout>
+</div>
+Title: ContentBlock.Tools.InvalidToolCall
+Link: https://docs.langchain.com/oss/javascript/langchain/messages#contentblock-tools-invalidtoolcall
+Page: oss/javascript/langchain/messages
+Content: ### Content block reference
+
+Content blocks are represented (either when creating a message or accessing the `contentBlocks` field) as a list of typed objects. Each item in the list must adhere to one of the following block types:
+
+<AccordionGroup>
+  <Accordion title="Core" icon="cube">
+    <AccordionGroup>
+      <Accordion title="ContentBlock.Text" icon="typography">
+        **Purpose:** Standard text output
+
+        <ParamField body="type" type="string" required>
+          Always `"text"`
+        </ParamField>
+
+        <ParamField body="text" type="string" required>
+          The text content
+        </ParamField>
+
+        <ParamField body="annotations" type="Citation[]">
+          List of annotations for the text
+        </ParamField>
+
+        **Example:**
+
+        ```typescript theme={"theme":{"light":"catppuccin-latte","dark":"catppuccin-mocha"}}
+        {
+            type: "text",
+            text: "Hello world",
+            annotations: []
+        }
+        ```
+      </Accordion>
+
+      <Accordion title="ContentBlock.Reasoning" icon="brain">
+        **Purpose:** Model reasoning steps
+
+        <ParamField body="type" type="string" required>
+          Always `"reasoning"`
+        </ParamField>
+
+        <ParamField body="reasoning" type="string" required>
+          The reasoning content
+        </ParamField>
+
+        **Example:**
+
+        ```typescript theme={"theme":{"light":"catppuccin-latte","dark":"catppuccin-mocha"}}
+        {
+            type: "reasoning",
+            reasoning: "The user is asking about..."
+        }
+        ```
+      </Accordion>
+    </AccordionGroup>
+  </Accordion>
+
+  <Accordion title="Multimodal" icon="photo">
+    <AccordionGroup>
+      <Accordion title="ContentBlock.Multimodal.Image" icon="photo">
+        **Purpose:** Image data
+
+        <ParamField body="type" type="string" required>
+          Always `"image"`
+        </ParamField>
+
+        <ParamField body="url" type="string">
+          URL pointing to the image location.
+        </ParamField>
+
+        <ParamField body="data" type="string">
+          Base64-encoded image data.
+        </ParamField>
+
+        <ParamField body="fileId" type="string">
+          Reference to the image in an external file storage system (e.g., OpenAI or Anthropic's Files API).
+        </ParamField>
+
+        <ParamField body="mimeType" type="string">
+          Image [MIME type](https://www.iana.org/assignments/media-types/media-types.xhtml#image) (e.g., `image/jpeg`, `image/png`). Required for base64 data.
+        </ParamField>
+      </Accordion>
+
+      <Accordion title="ContentBlock.Multimodal.Audio" icon="volume">
+        **Purpose:** Audio data
+
+        <ParamField body="type" type="string" required>
+          Always `"audio"`
+        </ParamField>
+
+        <ParamField body="url" type="string">
+          URL pointing to the audio location.
+        </ParamField>
+
+        <ParamField body="data" type="string">
+          Base64-encoded audio data.
+        </ParamField>
+
+        <ParamField body="fileId" type="string">
+          Reference to the audio file in an external file storage system (e.g., OpenAI or Anthropic's Files API).
+        </ParamField>
+
+        <ParamField body="mimeType" type="string">
+          Audio [MIME type](https://www.iana.org/assignments/media-types/media-types.xhtml#audio) (e.g., `audio/mpeg`, `audio/wav`). Required for base64 data.
+        </ParamField>
+      </Accordion>
+
+      <Accordion title="ContentBlock.Multimodal.Video" icon="video">
+        **Purpose:** Video data
+
+        <ParamField body="type" type="string" required>
+          Always `"video"`
+        </ParamField>
+
+        <ParamField body="url" type="string">
+          URL pointing to the video location.
+        </ParamField>
+
+        <ParamField body="data" type="string">
+          Base64-encoded video data.
+        </ParamField>
+
+        <ParamField body="fileId" type="string">
+          Reference to the video file in an external file storage system (e.g., OpenAI or Anthropic's Files API).
+        </ParamField>
+
+        <ParamField body="mimeType" type="string">
+          Video [MIME type](https://www.iana.org/assignments/media-types/media-types.xhtml#video) (e.g., `video/mp4`, `video/webm`). Required for base64 data.
+        </ParamField>
+      </Accordion>
+
+      <Accordion title="ContentBlock.Multimodal.File" icon="file">
+        **Purpose:** Generic files (PDF, etc)
+
+        <ParamField body="type" type="string" required>
+          Always `"file"`
+        </ParamField>
+
+        <ParamField body="url" type="string">
+          URL pointing to the file location.
+        </ParamField>
+
+        <ParamField body="data" type="string">
+          Base64-encoded file data.
+        </ParamField>
+
+        <ParamField body="fileId" type="string">
+          Reference to the file in an external file storage system (e.g., OpenAI or Anthropic's Files API).
+        </ParamField>
+
+        <ParamField body="mimeType" type="string">
+          File [MIME type](https://www.iana.org/assignments/media-types/media-types.xhtml) (e.g., `application/pdf`). Required for base64 data.
+        </ParamField>
+      </Accordion>
+
+      <Accordion title="ContentBlock.Multimodal.PlainText" icon="align-left">
+        **Purpose:** Document text (`.txt`, `.md`)
+
+        <ParamField body="type" type="string" required>
+          Always `"text-plain"`
+        </ParamField>
+
+        <ParamField body="text" type="string" required>
+          The text content
+        </ParamField>
+
+        <ParamField body="title" type="string">
+          Title of the text content
+        </ParamField>
+
+        <ParamField body="mimeType" type="string">
+          [MIME type](https://www.iana.org/assignments/media-types/media-types.xhtml) of the text (e.g., `text/plain`, `text/markdown`)
+        </ParamField>
+      </Accordion>
+    </AccordionGroup>
+  </Accordion>
+
+  <Accordion title="Tool Calling" icon="tool">
+    <AccordionGroup>
+      <Accordion title="ContentBlock.Tools.ToolCall" icon="function">
+        **Purpose:** Function calls
+
+        <ParamField body="type" type="string" required>
+          Always `"tool_call"`
+        </ParamField>
+
+        <ParamField body="name" type="string" required>
+          Name of the tool to call
+        </ParamField>
+
+        <ParamField body="args" type="object" required>
+          Arguments to pass to the tool
+        </ParamField>
+
+        <ParamField body="id" type="string" required>
+          Unique identifier for this tool call
+        </ParamField>
+
+        **Example:**
+
+        ```typescript theme={"theme":{"light":"catppuccin-latte","dark":"catppuccin-mocha"}}
+        {
+            type: "tool_call",
+            name: "search",
+            args: { query: "weather" },
+            id: "call_123"
+        }
+        ```
+      </Accordion>
+
+      <Accordion title="ContentBlock.Tools.ToolCallChunk" icon="puzzle">
+        **Purpose:** Streaming tool fragments
+
+        <ParamField body="type" type="string" required>
+          Always `"tool_call_chunk"`
+        </ParamField>
+
+        <ParamField body="name" type="string">
+          Name of the tool being called
+        </ParamField>
+
+        <ParamField body="args" type="string">
+          Partial tool arguments (may be incomplete JSON)
+        </ParamField>
+
+        <ParamField body="id" type="string">
+          Tool call identifier
+        </ParamField>
+
+        <ParamField body="index" type="number | string" required>
+          Position of this chunk in the stream
+        </ParamField>
+      </Accordion>
+
+      <Accordion title="ContentBlock.Tools.InvalidToolCall" icon="alert-triangle">
+        **Purpose:** Malformed calls
+
+        <ParamField body="type" type="string" required>
+          Always `"invalid_tool_call"`
+        </ParamField>
+
+        <ParamField body="name" type="string">
+          Name of the tool that failed to be called
+        </ParamField>
+
+        <ParamField body="args" type="string">
+          Raw arguments that failed to parse
+        </ParamField>
+
+        <ParamField body="error" type="string" required>
+          Description of what went wrong
+        </ParamField>
+
+        **Common errors:** Invalid JSON, missing required fields
+      </Accordion>
+    </AccordionGroup>
+  </Accordion>
+
+  <Accordion title="Server-Side Tool Execution" icon="server">
+    <AccordionGroup>
+      <Accordion title="ContentBlock.Tools.ServerToolCall" icon="tool">
+        **Purpose:** Tool call that is executed server-side.
+
+        <ParamField body="type" type="string" required>
+          Always `"server_tool_call"`
+        </ParamField>
+
+        <ParamField body="id" type="string" required>
+          An identifier associated with the tool call.
+        </ParamField>
+
+        <ParamField body="name" type="string" required>
+          The name of the tool to be called.
+        </ParamField>
+
+        <ParamField body="args" type="string" required>
+          Partial tool arguments (may be incomplete JSON)
+        </ParamField>
+      </Accordion>
+
+      <Accordion title="ContentBlock.Tools.ServerToolCallChunk" icon="puzzle">
+        **Purpose:** Streaming server-side tool call fragments
+
+        <ParamField body="type" type="string" required>
+          Always `"server_tool_call_chunk"`
+        </ParamField>
+
+        <ParamField body="id" type="string">
+          An identifier associated with the tool call.
+        </ParamField>
+
+        <ParamField body="name" type="string">
+          Name of the tool being called
+        </ParamField>
+
+        <ParamField body="args" type="string">
+          Partial tool arguments (may be incomplete JSON)
+        </ParamField>
+
+        <ParamField body="index" type="number | string">
+          Position of this chunk in the stream
+        </ParamField>
+      </Accordion>
+
+      <Accordion title="ContentBlock.Tools.ServerToolResult" icon="package">
+        **Purpose:** Search results
+
+        <ParamField body="type" type="string" required>
+          Always `"server_tool_result"`
+        </ParamField>
+
+        <ParamField body="tool_call_id" type="string" required>
+          Identifier of the corresponding server tool call.
+        </ParamField>
+
+        <ParamField body="id" type="string">
+          Identifier associated with the server tool result.
+        </ParamField>
+
+        <ParamField body="status" type="string" required>
+          Execution status of the server-side tool. `"success"` or `"error"`.
+        </ParamField>
+
+        <ParamField body="output">
+          Output of the executed tool.
+        </ParamField>
+      </Accordion>
+    </AccordionGroup>
+  </Accordion>
+
+  <Accordion title="Provider-Specific Blocks" icon="plug">
+    <Accordion title="ContentBlock.NonStandard" icon="asterisk">
+      **Purpose:** Provider-specific escape hatch
+
+      <ParamField body="type" type="string" required>
+        Always `"non_standard"`
+      </ParamField>
+
+      <ParamField body="value" type="object" required>
+        Provider-specific data structure
+      </ParamField>
+
+      **Usage:** For experimental or provider-unique features
+    </Accordion>
+
+    Additional provider-specific content types may be found within the [reference documentation](/oss/javascript/integrations/providers/overview) of each model provider.
+  </Accordion>
+</AccordionGroup>
+
+Each of these content blocks mentioned above are individually addressable as types when importing the [`ContentBlock`](https://reference.langchain.com/javascript/langchain-core/messages/ContentBlock) type.
+
+```typescript theme={"theme":{"light":"catppuccin-latte","dark":"catppuccin-mocha"}}
+import { ContentBlock } from "langchain";
+
+// Text block
+const textBlock: ContentBlock.Text = {
+    type: "text",
+    text: "Hello world",
+}
+
+// Image block
+const imageBlock: ContentBlock.Multimodal.Image = {
+    type: "image",
+    url: "https://example.com/image.png",
+    mimeType: "image/png",
+}
+```
+
+<Tip>
+  View the canonical type definitions in the [API reference](https://reference.langchain.com/javascript/modules/_langchain_core.messages.html).
+</Tip>
+
+<Info>
+  Content blocks were introduced as a new property on messages in LangChain v1 to standardize content formats across providers while maintaining backward compatibility with existing code.
+
+  Content blocks are not a replacement for the [`content`](https://reference.langchain.com/javascript/langchain-core/messages/BaseMessage) property, but rather a new property that can be used to access the content of a message in a standardized format.
+</Info>
+Title: Progressive rendering utilities
+Link: https://docs.langchain.com/oss/javascript/langchain/frontend/integrations/openui#progressive-rendering-utilities
+Page: oss/javascript/langchain/frontend/integrations/openui
+Content: ## Progressive rendering utilities
+
+Wiring [`useStream`](https://reference.langchain.com/javascript/langchain-react/index/useStream) to `Renderer` directly causes results in re-rendering on every streaming token and produces hundreds of no-op re-parses per response. This causes chart components to crash when their data hasn't arrived yet. The utilities below solve these problems:
+
+| Problem                      | Solution                                                                                                             |
+| ---------------------------- | -------------------------------------------------------------------------------------------------------------------- |
+| **Partial string literals**  | `truncateAtOpenString` / `closeOrTruncateOpenString` — drop or close incomplete strings before parsing               |
+| **Mid-token churn**          | `useStableText` — gate Renderer updates on complete statement boundaries (`name = Expr(…)`) rather than every token  |
+| **Chart null-data crashes**  | `chartDataRefsResolved` — verify a chart's `Series` and label arrays are defined before including it in the snapshot |
+| **No `root` yet / fallback** | `buildProgressiveRoot` — synthesise a `root = Stack([…])` from top-level variables when the model hasn't written one |
+| **Snake\_case identifiers**  | `sanitizeIdentifiers` — the parser only accepts camelCase; convert any `snake_case` names the model emits            |
+
+Copy the full block into your project and pass `stable` to `<Renderer>`:
+
+````tsx expandable theme={"theme":{"light":"catppuccin-latte","dark":"catppuccin-mocha"}}
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
+import {
+  type ActionEvent,
+  BuiltinActionType,
+  Renderer,
+} from "@openuidev/react-lang";
+import { openuiLibrary } from "@openuidev/react-ui/genui-lib";
+
+/** Strip any markdown code fence the model may have emitted. */
+function stripCodeFence(text: string): string {
+  return text
+    .replace(/^```[a-z]*\r?\n?/i, "")
+    .replace(/\n?```\s*$/i, "")
+    .trim();
+}
+
+/**
+ * The openui-lang parser only accepts camelCase identifiers.
+ * Convert any snake_case variable names the model emits; string content is untouched.
+ */
+function sanitizeIdentifiers(text: string): string {
+  const toCamel = (s: string) =>
+    s.replace(/_([a-zA-Z0-9])/g, (_, c: string) => c.toUpperCase());
+
+  const snakeVars: string[] = [];
+  for (const m of text.matchAll(/^([a-zA-Z][a-zA-Z0-9]*(?:_[a-zA-Z0-9]+)+)\s*=/gm)) {
+    if (!snakeVars.includes(m[1])) snakeVars.push(m[1]);
+  }
+  if (snakeVars.length === 0) return text;
+
+  let result = "";
+  let inStr = false;
+  let i = 0;
+  while (i < text.length) {
+    if (text[i] === "\\" && inStr) { result += text[i] + (text[i + 1] ?? ""); i += 2; continue; }
+    if (text[i] === '"') { inStr = !inStr; result += text[i++]; continue; }
+    if (!inStr) {
+      let replaced = false;
+      for (const v of snakeVars) {
+        if (text.startsWith(v, i) && !/[a-zA-Z0-9_]/.test(text[i + v.length] ?? "")) {
+          result += toCamel(v); i += v.length; replaced = true; break;
+        }
+      }
+      if (!replaced) result += text[i++];
+    } else {
+      result += text[i++];
+    }
+  }
+  return result;
+}
+
+/**
+ * Walk the text tracking open strings. If the text ends mid-string, truncate to
+ * the last safe newline — this prevents a partial string literal from consuming
+ * any `root = Stack(…)` line we synthesise later.
+ */
+function truncateAtOpenString(text: string): string {
+  let inStr = false;
+  let lastSafeNewline = 0;
+  for (let i = 0; i < text.length; i++) {
+    const ch = text[i];
+    if (ch === "\\" && inStr) { i++; continue; }
+    if (ch === '"') { inStr = !inStr; continue; }
+    if (ch === "\n" && !inStr) lastSafeNewline = i;
+  }
+  return inStr ? text.slice(0, lastSafeNewline) : text;
+}
+
+/**
+ * Like truncateAtOpenString, but synthesises a closing `")` when the partial
+ * line is a TextContent statement. This lets text render token-by-token while
+ * all other partial-string lines are still truncated.
+ */
+function closeOrTruncateOpenString(text: string): string {
+  let inStr = false;
+  let lastSafeNewline = 0;
+  for (let i = 0; i < text.length; i++) {
+    const ch = text[i];
+    if (ch === "\\" && inStr) { i++; continue; }
+    if (ch === '"') { inStr = !inStr; continue; }
+    if (ch === "\n" && !inStr) lastSafeNewline = i;
+  }
+  if (!inStr) return text;
+
+  const safeText = lastSafeNewline > 0 ? text.slice(0, lastSafeNewline) : "";
+  const partialLine = text.slice(lastSafeNewline > 0 ? lastSafeNewline + 1 : 0);
+
+  if (/^[a-zA-Z][a-zA-Z0-9]*\s*=\s*TextContent\(/.test(partialLine)) {
+    return (lastSafeNewline > 0 ? safeText + "\n" : "") + partialLine + '")';
+  }
+  return safeText;
+}
+
+/** Count lines that form a complete assignment ending with `)` or `]`. */
+function countCompleteStatements(text: string): number {
+  let count = 0;
+  for (const line of text.split("\n")) {
+    const t = line.trimEnd();
+    if ((t.endsWith(")") || t.endsWith("]")) && /^[a-zA-Z]/.test(t)) count++;
+  }
+  return count;
+}
+
+const CHART_TYPES = new Set([
+  "BarChart", "LineChart", "AreaChart", "RadarChart",
+  "HorizontalBarChart", "PieChart", "RadialChart",
+  "SingleStackedBarChart", "ScatterChart",
+]);
+
+const OPENUI_KEYWORDS = new Set([
+  "true", "false", "null", "grouped", "stacked", "linear", "natural", "step",
+  "pie", "donut", "string", "number", "action", "row", "column", "card", "sunk",
+  "clear", "info", "warning", "error", "success", "neutral", "danger", "start",
+  "end", "center", "between", "around", "evenly", "stretch", "baseline",
+  "small", "default", "large", "none", "xs", "s", "m", "l", "xl",
+  "horizontal", "vertical",
+]);
+
+/**
+ * Chart components (recharts) crash with `.map() on null` when their labels or
+ * series props are unresolved. Before committing a stable snapshot, verify that
+ * every chart in the text has all its data variables already defined.
+ */
+function chartDataRefsResolved(text: string): boolean {
+  const lines = text.split("\n");
+  const complete = new Set<string>();
+  for (const line of lines) {
+    const t = line.trimEnd();
+    const m = t.match(/^([a-zA-Z][a-zA-Z0-9]*)\s*=/);
+    if (m && (t.endsWith(")") || t.endsWith("]"))) complete.add(m[1]);
+  }
+  for (const line of lines) {
+    const t = line.trimEnd();
+    const m = t.match(/^([a-zA-Z][a-zA-Z0-9]*)\s*=\s*([A-Z][a-zA-Z0-9]*)\(/);
+    if (!m || !CHART_TYPES.has(m[2]) || !t.endsWith(")")) continue;
+    const rhs = t.slice(t.indexOf("=") + 1).replace(/"(?:[^"\\]|\\.)*"/g, '""');
+    for (const [, name] of rhs.matchAll(/\b([a-zA-Z][a-zA-Z0-9]*)\b/g)) {
+      if (/^[a-z]/.test(name) && !OPENUI_KEYWORDS.has(name) && !complete.has(name))
+        return false;
+    }
+  }
+  return true;
+}
+
+/**
+ * If the model hasn't written a `root = Stack(…)` yet, synthesise one from the
+ * top-level variables (those defined but not referenced inside any other expression).
+ * This enables progressive rendering even when the model writes root last.
+ */
+function buildProgressiveRoot(text: string): string {
+  if (!text) return text;
+  const safe = truncateAtOpenString(text);
+  if (/^root\s*=/m.test(safe)) return safe;
+
+  const defs: string[] = [];
+  const seen = new Set<string>();
+  for (const m of safe.matchAll(/^([a-zA-Z_][a-zA-Z0-9_]*)\s*=/gm)) {
+    if (!seen.has(m[1])) { defs.push(m[1]); seen.add(m[1]); }
+  }
+  if (defs.length === 0) return safe;
+
+  const referenced = new Set<string>();
+  for (const line of safe.split("\n")) {
+    const thisVar = line.match(/^([a-zA-Z_][a-zA-Z0-9_]*)\s*=/)?.[1];
+    const stripped = line.replace(/"(?:[^"\\]|\\.)*"/g, '""');
+    for (const v of defs) {
+      if (v !== thisVar && new RegExp(`\\b${v}\\b`).test(stripped)) referenced.add(v);
+    }
+  }
+
+  const topLevel = defs.filter((v) => !referenced.has(v));
+  const rootVars = topLevel.length > 0 ? topLevel : defs;
+  return `${safe.trimEnd()}\nroot = Stack([${rootVars.join(", ")}], "column", "l")`;
+}
+
+/**
+ * Gate Renderer updates to moments when at least one new *complete* statement
+ * has arrived. This eliminates hundreds of no-op re-parses during streaming.
+ *
+ * Special case: TextContent lines update token-by-token (via closeOrTruncate)
+ * so text renders progressively without waiting for the full line to complete.
+ */
+function useStableText(raw: string, isStreaming: boolean): string {
+  const [stable, setStable] = useState<string>("");
+  const lastCount = useRef(0);
+
+  useEffect(() => {
+    const safe = truncateAtOpenString(raw);         // strict — for counting only
+    const enhanced = closeOrTruncateOpenString(raw); // display — closes partial TextContent
+
+    if (!isStreaming) { setStable(enhanced); return; }
+
+    const count = countCompleteStatements(safe);
+    const newComplete = count > lastCount.current && chartDataRefsResolved(safe);
+    const partialTextContent = enhanced !== safe;
+
+    if (newComplete || partialTextContent) {
+      if (newComplete) lastCount.current = count;
+      setStable(enhanced);
+    }
+  }, [raw, isStreaming]);
+
+  return stable;
+}
+
+function AIMessageView({
+  raw,
+  isStreaming,
+  onSubmit,
+}: {
+  raw: string;
+  isStreaming: boolean;
+  onSubmit: (text: string) => void;
+}) {
+  const stable = useStableText(raw, isStreaming);
+  const processed = useMemo(() => buildProgressiveRoot(stable), [stable]);
+
+  const handleAction = useCallback(
+    (event: ActionEvent) => {
+      if (event.type === BuiltinActionType.ContinueConversation) {
+        onSubmit(event.humanFriendlyMessage);
+      }
+    },
+    [onSubmit],
+  );
+
+  if (!processed) return null;
+
+  return (
+    <Renderer
+      response={processed}
+      library={openuiLibrary}
+      isStreaming={isStreaming}
+      onAction={handleAction}
+    />
+  );
+}
+
+export function MessageList({ messages, isLoading, onSubmit }) {
+  const lastAiIdx = messages.reduce(
+    (acc, msg, i) => (msg.getType() === "ai" ? i : acc),
+    -1,
+  );
+
+  return messages.map((msg, i) => {
+    if (msg.getType() === "human") {
+      return (
+        <div key={msg.id ?? i} className="flex justify-end">
+          <div className="user-bubble">
+            {msg.text}
+          </div>
+        </div>
+      );
+    }
+
+    if (msg.getType() === "ai") {
+      const raw = sanitizeIdentifiers(
+        stripCodeFence(msg.text),
+      );
+      if (!raw) return null;
+      return (
+        <div key={msg.id ?? i}>
+          <AIMessageView
+            raw={raw}
+            isStreaming={isLoading && i === lastAiIdx}
+            onSubmit={onSubmit}
+          />
+        </div>
+      );
+    }
+
+    return null;
+  });
+}
+````
+Title: Render assistant messages as dynamic UI
+Link: https://docs.langchain.com/oss/javascript/langchain/frontend/integrations/copilotkit#render-assistant-messages-as-dynamic-ui
+Page: oss/javascript/langchain/frontend/integrations/copilotkit
+Content: ## Render assistant messages as dynamic UI
+
+Once the assistant response arrives, the custom message renderer decides how to display it. In this example:
+
+* assistant messages are parsed as structured JSON against the UI kit schema
+* valid structured output is rendered as real React components
+* user messages are rendered as ordinary chat bubbles
+
+```tsx theme={"theme":{"light":"catppuccin-latte","dark":"catppuccin-mocha"}}
+import type { AssistantMessage } from "@ag-ui/core";
+import type { RenderMessageProps } from "@copilotkit/react-ui";
+import { useJsonParser } from "@hashbrownai/react";
+import { memo } from "react";
+
+import { useChatKit } from "@/components/chat/chat-kit";
+import { Squircle } from "@/components/squircle";
+
+const AssistantMessageRenderer = memo(function AssistantMessageRenderer({
+  message,
+}: {
+  message: AssistantMessage;
+}) {
+  const kit = useChatKit();
+  const { value } = useJsonParser(message.content ?? "", kit.schema);
+
+  if (!value) return null;
+
+  return (
+    <div className="group/msg mt-2 flex w-full justify-start">
+      <div className="magic-text-output w-full px-1 py-1">{kit.render(value)}</div>
+    </div>
+  );
+});
+
+export function CustomMessageRenderer({ message }: RenderMessageProps) {
+  if (message.role === "assistant") {
+    return <AssistantMessageRenderer message={message} />;
+  }
+
+  return (
+    <div className="flex w-full justify-end">
+      <Squircle className="w-full max-w-[64ch] px-4 py-3">
+        <pre>{typeof message.content === "string" ? message.content : JSON.stringify(message.content, null, 2)}</pre>
+      </Squircle>
+    </div>
+  );
+}
+```
+
+This renderer pattern is what makes the integration feel native:
+
+* CopilotKit handles chat state and transport
+* the custom renderer decides how assistant payloads become UI
+* [Hashbrown](https://hashbrown.dev/) turns validated structured data into concrete React elements

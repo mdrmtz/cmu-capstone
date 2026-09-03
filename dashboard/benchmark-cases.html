@@ -14,114 +14,143 @@
         :root {
             --color-bg: #ffffff;
             --color-bg-secondary: #f8f9fa;
-            --color-text: #1a1a1a;
+            --color-page-bg: #f4f5fa;
+            --color-text: #111827;
             --color-text-secondary: #6b7280;
             --color-border: #e5e7eb;
             --color-error: #dc2626;
             --color-warning: #f59e0b;
-            --color-success: #10b981;
+            --color-success: #059669;
             --color-info: #3b82f6;
+            --color-primary: #4f46e5;
+            --color-primary-hover: #4338ca;
+            --color-primary-light: #eef2ff;
+            --color-primary-text: #4338ca;
             --color-shadow: rgba(0, 0, 0, 0.05);
             --color-shadow-lg: rgba(0, 0, 0, 0.1);
         }
 
         html.dark-mode {
-            --color-bg: #1a1a1a;
+            --color-bg: #1e1e26;
             --color-bg-secondary: #2d2d2d;
+            --color-page-bg: #15151b;
             --color-text: #ffffff;
             --color-text-secondary: #a0aec0;
-            --color-border: #404040;
+            --color-border: #3a3a44;
+            --color-primary-light: #2e2a6b;
+            --color-primary-text: #a5b4fc;
             --color-shadow: rgba(255, 255, 255, 0.05);
             --color-shadow-lg: rgba(0, 0, 0, 0.3);
         }
 
         body {
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen', 'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue', sans-serif;
-            background-color: var(--color-bg);
+            background-color: var(--color-page-bg);
             color: var(--color-text);
             transition: background-color 0.3s ease, color 0.3s ease;
             line-height: 1.6;
         }
 
-        /* Header */
+        /* Header - flat app nav */
         header {
-            background: linear-gradient(135deg, var(--color-info) 0%, #1e40af 100%);
-            color: white;
-            padding: 2rem;
-            box-shadow: 0 2px 8px var(--color-shadow-lg);
+            background: var(--color-bg);
+            color: var(--color-text);
+            padding: 0;
+            border-bottom: 1px solid var(--color-border);
+            box-shadow: none;
             position: sticky;
             top: 0;
             z-index: 100;
         }
 
-        .header-content {
+        .page-tabs {
+            display: flex;
+            gap: 1.75rem;
             max-width: 1400px;
             margin: 0 auto;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            flex-wrap: wrap;
-            gap: 1rem;
+            padding: 0 2rem;
+            border-top: 1px solid var(--color-border);
         }
 
-        .header-title {
-            font-size: 1.75rem;
-            font-weight: 700;
-            letter-spacing: -0.5px;
-        }
-
-        .header-subtitle {
-            font-size: 0.875rem;
-            opacity: 0.95;
-            margin-top: 0.25rem;
-        }
-
-        .header-actions {
-            display: flex;
-            gap: 1rem;
-            align-items: center;
-            flex-wrap: wrap;
-        }
-
-        .back-link {
-            background: rgba(255, 255, 255, 0.2);
-            border: 1px solid rgba(255, 255, 255, 0.3);
-            border-radius: 8px;
-            padding: 0.5rem 1rem;
-            color: white;
+        .page-tab {
+            display: inline-block;
+            padding: 0.75rem 0.125rem;
+            color: var(--color-text-secondary);
             text-decoration: none;
-            cursor: pointer;
             font-size: 0.875rem;
             font-weight: 500;
-            transition: all 0.2s ease;
-            display: flex;
-            align-items: center;
-            gap: 0.5rem;
+            border-bottom: 2px solid transparent;
+            margin-bottom: -1px;
         }
 
-        .back-link:hover {
-            background: rgba(255, 255, 255, 0.3);
-            transform: scale(1.05);
+        .page-tab:hover {
+            color: var(--color-text);
+        }
+
+        .page-tab.active {
+            color: var(--color-primary);
+            border-bottom-color: var(--color-primary);
+            font-weight: 600;
+        }
+
+        .footer-settings {
+            position: absolute;
+            right: 2rem;
+            top: 50%;
+            transform: translateY(-50%);
+        }
+
+        .footer-settings-trigger {
+            background: transparent;
+            border: none;
+            color: var(--color-text-secondary);
+            cursor: pointer;
+            font-size: 0.8125rem;
+            padding: 0.375rem 0.625rem;
+            border-radius: 6px;
+            transition: background 0.15s ease, color 0.15s ease;
+        }
+
+        .footer-settings-trigger:hover,
+        .footer-settings-trigger[aria-expanded="true"] {
+            background: var(--color-bg-secondary);
+            color: var(--color-text);
+        }
+
+        .settings-menu-panel {
+            position: absolute;
+            bottom: calc(100% + 8px);
+            right: 0;
+            min-width: 190px;
+            background: var(--color-bg);
+            border: 1px solid var(--color-border);
+            border-radius: 8px;
+            box-shadow: 0 4px 16px rgba(0, 0, 0, 0.14);
+            padding: 0.375rem;
+            z-index: 50;
+        }
+
+        .settings-menu-panel[hidden] {
+            display: none;
         }
 
         .theme-toggle {
-            background: rgba(255, 255, 255, 0.2);
-            border: 1px solid rgba(255, 255, 255, 0.3);
-            border-radius: 8px;
-            padding: 0.5rem 1rem;
-            color: white;
+            width: 100%;
+            text-align: left;
+            background: transparent;
+            border: none;
+            border-radius: 6px;
+            padding: 0.625rem 0.75rem;
+            color: var(--color-text);
             cursor: pointer;
-            font-size: 0.875rem;
+            font-size: 0.8125rem;
             font-weight: 500;
-            transition: all 0.2s ease;
             display: flex;
             align-items: center;
-            gap: 0.5rem;
         }
 
         .theme-toggle:hover {
-            background: rgba(255, 255, 255, 0.3);
-            transform: scale(1.05);
+            background: var(--color-bg-secondary);
         }
 
         /* Main Content */
@@ -296,10 +325,6 @@
         }
 
         /* Fix Column */
-        .fix-column {
-            max-width: 400px;
-        }
-
         .fix-text {
             line-height: 1.5;
         }
@@ -410,6 +435,7 @@
 
         /* Footer */
         footer {
+            position: relative;
             text-align: center;
             padding: 2rem;
             color: var(--color-text-secondary);
@@ -436,12 +462,6 @@
         @media (max-width: 768px) {
             main {
                 padding: 1rem;
-            }
-
-            .header-content {
-                justify-content: center;
-                text-align: center;
-                flex-direction: column;
             }
 
             .controls {
@@ -509,22 +529,12 @@
 </head>
 <body>
     <header>
-        <div class="header-content">
-            <div>
-                <div class="header-title">📊 Benchmark Cases</div>
-                <div class="header-subtitle">Detailed violation cases with ground truth fixes</div>
-            </div>
-            <div class="header-actions">
-                <a href="./index.html" class="back-link">
-                    <span>←</span>
-                    <span>Dashboard</span>
-                </a>
-                <button class="theme-toggle" id="themeToggle">
-                    <span id="themeIcon">🌙</span>
-                    <span id="themeName">Dark Mode</span>
-                </button>
-            </div>
-        </div>
+        <nav class="page-tabs">
+            <a href="./index.html" class="page-tab">Dashboard</a>
+            <a href="./hitl_queue/index.html" class="page-tab">HITL Queue</a>
+            <a href="./benchmark-cases.html" class="page-tab active">Benchmark Cases</a>
+            <a href="./lessons/index.html" class="page-tab">Lessons</a>
+        </nav>
     </header>
 
     <main>
@@ -588,6 +598,14 @@
 
     <footer>
         <p>Benchmark Cases Dashboard | Last updated: <span id="lastUpdated">--</span></p>
+        <div class="footer-settings">
+            <button class="footer-settings-trigger" id="settingsMenuTrigger" aria-haspopup="true" aria-expanded="false" aria-controls="settingsMenuPanel">Settings</button>
+            <div class="settings-menu-panel" id="settingsMenuPanel" role="menu" hidden>
+                <button class="theme-toggle" id="themeToggle" role="menuitemcheckbox" aria-checked="false">
+                    <span id="themeName">Dark theme: Off</span>
+                </button>
+            </div>
+        </div>
     </footer>
 
     <script>
@@ -611,18 +629,17 @@
         function applyTheme(theme) {
             const html = document.documentElement;
             const themeToggle = document.getElementById('themeToggle');
-            const themeIcon = document.getElementById('themeIcon');
             const themeName = document.getElementById('themeName');
 
             if (theme === 'dark') {
                 html.classList.add('dark-mode');
-                themeIcon.textContent = '☀️';
-                themeName.textContent = 'Light Mode';
+                themeName.textContent = 'Dark theme: On';
+                themeToggle.setAttribute('aria-checked', 'true');
                 localStorage.setItem('theme', 'dark');
             } else {
                 html.classList.remove('dark-mode');
-                themeIcon.textContent = '🌙';
-                themeName.textContent = 'Dark Mode';
+                themeName.textContent = 'Dark theme: Off';
+                themeToggle.setAttribute('aria-checked', 'false');
                 localStorage.setItem('theme', 'light');
             }
         }
@@ -630,6 +647,42 @@
         document.getElementById('themeToggle').addEventListener('click', () => {
             currentTheme = currentTheme === 'light' ? 'dark' : 'light';
             applyTheme(currentTheme);
+        });
+
+        // Settings menu (Google-style dropdown)
+        const settingsMenuTrigger = document.getElementById('settingsMenuTrigger');
+        const settingsMenuPanel = document.getElementById('settingsMenuPanel');
+
+        function openSettingsMenu() {
+            settingsMenuPanel.hidden = false;
+            settingsMenuTrigger.setAttribute('aria-expanded', 'true');
+        }
+
+        function closeSettingsMenu() {
+            settingsMenuPanel.hidden = true;
+            settingsMenuTrigger.setAttribute('aria-expanded', 'false');
+        }
+
+        settingsMenuTrigger.addEventListener('click', (event) => {
+            event.stopPropagation();
+            if (settingsMenuPanel.hidden) {
+                openSettingsMenu();
+            } else {
+                closeSettingsMenu();
+            }
+        });
+
+        document.addEventListener('click', (event) => {
+            if (!settingsMenuPanel.hidden && !settingsMenuPanel.contains(event.target) && event.target !== settingsMenuTrigger) {
+                closeSettingsMenu();
+            }
+        });
+
+        document.addEventListener('keydown', (event) => {
+            if (event.key === 'Escape' && !settingsMenuPanel.hidden) {
+                closeSettingsMenu();
+                settingsMenuTrigger.focus();
+            }
         });
 
         // Load data

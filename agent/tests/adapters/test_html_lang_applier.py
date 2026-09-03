@@ -93,7 +93,15 @@ async def test_apply_html_lang_build_fails_and_rollbacks(fixture_dir: Path) -> N
     with patch(
         "a11y_fixer.adapters.html_lang_applier._run_ng_build"
     ) as mock_build:
-        mock_build.return_value = {"success": False, "error": "ng build exited"}
+        # apply_html_lang() now runs a baseline check (dev config) before the
+        # real verification build (prod config) - see the "5.5. IMPROVEMENT:
+        # Baseline check" step. The baseline call must succeed so the
+        # verification call is the one that fails and triggers rollback,
+        # matching what this test actually exercises.
+        mock_build.side_effect = [
+            {"success": True, "error": None},
+            {"success": False, "error": "ng build exited"},
+        ]
 
         with patch("a11y_fixer.adapters.html_lang_applier._rollback_file"):
             result = await apply_html_lang(fixture_dir)
@@ -111,7 +119,13 @@ async def test_apply_html_lang_build_fails_with_rollback_error(
     with patch(
         "a11y_fixer.adapters.html_lang_applier._run_ng_build"
     ) as mock_build:
-        mock_build.return_value = {"success": False, "error": "ng build exited"}
+        # Same baseline-then-verification sequencing as the test above: the
+        # baseline call must succeed so control reaches the verification
+        # build (whose failure is what should trigger the rollback path).
+        mock_build.side_effect = [
+            {"success": True, "error": None},
+            {"success": False, "error": "ng build exited"},
+        ]
 
         with patch(
             "a11y_fixer.adapters.html_lang_applier._rollback_file"

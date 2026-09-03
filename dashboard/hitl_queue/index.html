@@ -14,31 +14,39 @@
       :root {
         --color-bg: #ffffff;
         --color-bg-secondary: #f8f9fa;
-        --color-text: #1a1a1a;
+        --color-page-bg: #f4f5fa;
+        --color-text: #111827;
         --color-text-secondary: #6b7280;
         --color-border: #e5e7eb;
         --color-error: #dc2626;
         --color-error-light: #fee2e2;
         --color-warning: #f59e0b;
         --color-warning-light: #fef3c7;
-        --color-success: #10b981;
+        --color-success: #059669;
         --color-success-light: #d1fae5;
         --color-info: #3b82f6;
         --color-info-light: #dbeafe;
+        --color-primary: #4f46e5;
+        --color-primary-hover: #4338ca;
+        --color-primary-light: #eef2ff;
+        --color-primary-text: #4338ca;
         --color-shadow: rgba(0, 0, 0, 0.05);
         --color-shadow-lg: rgba(0, 0, 0, 0.1);
       }
 
       html.dark-mode {
-        --color-bg: #1a1a1a;
+        --color-bg: #1e1e26;
         --color-bg-secondary: #2d2d2d;
+        --color-page-bg: #15151b;
         --color-text: #ffffff;
         --color-text-secondary: #a0aec0;
-        --color-border: #404040;
+        --color-border: #3a3a44;
         --color-error-light: #7f1d1d;
         --color-warning-light: #78350f;
         --color-success-light: #064e3b;
         --color-info-light: #1e3a8a;
+        --color-primary-light: #2e2a6b;
+        --color-primary-text: #a5b4fc;
         --color-shadow: rgba(255, 255, 255, 0.05);
         --color-shadow-lg: rgba(0, 0, 0, 0.3);
       }
@@ -48,7 +56,7 @@
           -apple-system, BlinkMacSystemFont, "Segoe UI", "Roboto", "Oxygen",
           "Ubuntu", "Cantarell", "Fira Sans", "Droid Sans", "Helvetica Neue",
           sans-serif;
-        background-color: var(--color-bg);
+        background-color: var(--color-page-bg);
         color: var(--color-text);
         transition:
           background-color 0.3s ease,
@@ -56,89 +64,106 @@
         line-height: 1.6;
       }
 
-      /* Header */
+      /* Header - flat app nav */
       header {
-        background: linear-gradient(
-          135deg,
-          var(--color-warning) 0%,
-          #b45309 100%
-        );
-        color: white;
-        padding: 2rem;
-        box-shadow: 0 2px 8px var(--color-shadow-lg);
+        background: var(--color-bg);
+        color: var(--color-text);
+        padding: 0;
+        border-bottom: 1px solid var(--color-border);
+        box-shadow: none;
         position: sticky;
         top: 0;
         z-index: 100;
       }
 
-      .header-content {
+      .page-tabs {
+        display: flex;
+        gap: 1.75rem;
         max-width: 1400px;
         margin: 0 auto;
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-        flex-wrap: wrap;
-        gap: 1rem;
+        padding: 0 2rem;
+        border-top: 1px solid var(--color-border);
       }
 
-      .header-title {
-        font-size: 1.75rem;
-        font-weight: 700;
-        letter-spacing: -0.5px;
-      }
-
-      .header-subtitle {
-        font-size: 0.875rem;
-        opacity: 0.95;
-        margin-top: 0.25rem;
-      }
-
-      .header-controls {
-        display: flex;
-        gap: 1rem;
-        align-items: center;
-        flex-wrap: wrap;
-      }
-
-      .back-btn {
-        background: rgba(255, 255, 255, 0.2);
-        border: 1px solid rgba(255, 255, 255, 0.3);
-        border-radius: 8px;
-        padding: 0.625rem 1rem;
-        color: white;
-        cursor: pointer;
+      .page-tab {
+        display: inline-block;
+        padding: 0.75rem 0.125rem;
+        color: var(--color-text-secondary);
+        text-decoration: none;
         font-size: 0.875rem;
         font-weight: 500;
-        transition: all 0.2s ease;
-        text-decoration: none;
-        display: flex;
-        align-items: center;
-        gap: 0.5rem;
+        border-bottom: 2px solid transparent;
+        margin-bottom: -1px;
       }
 
-      .back-btn:hover {
-        background: rgba(255, 255, 255, 0.3);
-        transform: translateX(-2px);
+      .page-tab:hover {
+        color: var(--color-text);
+      }
+
+      .page-tab.active {
+        color: var(--color-primary);
+        border-bottom-color: var(--color-primary);
+        font-weight: 600;
+      }
+
+      .footer-settings {
+        position: absolute;
+        right: 2rem;
+        top: 50%;
+        transform: translateY(-50%);
+      }
+
+      .footer-settings-trigger {
+        background: transparent;
+        border: none;
+        color: var(--color-text-secondary);
+        cursor: pointer;
+        font-size: 0.8125rem;
+        padding: 0.375rem 0.625rem;
+        border-radius: 6px;
+        transition: background 0.15s ease, color 0.15s ease;
+      }
+
+      .footer-settings-trigger:hover,
+      .footer-settings-trigger[aria-expanded="true"] {
+        background: var(--color-bg-secondary);
+        color: var(--color-text);
+      }
+
+      .settings-menu-panel {
+        position: absolute;
+        bottom: calc(100% + 8px);
+        right: 0;
+        min-width: 190px;
+        background: var(--color-bg);
+        border: 1px solid var(--color-border);
+        border-radius: 8px;
+        box-shadow: 0 4px 16px rgba(0, 0, 0, 0.14);
+        padding: 0.375rem;
+        z-index: 50;
+      }
+
+      .settings-menu-panel[hidden] {
+        display: none;
       }
 
       .theme-toggle {
-        background: rgba(255, 255, 255, 0.2);
-        border: 1px solid rgba(255, 255, 255, 0.3);
-        border-radius: 8px;
-        padding: 0.5rem 1rem;
-        color: white;
+        width: 100%;
+        text-align: left;
+        background: transparent;
+        border: none;
+        border-radius: 6px;
+        padding: 0.625rem 0.75rem;
+        color: var(--color-text);
         cursor: pointer;
-        font-size: 0.875rem;
+        font-size: 0.8125rem;
         font-weight: 500;
-        transition: all 0.2s ease;
         display: flex;
         align-items: center;
-        gap: 0.5rem;
       }
 
       .theme-toggle:hover {
-        background: rgba(255, 255, 255, 0.3);
-        transform: scale(1.05);
+        background: var(--color-bg-secondary);
       }
 
       /* Main Content */
@@ -146,21 +171,6 @@
         max-width: 1400px;
         margin: 0 auto;
         padding: 2rem;
-      }
-
-      .section-header {
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-        margin-bottom: 2rem;
-        flex-wrap: wrap;
-        gap: 1rem;
-      }
-
-      .section-title {
-        font-size: 1.5rem;
-        font-weight: 600;
-        color: var(--color-text);
       }
 
       .queue-stats {
@@ -244,25 +254,6 @@
         border-radius: 20px;
         font-weight: 600;
         font-size: 0.875rem;
-      }
-
-      .status-badge {
-        display: inline-block;
-        padding: 0.35rem 0.75rem;
-        border-radius: 20px;
-        font-weight: 600;
-        font-size: 0.75rem;
-        margin-left: 0.5rem;
-      }
-
-      .status-approved {
-        background: rgba(16, 185, 129, 0.15);
-        color: var(--color-success);
-      }
-
-      .status-rejected {
-        background: rgba(220, 38, 38, 0.15);
-        color: var(--color-error);
       }
 
       .score-low {
@@ -409,6 +400,7 @@
 
       /* Footer */
       footer {
+        position: relative;
         text-align: center;
         padding: 2rem;
         color: var(--color-text-secondary);
@@ -420,11 +412,6 @@
       @media (max-width: 768px) {
         main {
           padding: 1rem;
-        }
-
-        .header-content {
-          flex-direction: column;
-          align-items: flex-start;
         }
 
         .ticket-header {
@@ -447,24 +434,12 @@
   </head>
   <body>
     <header>
-      <div class="header-content">
-        <div>
-          <div class="header-title">⏳ HITL Review Queue</div>
-          <div class="header-subtitle">
-            Accessibility fixes awaiting human review
-          </div>
-        </div>
-        <div class="header-controls">
-          <a href="../index.html" class="back-btn">
-            <span>←</span>
-            <span>Back to Dashboard</span>
-          </a>
-          <button class="theme-toggle" id="themeToggle">
-            <span id="themeIcon">🌙</span>
-            <span id="themeName">Dark</span>
-          </button>
-        </div>
-      </div>
+      <nav class="page-tabs">
+        <a href="../index.html" class="page-tab">Dashboard</a>
+        <a href="./index.html" class="page-tab active">HITL Queue</a>
+        <a href="../benchmark-cases.html" class="page-tab">Benchmark Cases</a>
+        <a href="../lessons/index.html" class="page-tab">Lessons</a>
+      </nav>
     </header>
 
     <main>
@@ -507,8 +482,11 @@
             color: var(--color-text-secondary);
           "
         >
-          This dashboard loads from browser storage (localStorage) and doesn't
-          sync with GitHub. For production use, prefer the CLI command:
+          Approve/Reject on this page call <code>python -m a11y_fixer.cli
+          review</code> for real via a local server - they create/merge a
+          PR or file a rejection lesson, they don't just save to your
+          browser. This page must be served by <code>hitl_server.py</code>,
+          not opened as a file:
         </p>
         <code
           style="
@@ -520,8 +498,7 @@
             font-size: 0.8rem;
           "
         >
-          python -m a11y_fixer.cli queue-sync [--auto-approve]
-          [--live|--no-live]
+          cd cmu-capstone/agent &amp;&amp; python hitl_server.py
         </code>
         <p
           style="
@@ -530,7 +507,8 @@
             color: var(--color-text-secondary);
           "
         >
-          See <code>HITL-QUEUE-SYNC-GUIDE.md</code> for detailed instructions.
+          Then open <code>http://127.0.0.1:8000/hitl_queue/</code>. See
+          <code>HITL-QUEUE-SYNC-GUIDE.md</code> for the CLI-only path.
         </p>
       </div>
 
@@ -546,6 +524,14 @@
       <p>
         HITL Queue Dashboard | Last updated: <span id="lastUpdated">--</span>
       </p>
+      <div class="footer-settings">
+        <button class="footer-settings-trigger" id="settingsMenuTrigger" aria-haspopup="true" aria-expanded="false" aria-controls="settingsMenuPanel">Settings</button>
+        <div class="settings-menu-panel" id="settingsMenuPanel" role="menu" hidden>
+          <button class="theme-toggle" id="themeToggle" role="menuitemcheckbox" aria-checked="false">
+            <span id="themeName">Dark theme: Off</span>
+          </button>
+        </div>
+      </div>
     </footer>
 
     <script>
@@ -561,18 +547,18 @@
 
       function applyTheme(theme) {
         const html = document.documentElement;
-        const themeIcon = document.getElementById("themeIcon");
+        const themeToggle = document.getElementById("themeToggle");
         const themeName = document.getElementById("themeName");
 
         if (theme === "dark") {
           html.classList.add("dark-mode");
-          themeIcon.textContent = "☀️";
-          themeName.textContent = "Light";
+          themeName.textContent = "Dark theme: On";
+          themeToggle.setAttribute("aria-checked", "true");
           localStorage.setItem("theme", "dark");
         } else {
           html.classList.remove("dark-mode");
-          themeIcon.textContent = "🌙";
-          themeName.textContent = "Dark";
+          themeName.textContent = "Dark theme: Off";
+          themeToggle.setAttribute("aria-checked", "false");
           localStorage.setItem("theme", "light");
         }
       }
@@ -582,157 +568,76 @@
         applyTheme(currentTheme);
       });
 
-      // Load tickets from JSON files in the agent's hitl_queue directory
+      // Settings menu (Google-style dropdown)
+      const settingsMenuTrigger = document.getElementById("settingsMenuTrigger");
+      const settingsMenuPanel = document.getElementById("settingsMenuPanel");
+
+      function openSettingsMenu() {
+        settingsMenuPanel.hidden = false;
+        settingsMenuTrigger.setAttribute("aria-expanded", "true");
+      }
+
+      function closeSettingsMenu() {
+        settingsMenuPanel.hidden = true;
+        settingsMenuTrigger.setAttribute("aria-expanded", "false");
+      }
+
+      settingsMenuTrigger.addEventListener("click", (event) => {
+        event.stopPropagation();
+        if (settingsMenuPanel.hidden) {
+          openSettingsMenu();
+        } else {
+          closeSettingsMenu();
+        }
+      });
+
+      document.addEventListener("click", (event) => {
+        if (!settingsMenuPanel.hidden && !settingsMenuPanel.contains(event.target) && event.target !== settingsMenuTrigger) {
+          closeSettingsMenu();
+        }
+      });
+
+      document.addEventListener("keydown", (event) => {
+        if (event.key === "Escape" && !settingsMenuPanel.hidden) {
+          closeSettingsMenu();
+          settingsMenuTrigger.focus();
+        }
+      });
+
+      // Load pending tickets from the local HITL review server's API.
+      // Serve this page with `python hitl_server.py` from cmu-capstone/agent/
+      // (venv active) - opening this file directly won't work, see the
+      // banner above.
       async function loadTickets() {
         try {
-          // Get list of JSON files from agent/hitl_queue directory using fetch
-          const response = await fetch("../../agent/hitl_queue/");
-          const html = await response.text();
-          const parser = new DOMParser();
-          const doc = parser.parseFromString(html, "text/html");
-
-          // Extract JSON files from directory listing
-          const links = Array.from(doc.querySelectorAll("a"))
-            .map((a) => a.href)
-            .filter((href) => href.endsWith(".json"))
-            .map((href) => href.split("/").pop());
-
-          // Load each ticket
-          const tickets = [];
-          for (const filename of links) {
-            try {
-              const ticketResponse = await fetch(
-                "../../agent/hitl_queue/" + filename,
-              );
-              const ticket = await ticketResponse.json();
-              tickets.push({
-                filename,
-                ...ticket,
-              });
-            } catch (error) {
-              console.error(`Error loading ${filename}:`, error);
-            }
+          const response = await fetch("/api/tickets");
+          if (!response.ok) {
+            throw new Error(`API returned ${response.status}`);
           }
-
-          allTickets = tickets.sort(
-            (a, b) => b.response?.score - a.response?.score,
+          const data = await response.json();
+          allTickets = (data.tickets || []).sort(
+            (a, b) => (b.response?.score || 0) - (a.response?.score || 0),
           );
           renderTickets();
           updateStats();
           updateLastUpdated();
         } catch (error) {
           console.error("Error loading tickets:", error);
-          // Fallback: try to load with XMLHttpRequest or fetch individual files
-          loadTicketsAlternative();
-        }
-      }
-
-      // Alternative method if directory listing fails
-      // Try to load recently modified JSON files from known timestamp patterns
-      async function loadTicketsAlternative() {
-        const tickets = [];
-
-        // Try fetching the directory listing via fetch with different methods
-        // First, try a simple index file if it exists
-        try {
-          const response = await fetch("../../agent/hitl_queue/index.json");
-          if (response.ok) {
-            const data = await response.json();
-            for (const filename of data.files || []) {
-              try {
-                const ticketResponse = await fetch(
-                  "../../agent/hitl_queue/" + filename,
-                );
-                if (ticketResponse.ok) {
-                  const ticket = await ticketResponse.json();
-                  tickets.push({ filename, ...ticket });
-                }
-              } catch (e) {
-                console.warn(`Failed to load ${filename}`);
-              }
-            }
-          }
-        } catch (e) {
-          console.warn(
-            "Could not load index.json, falling back to hardcoded search",
-          );
-
-          // Fallback: Try hardcoded timestamps from recent sessions
-          // These are examples - in production this would be generated dynamically
-          const timestampPatterns = [];
-          for (let i = 0; i < 100; i++) {
-            // Generate potential timestamp values (last 100 nanosecond values)
-            const ns = 1788332367022509000 - i * 10000000;
-            timestampPatterns.push(ns);
-          }
-
-          // Try each timestamp with common rule/selector suffixes
-          const rules = [
-            "html-has-lang",
-            "image-alt",
-            "color-contrast",
-            "button-name",
-            "link-name",
-            "test",
-          ];
-          const selectors = [
-            "html",
-            "img",
-            "button",
-            "a",
-            ".x",
-            "article nth-child-2 img",
-            "img-src---atlas-dashboard-svg",
-          ];
-
-          for (const ts of timestampPatterns) {
-            for (const rule of rules) {
-              for (const selector of selectors) {
-                const slug = selector
-                  .toLowerCase()
-                  .replace(/[^\w-]/g, "-")
-                  .replace(/-+/g, "-");
-                const filename = `${ts}-${rule}-${slug}.json`;
-                try {
-                  const response = await fetch(
-                    "../../agent/hitl_queue/" + filename,
-                  );
-                  if (response.ok) {
-                    const ticket = await response.json();
-                    // Avoid duplicates
-                    if (!tickets.some((t) => t.filename === filename)) {
-                      tickets.push({ filename, ...ticket });
-                    }
-                  }
-                } catch (e) {
-                  // Silently continue
-                }
-              }
-            }
-          }
-        }
-
-        if (tickets.length === 0) {
           document.getElementById("ticketsContainer").innerHTML = `
                     <div class="empty-state">
-                        <div class="empty-icon">✅</div>
-                        <div class="empty-title">Queue is Empty</div>
-                        <p>No tickets waiting for human review.</p>
+                        <div class="empty-icon">\u26a0\ufe0f</div>
+                        <div class="empty-title">Can't reach the HITL server</div>
+                        <p>${escapeHtml(error.message)}</p>
                         <p style="font-size: 0.875rem; margin-top: 1rem; color: var(--color-text-secondary);">
-                            💡 <strong>Tip:</strong> Use the CLI for better queue management:<br>
-                            <code>python -m a11y_fixer.cli queue-sync</code>
+                            This page needs to be served by <code>hitl_server.py</code>,
+                            not opened directly as a file. From
+                            <code>cmu-capstone/agent/</code>, with your venv active, run:<br>
+                            <code>python hitl_server.py</code><br>
+                            then open <code>http://127.0.0.1:8000/hitl_queue/</code>.
                         </p>
                     </div>
                 `;
-          return;
         }
-
-        allTickets = tickets.sort(
-          (a, b) => b.response?.score - a.response?.score,
-        );
-        renderTickets();
-        updateStats();
-        updateLastUpdated();
       }
 
       function renderTickets() {
@@ -741,21 +646,13 @@
         if (allTickets.length === 0) {
           container.innerHTML = `
                     <div class="empty-state">
-                        <div class="empty-icon">✅</div>
+                        <div class="empty-icon">\u2705</div>
                         <div class="empty-title">Queue is Empty</div>
                         <p>No tickets waiting for human review.</p>
                     </div>
                 `;
           return;
         }
-
-        // Load approval/rejection tracking
-        const approvals = JSON.parse(
-          localStorage.getItem("hitl_approvals") || "{}",
-        );
-        const rejections = JSON.parse(
-          localStorage.getItem("hitl_rejections") || "{}",
-        );
 
         const html = allTickets
           .map((ticket) => {
@@ -769,23 +666,12 @@
                   ? "score-medium"
                   : "score-low";
 
-            // Check status
-            const isApproved = approvals[ticket.filename];
-            const isRejected = rejections[ticket.filename];
-            let statusBadge = "";
-
-            if (isApproved) {
-              statusBadge = `<span class="status-badge status-approved">✓ Approved</span>`;
-            } else if (isRejected) {
-              statusBadge = `<span class="status-badge status-rejected">✗ Rejected</span>`;
-            }
-
             return `
-                    <div class="ticket-card" style="${isApproved || isRejected ? "opacity: 0.7; border-left-color: #d1fae5;" : ""}">
+                    <div class="ticket-card" id="card-${escapeHtml(ticket.filename)}">
                         <div class="ticket-header">
                             <div>
                                 <div class="ticket-id">${escapeHtml(v.id || "Unknown")}</div>
-                                <div class="ticket-rule">${escapeHtml(v.rule || "Unknown Rule")}${statusBadge}</div>
+                                <div class="ticket-rule">${escapeHtml(v.rule || "Unknown Rule")}</div>
                             </div>
                             <span class="score-badge ${scoreClass}">
                                 <span>Score</span>
@@ -820,39 +706,17 @@
                             ${escapeHtml(r.rationale || "No rationale provided")}
                         </div>
 
-                        ${
-                          isApproved || isRejected
-                            ? `
-                            <div class="ticket-description" style="border-left-color: ${isApproved ? "#10b981" : "#dc2626"};">
-                                <strong>${isApproved ? "✓ Approved" : "✗ Rejected"}</strong><br>
-                                <small>${isApproved ? "PR would be created and auto-merged" : "Ticket moved back to agent queue for revision"}</small>
-                            </div>
-                        `
-                            : ""
-                        }
-
                         <div class="ticket-actions">
-                            ${
-                              isApproved || isRejected
-                                ? `
-                                <button class="action-btn btn-secondary" onclick="clearTicketStatus('${escapeHtml(ticket.filename)}')">
-                                    <span>↻</span>
-                                    <span>Reset Status</span>
-                                </button>
-                            `
-                                : `
-                                <button class="action-btn btn-approve" onclick="approveTicket('${escapeHtml(ticket.filename)}')">
-                                    <span>✓</span>
-                                    <span>Approve Fix</span>
-                                </button>
-                                <button class="action-btn btn-reject" onclick="rejectTicket('${escapeHtml(ticket.filename)}')">
-                                    <span>✗</span>
-                                    <span>Reject & Reassign</span>
-                                </button>
-                            `
-                            }
+                            <button class="action-btn btn-approve" onclick="approveTicket('${escapeHtml(ticket.filename)}')">
+                                <span>\u2713</span>
+                                <span>Approve Fix</span>
+                            </button>
+                            <button class="action-btn btn-reject" onclick="rejectTicket('${escapeHtml(ticket.filename)}')">
+                                <span>\u2717</span>
+                                <span>Reject &amp; Reassign</span>
+                            </button>
                             <a href="../index.html" class="action-btn btn-secondary">
-                                <span>📊</span>
+                                <span>\ud83d\udcca</span>
                                 <span>View Dashboard</span>
                             </a>
                         </div>
@@ -885,150 +749,100 @@
           now.toLocaleString();
       }
 
-      function approveTicket(filename) {
+      // Real HITL actions: POSTs to /api/review, which shells out to
+      // `python -m a11y_fixer.cli review <file> --approve|--reject ...`
+      // (see hitl_server.py). This really creates/merges the PR or files
+      // the rejection lesson - it's not a localStorage simulation.
+      async function submitReview(filename, action, notesPromptText) {
         const ticket = allTickets.find((t) => t.filename === filename);
         if (!ticket) return;
 
-        // Store approval in localStorage
-        const approvals = JSON.parse(
-          localStorage.getItem("hitl_approvals") || "{}",
-        );
-        approvals[filename] = {
-          action: "approved",
-          timestamp: new Date().toISOString(),
-          ticket: ticket,
-        };
-        localStorage.setItem("hitl_approvals", JSON.stringify(approvals));
-
-        // Generate the shell command to run
         const reviewerName = prompt(
-          'Enter your name (or leave blank for "cli"):',
-          "cli",
+          'Enter your name (or leave blank for "dashboard"):',
+          "dashboard",
         );
-        const reviewer = reviewerName || "cli";
+        if (reviewerName === null) return; // cancelled
 
-        const notes = prompt("Add optional notes:", "");
-
-        // Extract just the filename (no hitl_queue/ prefix)
-        const queueFilename = filename.split("/").pop();
-        const cmd1 = `cd ../agent`;
-        const cmd2 = notes
-          ? `./review_ticket.sh approve "${queueFilename}" --reviewer "${reviewer}" --notes "${notes}" --live`
-          : `./review_ticket.sh approve "${queueFilename}" --reviewer "${reviewer}" --live`;
-        const fullCommand = `${cmd1} && ${cmd2}`;
-
-        const message =
-          `✅ APPROVAL WORKFLOW\n\n` +
-          `Ticket: ${filename}\n` +
-          `Rule: ${ticket.violation?.rule || "N/A"}\n` +
-          `Score: ${ticket.response?.score || "N/A"}\n\n` +
-          `WHAT HAPPENS:\n` +
-          `1. ✅ GitHub PR created with the fix\n` +
-          `2. 🧪 CI/tests run automatically\n` +
-          `3. 🔀 Auto-merge if tests pass (score ≥ 18.0)\n` +
-          `4. 📖 Wiki lesson created for future\n` +
-          `5. 📝 violation_store updated to MERGED\n` +
-          `6. 🗑️  Ticket removed from queue\n\n` +
-          `COPY & PASTE THIS INTO TERMINAL:\n\n` +
-          fullCommand;
-
-        alert(message);
-
-        // Copy command to clipboard
-        navigator.clipboard.writeText(fullCommand).catch((err) => {
-          console.error("Failed to copy:", err);
-        });
-
-        // Reload to show updated state
-        setTimeout(() => loadTickets(), 500);
-      }
-
-      function rejectTicket(filename) {
-        const ticket = allTickets.find((t) => t.filename === filename);
-        if (!ticket) return;
-
-        // Store rejection in localStorage
-        const rejections = JSON.parse(
-          localStorage.getItem("hitl_rejections") || "{}",
-        );
-        rejections[filename] = {
-          action: "rejected",
-          timestamp: new Date().toISOString(),
-          reason: "User rejected - needs revision",
-          ticket: ticket,
-        };
-        localStorage.setItem("hitl_rejections", JSON.stringify(rejections));
-
-        // Prompt for feedback
-        const reviewerName = prompt(
-          'Enter your name (or leave blank for "cli"):',
-          "cli",
-        );
-        const reviewer = reviewerName || "cli";
-
-        const notes = prompt("Provide feedback for the agent to improve:", "");
-        if (!notes || notes.trim() === "") {
-          alert("❌ Rejection cancelled - feedback is required");
+        const notes = prompt(notesPromptText, "");
+        if (notes === null) return; // cancelled
+        if (action === "reject" && notes.trim() === "") {
+          alert("\u274c Rejection cancelled - feedback is required");
           return;
         }
 
-        // Extract just the filename (no hitl_queue/ prefix)
-        const queueFilename = filename.split("/").pop();
-        const cmd1 = `cd ../agent`;
-        const cmd2 = `./review_ticket.sh reject "${queueFilename}" --reviewer "${reviewer}" --notes "${notes}" --live`;
-        const fullCommand = `${cmd1} && ${cmd2}`;
+        let live = null;
+        if (action === "approve") {
+          live = confirm(
+            "Create a REAL GitHub PR now (auto-merges if score \u2265 18)?\n\n" +
+              "OK = live (real PR)\nCancel = dry-run (records the decision, no PR)",
+          );
+        }
 
-        const message =
-          `❌ REJECTION WORKFLOW\n\n` +
-          `Ticket: ${filename}\n` +
-          `Rule: ${ticket.violation?.rule || "N/A"}\n` +
-          `Score: ${ticket.response?.score || "N/A"}\n\n` +
-          `FEEDBACK FOR AGENT:\n${notes}\n\n` +
-          `WHAT HAPPENS:\n` +
-          `1. ❌ Agent receives your feedback\n` +
-          `2. 🔄 Ticket moves to revision queue\n` +
-          `3. 📚 Lesson is created in wiki/lessons/\n` +
-          `4. 🚀 Agent retries with improved fix\n` +
-          `5. 🗑️  Current ticket removed from queue\n\n` +
-          `COPY & PASTE THIS INTO TERMINAL:\n\n` +
-          fullCommand;
+        const card = document.getElementById(`card-${filename}`);
+        if (card) card.style.opacity = "0.5";
 
-        alert(message);
+        try {
+          const response = await fetch("/api/review", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              filename,
+              action,
+              reviewer: reviewerName || "dashboard",
+              notes,
+              live,
+            }),
+          });
+          const payload = await response.json();
 
-        // Copy command to clipboard
-        navigator.clipboard.writeText(fullCommand).catch((err) => {
-          console.error("Failed to copy:", err);
-        });
+          if (!payload.ok) {
+            alert(
+              `\u274c ${action} failed:\n\n` +
+                (payload.error || payload.stderr || "unknown error"),
+            );
+            if (card) card.style.opacity = "1";
+            return;
+          }
 
-        // Reload to show updated state
-        setTimeout(() => loadTickets(), 500);
+          const result = payload.result || {};
+          if (action === "approve") {
+            const prNumber = result.result?.pull_request_number;
+            alert(
+              result.delivered
+                ? `\u2705 Approved and delivered.${prNumber ? `\nPR #${prNumber}` : "\n(dry-run - no real PR created)"}`
+                : `\u26a0\ufe0f Approved, but nothing was delivered: ${result.reason || "unknown reason"}`,
+            );
+          } else {
+            alert(`\u2705 Rejected. Lesson recorded: ${result.lesson_id || "(no id)"}`);
+          }
+
+          loadTickets();
+        } catch (error) {
+          alert(`\u274c Request failed: ${error.message}`);
+          if (card) card.style.opacity = "1";
+        }
+      }
+
+      function approveTicket(filename) {
+        submitReview(filename, "approve", "Add optional notes:");
+      }
+
+      function rejectTicket(filename) {
+        submitReview(
+          filename,
+          "reject",
+          "Provide feedback for the agent to improve:",
+        );
       }
 
       function escapeHtml(unsafe) {
         if (!unsafe) return "";
-        return unsafe
+        return String(unsafe)
           .replace(/&/g, "&amp;")
           .replace(/</g, "&lt;")
           .replace(/>/g, "&gt;")
           .replace(/"/g, "&quot;")
           .replace(/'/g, "&#039;");
-      }
-
-      function clearTicketStatus(filename) {
-        const approvals = JSON.parse(
-          localStorage.getItem("hitl_approvals") || "{}",
-        );
-        const rejections = JSON.parse(
-          localStorage.getItem("hitl_rejections") || "{}",
-        );
-
-        delete approvals[filename];
-        delete rejections[filename];
-
-        localStorage.setItem("hitl_approvals", JSON.stringify(approvals));
-        localStorage.setItem("hitl_rejections", JSON.stringify(rejections));
-
-        loadTickets();
       }
 
       // Initialize

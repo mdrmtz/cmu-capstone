@@ -244,12 +244,19 @@ def deliver_violation(
                    overrides the default threshold for HITL escalation. Phase 3-4 feature.
     """
     changes = _capture_and_reset_git_changes(fixture)
-    if not changes:
-        return {
-            "delivered": False,
-            "reason": "codebase_compiler made no file changes",
-            "route": response.route,
-        }
+    no_changes = not changes
+    if no_changes:
+        # Don't bail out yet: an empty diff (agent produced no edits, or a
+        # race reset the fixture before this ran) must still be able to
+        # escalate to a human. Bailing here unconditionally silently drops
+        # the escalation - see case-10 (2026-09-03), where route was
+        # correctly "human" but no HITL queue entry was ever written because
+        # this function returned before reaching the queue-write logic.
+        print(  # noqa: T201
+            f"  \u26a0\ufe0f  deliver_violation: no file changes captured for "
+            f"{violation.get('rule')} ({violation.get('selector')}); "
+            f"response.route={response.route!r} - still evaluating for HITL escalation"
+        )
 
     path_violations = []
     for change in changes:
@@ -267,13 +274,17 @@ def deliver_violation(
     }
     if p_ik_floor is not None:
         assess_risk_kwargs["p_ik_floor"] = p_ik_floor
+    # No captured changes means no per-file path to run the blast-radius
+    # check against - fall back to a single file_path="" assessment so the
+    # rule-level (high_risk_rule) and confidence-level (low_confidence)
+    # guardrails still fire; only high_blast_radius is necessarily False.
     assessments = [
         assess_risk(
             file_path=change.path,
             **assess_risk_kwargs,
         )
         for change in changes
-    ]
+    ] or [assess_risk(file_path="", **assess_risk_kwargs)]
     # Every guardrail signal may only escalate the model's own call, never downgrade it.
     route = (
         "human"
@@ -283,6 +294,14 @@ def deliver_violation(
         or any(a.route == "human" for a in assessments)
         else "auto"
     )
+
+    if no_changes and route == "auto":
+        # Genuinely nothing to do: no diff to deliver and no escalation needed.
+        return {
+            "delivered": False,
+            "reason": "codebase_compiler made no file changes",
+            "route": route,
+        }
 
     if route == "human":
         config.hitl_queue_dir().mkdir(parents=True, exist_ok=True)
@@ -317,6 +336,7 @@ def deliver_violation(
                     "epistemic_gate": gate,
                     "path_violations": path_violations,
                     "changes": [vars(change) for change in changes],
+                    "no_file_changes": no_changes,
                 },
                 indent=2,
             ),
