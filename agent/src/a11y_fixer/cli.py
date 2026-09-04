@@ -547,6 +547,17 @@ async def _acmd_run(args: argparse.Namespace) -> int:
         abuild_agent,
     )  # noqa: PLC0415 - deferred: avoid MCP/network cost for --help etc.
 
+    if args.url and not args.repo:
+        # A live URL alone gives the pipeline nothing to write fixes into
+        # and no repo to open PRs against - `audit --url` covers the
+        # report-only case; `run` needs both.
+        print(  # noqa: T201
+            "--url requires --repo: fixes need a source checkout to write to "
+            "and a repo to open PRs against. Use `audit --url` on its own if "
+            "you only want a report."
+        )
+        return 2
+
     _apply_repo_override(args.repo)
 
     if args.audit:
@@ -557,6 +568,12 @@ async def _acmd_run(args: argparse.Namespace) -> int:
                 f"invalid audit report {args.audit}: {validation_error}"
             )  # noqa: T201
             return 2
+    elif args.url:
+        # Audit the live, deployed site directly (no clone/build/serve) while
+        # still fixing --repo's actual source and delivering PRs against it -
+        # useful when the live app differs from a plain local `ng serve`
+        # (SSR output, prod config, etc.) but you still want fixes upstream.
+        report = await _audit_live_url(args.url)
     elif config.is_default_fixture():
         report = AxeAuditRunner(fixture_path=config.fixture_path()).run()
     else:
@@ -1086,6 +1103,12 @@ def build_parser() -> argparse.ArgumentParser:
         "--repo",
         default=None,
         help="Local path or git URL of the Angular repo to fix (default: the bundled Hallucinate.io fixture)",
+    )
+    run_parser.add_argument(
+        "--url",
+        default=None,
+        help="Audit this live URL instead of building/serving --repo locally - fixes are still written "
+        "to --repo and PRs opened against it, so --url requires --repo alongside it",
     )
     run_parser.add_argument(
         "--case-ids",

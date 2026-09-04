@@ -11,10 +11,19 @@ from langgraph.checkpoint.memory import InMemorySaver
 from pydantic import BaseModel
 
 from a11y_fixer import config
-from a11y_fixer.adapters.audit_runner import DEFAULT_PAGES, AxeAuditRunner
+from a11y_fixer.adapters.audit_runner import AxeAuditRunner
 from a11y_fixer.adapters.mcp_clients import aget_tools
 
 NAME = "audit_crawler"
+
+# `discover_and_audit()` below only ever runs for a repo OTHER than the
+# bundled Hallucinate.io fixture (see cli.py: `is_default_fixture()` routes
+# the default fixture straight to `runner.run()`, never through here) - so
+# falling back to `adapters.audit_runner.DEFAULT_PAGES` (Hallucinate.io's own
+# 11 routes) on discovery failure would 404 on every page of whatever repo
+# is actually being audited. "/" is the one route every web app is
+# guaranteed to serve, so it's the only safe app-agnostic fallback.
+FALLBACK_PAGES: tuple[str, ...] = ("/",)
 
 # A narrow, bounded discovery task (navigate, snapshot, extract hrefs) doesn't
 # need, and shouldn't cost, the paid model the rest of the agent uses by default.
@@ -115,14 +124,20 @@ async def discover_and_audit(
     discover real routes via this module's own crawler prompt, run one
     combined axe-core scan across all of them, then always stop the server.
 
-    Falls back to `DEFAULT_PAGES` if discovery finds nothing - a broken or
-    unavailable crawler must never block the audit outright.
+    Falls back to `FALLBACK_PAGES` (just "/") if discovery finds nothing - a
+    broken or unavailable crawler must never block the audit outright, but
+    the fallback must also work on any repo, not just the bundled fixture.
     """
     runner.start_server()
     try:
         # http:// is correct here: `ng serve` is a local dev server with no TLS.
         base_url = f"http://{runner.host}:{runner.port}"  # noqa: S310
         routes = await discover_routes(base_url, model=model)
-        return runner.audit_pages(pages=tuple(routes) if routes else DEFAULT_PAGES)
+        if not routes:
+            print(  # noqa: T201
+                "route discovery found nothing - falling back to "
+                f"{FALLBACK_PAGES} (audit may be incomplete for this repo)"
+            )
+        return runner.audit_pages(pages=tuple(routes) if routes else FALLBACK_PAGES)
     finally:
         runner.stop_server()

@@ -30,10 +30,17 @@ def test_build_parser_audit_rejects_conflicting_target_flags() -> None:
         parser.parse_args(["audit", "--repo", "/tmp/x", "--url", "https://example.com"])
 
 
-def test_build_parser_run_rejects_url_flag() -> None:
+def test_build_parser_run_accepts_url_flag_alongside_repo() -> None:
+    """`--url` is a real `run` flag now (audit a live site, still fix/PR
+    against `--repo`) - argparse itself has no reason to reject it; the
+    "requires --repo" rule is enforced at runtime in `_acmd_run`, not here.
+    """
     parser = cli.build_parser()
-    with pytest.raises(SystemExit):
-        parser.parse_args(["run", "--url", "https://example.com"])
+    args = parser.parse_args(
+        ["run", "--repo", "https://github.com/ACME/their-app.git", "--url", "https://example.com"]
+    )
+    assert args.url == "https://example.com"
+    assert args.repo == "https://github.com/ACME/their-app.git"
 
 
 def test_build_parser_run_live_flags() -> None:
@@ -176,6 +183,61 @@ async def test_acmd_run_uses_crawler_discovery_for_non_default_fixture(tmp_path:
     exit_code = await cli._acmd_run(args)  # noqa: SLF001
 
     assert exit_code == 0
+
+
+async def test_acmd_run_with_url_but_no_repo_rejects_with_clear_message(
+    capsys: pytest.CaptureFixture,
+) -> None:
+    """--url alone gives the pipeline nothing to write fixes into and no repo
+    to open PRs against - this must fail fast with a clear message rather
+    than silently falling back to fixing/PR-ing the bundled Hallucinate.io
+    fixture while auditing someone else's live site.
+    """
+    parser = cli.build_parser()
+    args = parser.parse_args(["run", "--url", "https://acme.example.com"])
+
+    exit_code = await cli._acmd_run(args)  # noqa: SLF001
+
+    assert exit_code == 2
+    assert "--url requires --repo" in capsys.readouterr().out
+
+
+async def test_acmd_run_with_url_and_repo_audits_the_live_url(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """--url + --repo: audit the live site directly, but still resolve
+    --repo (so fixes are written to it and PRs target its derived
+    GITHUB_REPO) rather than falling back to the bundled fixture.
+    """
+    cloned = tmp_path / "their-app"
+    cloned.mkdir()
+    monkeypatch.setattr(
+        cli,
+        "resolve_repo_source",
+        lambda repo_arg, cache_dir: cloned,  # noqa: ARG005
+    )
+    monkeypatch.setenv("GITHUB_REPO", "")
+    monkeypatch.setenv("A11Y_FIXTURE_PATH", "")
+
+    captured_urls: list[str] = []
+
+    async def _fake_audit_live_url(url: str) -> dict:
+        captured_urls.append(url)
+        return {"raw_reports": []}
+
+    monkeypatch.setattr(cli, "_audit_live_url", _fake_audit_live_url)
+
+    parser = cli.build_parser()
+    args = parser.parse_args(
+        ["run", "--repo", "https://github.com/ACME/their-app.git", "--url", "https://acme.example.com"]
+    )
+
+    exit_code = await cli._acmd_run(args)  # noqa: SLF001
+
+    assert exit_code == 0
+    assert captured_urls == ["https://acme.example.com"]
+    assert os.environ["A11Y_FIXTURE_PATH"] == str(cloned)
+    assert os.environ["GITHUB_REPO"] == "ACME/their-app"
 
 
 def test_cmd_audit_url_mode_joins_discovered_routes_with_the_base_url(
@@ -770,7 +832,7 @@ def test_apply_repo_override_derives_github_repo_from_url(monkeypatch: pytest.Mo
     happened to be exported - unrelated to the repo actually being fixed.
     """
     monkeypatch.setenv("GITHUB_REPO", "mdrmtz/Hallucinate.io")
-    monkeypatch.delenv("A11Y_FIXTURE_PATH", raising=False)
+    monkeypatch.setenv("A11Y_FIXTURE_PATH", "")
     cloned = tmp_path / "cache" / "their-app"
     cloned.mkdir(parents=True)
     monkeypatch.setattr(
@@ -796,8 +858,8 @@ def test_apply_repo_override_derives_github_repo_from_local_checkout_remote(
         cwd=local_repo,
         check=True,
     )
-    monkeypatch.delenv("GITHUB_REPO", raising=False)
-    monkeypatch.delenv("A11Y_FIXTURE_PATH", raising=False)
+    monkeypatch.setenv("GITHUB_REPO", "")
+    monkeypatch.setenv("A11Y_FIXTURE_PATH", "")
     monkeypatch.setattr(
         cli,
         "resolve_repo_source",
@@ -816,7 +878,7 @@ def test_apply_repo_override_leaves_github_repo_untouched_when_not_derivable(
     clobber a GITHUB_REPO value that may still be valid.
     """
     monkeypatch.setenv("GITHUB_REPO", "mdrmtz/Hallucinate.io")
-    monkeypatch.delenv("A11Y_FIXTURE_PATH", raising=False)
+    monkeypatch.setenv("A11Y_FIXTURE_PATH", "")
     local_repo = tmp_path / "no-remote-checkout"
     local_repo.mkdir()
     subprocess.run(["git", "init", "-q"], cwd=local_repo, check=True)  # noqa: S603, S607
@@ -835,6 +897,7 @@ def test_apply_repo_override_without_repo_arg_leaves_github_repo_untouched(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     monkeypatch.setenv("GITHUB_REPO", "mdrmtz/Hallucinate.io")
+    monkeypatch.setenv("A11Y_FIXTURE_PATH", "")
 
     cli._apply_repo_override(None)
 

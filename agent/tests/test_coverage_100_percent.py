@@ -184,6 +184,8 @@ class TestApplyRepoOverride:
         self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture
     ) -> None:
         """Test _apply_repo_override with a local path."""
+        monkeypatch.setenv("A11Y_FIXTURE_PATH", "")
+        monkeypatch.setenv("GITHUB_REPO", "")
         repo_path = tmp_path / "repo"
         repo_path.mkdir()
 
