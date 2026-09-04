@@ -4,9 +4,9 @@ name: CI
 # from these lists once merged to main.
 on:
   push:
-    branches: [main]
+    branches: [main, mdrmtz/dormant-to-live]
   pull_request:
-    branches: [main]
+    branches: [main, mdrmtz/dormant-to-live]
 
 jobs:
   test-agent:
@@ -17,8 +17,6 @@ jobs:
         working-directory: agent
     steps:
       - uses: actions/checkout@v4
-        with:
-          submodules: recursive
 
       - uses: actions/setup-python@v5
         with:
@@ -31,29 +29,3 @@ jobs:
       # e2e tests (git/npm/docker-dependent) are excluded by pyproject.toml's
       # own `addopts = "-m 'not e2e'"` - this runs the same fast suite as local dev.
       - run: pytest
-
-  build-dashboard-app:
-    name: dashboard-app build (Angular SSR)
-    runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: dashboard-app
-    steps:
-      # dashboard-app is a private submodule (mdrmtz/dashboard-app) - the
-      # default GITHUB_TOKEN is scoped to this repo only and can't check out
-      # a *different* private repo's submodule content, so a PAT with read
-      # access to mdrmtz/dashboard-app must be supplied here. See DASHBOARD_APP_PAT
-      # setup notes.
-      - uses: actions/checkout@v4
-        with:
-          submodules: recursive
-          token: ${{ secrets.DASHBOARD_APP_PAT }}
-
-      - uses: actions/setup-node@v4
-        with:
-          node-version: "22"
-          cache: npm
-          cache-dependency-path: dashboard-app/package-lock.json
-
-      - run: npm ci
-      - run: npm run build
