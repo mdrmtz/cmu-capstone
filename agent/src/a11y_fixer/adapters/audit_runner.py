@@ -24,21 +24,6 @@ DEFAULT_STARTUP_TIMEOUT_SECONDS = 90.0
 DEFAULT_AUDIT_TIMEOUT_SECONDS = 300.0
 DEFAULT_TAGS: tuple[str, ...] = ("wcag2a", "wcag2aa")
 
-# The 11 routes registered in Hallucinate.io/src/app/app.routes.ts.
-DEFAULT_PAGES: tuple[str, ...] = (
-    "/",
-    "/home",
-    "/product",
-    "/case-studies",
-    "/docs",
-    "/careers",
-    "/blog",
-    "/pricing",
-    "/about",
-    "/contact",
-    "/status",
-)
-
 
 class AuditRunnerError(RuntimeError):
     """Raised when the dev server fails to start or axe-core fails to run."""
@@ -103,7 +88,7 @@ class AxeAuditRunner:
             self._process.wait(timeout=10)
         self._process = None
 
-    def audit_pages(self, pages: tuple[str, ...] = DEFAULT_PAGES) -> dict:
+    def audit_pages(self, pages: tuple[str, ...]) -> dict:
         """Run axe-core against every page in one CLI invocation and normalize the result."""
         # http:// is correct here: `ng serve` is a local dev server with no TLS.
         urls = [f"http://{self.host}:{self.port}{page}" for page in pages]  # noqa: S310
@@ -197,7 +182,7 @@ class AxeAuditRunner:
             "raw_reports": reports,
         }
 
-    def run(self, pages: tuple[str, ...] = DEFAULT_PAGES) -> dict:
+    def run(self, pages: tuple[str, ...]) -> dict:
         """Full lifecycle: start the server, audit every page, then always stop the server."""
         self.start_server()
         try:

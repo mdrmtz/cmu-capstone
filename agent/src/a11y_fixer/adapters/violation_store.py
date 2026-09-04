@@ -258,6 +258,38 @@ class PrePipelineGate:
                 None,
             )
 
+        # Case 7: Escalated to a human, awaiting review in the HITL queue.
+        # Mirrors Case 5 (PR_OPEN): the pre-scoring check (`new_score`/
+        # `new_solution_hash` still None, called before qa_critic even runs)
+        # must recognize this as "already handled, don't reprocess" instead
+        # of falling through to unknown_state_fallback - which is exactly
+        # what happened before this state existed, since
+        # `record_queue_entry()` had nowhere else to put the violation but
+        # `NEW`. HITL_QUEUED entries don't populate `current_score` (only
+        # `hitl_queue_score`), so compare against that instead.
+        if prior.state == ViolationState.HITL_QUEUED:
+            if new_score is None or new_solution_hash is None:
+                return (
+                    "SKIP",
+                    "escalated_to_human_awaiting_review",
+                    None,
+                )
+
+            queued_score = prior.hitl_queue_score or 0.0
+            if new_score > queued_score + self.BETTER_SOLUTION_MARGIN:
+                return (
+                    "CREATE",
+                    "better_solution_ready_for_escalated_violation "
+                    f"(new_score={new_score:.1f} vs queued={queued_score:.1f})",
+                    None,
+                )
+            return (
+                "SKIP",
+                "existing_hitl_queue_entry_adequate "
+                f"(new_score={new_score:.1f} vs queued={queued_score:.1f})",
+                None,
+            )
+
         # Default: safety fallback
         return ("SKIP", "unknown_state_fallback", None)
 
@@ -305,7 +337,7 @@ class HITLQueueGate:
                 violation_id=violation_id,
                 rule_id=rule_id,
                 selector=selector,
-                state=ViolationState.NEW,
+                state=ViolationState.HITL_QUEUED,
                 hitl_queue_score=score,
             )
             self.store.upsert(status)
@@ -358,7 +390,13 @@ class HITLQueueGate:
     def record_queue_entry(
         self, rule_id: str, selector: str, queue_path: str, score: float
     ) -> None:
-        """Record that a violation has been queued."""
+        """Record that a violation has been queued.
+
+        Always (re)stamps `state=HITL_QUEUED` - this is the write path that
+        makes an escalation visible to `PrePipelineGate.should_process()` on
+        a later run, so it must not leave the prior state (often `NEW`)
+        sitting there for `should_process()` to fall through on.
+        """
         violation_id = compute_violation_id(rule_id, selector)
         prior = self.store.get(violation_id)
 
@@ -367,7 +405,7 @@ class HITLQueueGate:
                 violation_id=violation_id,
                 rule_id=rule_id,
                 selector=selector,
-                state=ViolationState.NEW,
+                state=ViolationState.HITL_QUEUED,
                 hitl_queue_path=queue_path,
                 hitl_queue_score=score,
             )
@@ -375,6 +413,7 @@ class HITLQueueGate:
             status = prior.__class__(
                 **{
                     **prior.__dict__,
+                    "state": ViolationState.HITL_QUEUED,
                     "hitl_queue_path": queue_path,
                     "hitl_queue_score": score,
                 }

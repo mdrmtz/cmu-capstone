@@ -17,6 +17,7 @@ class ViolationState(str, Enum):
     """Lifecycle state of a violation in the system."""
 
     NEW = "NEW"  # No action taken yet
+    HITL_QUEUED = "HITL_QUEUED"  # Escalated to the human review queue, awaiting a decision
     PR_OPEN = "PR_OPEN"  # Open PR exists for this violation
     BETTER_SOLUTION_READY = (
         "BETTER_SOLUTION_READY"  # New PR with higher score ready to replace

@@ -5,6 +5,7 @@ from pathlib import Path
 
 import pytest
 
+from a11y_fixer.adapters import repo_source
 from a11y_fixer.adapters.repo_source import (
     RepoSourceError,
     derive_github_repo,
@@ -84,6 +85,135 @@ def test_resolve_repo_source_raises_on_clone_failure(tmp_path: Path) -> None:
     with pytest.raises(RepoSourceError, match="git clone failed"):
         resolve_repo_source(not_a_repo, cache_dir=tmp_path / "cache")
 
+
+def _fake_npm_run(monkeypatch: pytest.MonkeyPatch, *, returncode: int = 0, stderr: str = "") -> list[list[str]]:
+    """Patches `repo_source.subprocess.run` so `npm ...` calls are faked
+    (recorded, and simulated as creating `node_modules` on success) while
+    every other command (git) goes through to the real `subprocess.run` -
+    real `npm install` needs network access this test suite shouldn't
+    depend on.
+    """
+    calls: list[list[str]] = []
+    real_run = subprocess.run
+
+    def fake_run(cmd, **kwargs):  # noqa: ANN001, ANN003, ANN202
+        if cmd[0] == "npm":
+            calls.append(list(cmd))
+            if returncode == 0:
+                Path(kwargs["cwd"]).joinpath("node_modules").mkdir(exist_ok=True)
+            return subprocess.CompletedProcess(cmd, returncode, stdout="", stderr=stderr)
+        return real_run(cmd, **kwargs)
+
+    monkeypatch.setattr(repo_source.subprocess, "run", fake_run)
+    return calls
+
+
+def test_resolve_repo_source_runs_npm_install_after_fresh_clone(
+    source_git_repo: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Regression test: `resolve_repo_source()` used to only `git clone` and
+    never install dependencies, so every downstream `npx ng build`/`ng
+    serve` call failed on a fresh repo with a missing-`node_modules` error.
+    """
+    (source_git_repo / "package.json").write_text('{"name": "demo"}\n', encoding="utf-8")
+    subprocess.run(["git", "add", "."], cwd=source_git_repo, check=True)  # noqa: S603, S607
+    subprocess.run(["git", "commit", "-q", "-m", "add package.json"], cwd=source_git_repo, check=True)  # noqa: S603, S607
+    calls = _fake_npm_run(monkeypatch)
+
+    resolved = resolve_repo_source(str(source_git_repo), cache_dir=tmp_path / "cache")
+
+    assert calls == [["npm", "install"]]
+    assert (resolved / "node_modules").is_dir()
+
+
+def test_resolve_repo_source_runs_npm_install_for_a_local_path_too(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The gap wasn't clone-specific: a caller-supplied local checkout with
+    no `node_modules` needs the same install before it's build-ready.
+    """
+    local_repo = tmp_path / "existing-checkout"
+    local_repo.mkdir()
+    (local_repo / "package.json").write_text('{"name": "demo"}\n', encoding="utf-8")
+    calls = _fake_npm_run(monkeypatch)
+
+    resolved = resolve_repo_source(str(local_repo), cache_dir=tmp_path / "cache")
+
+    assert calls == [["npm", "install"]]
+    assert (resolved / "node_modules").is_dir()
+
+
+def test_resolve_repo_source_skips_npm_install_when_node_modules_already_present(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    local_repo = tmp_path / "existing-checkout"
+    local_repo.mkdir()
+    (local_repo / "package.json").write_text('{"name": "demo"}\n', encoding="utf-8")
+    (local_repo / "node_modules").mkdir()
+    calls = _fake_npm_run(monkeypatch)
+
+    resolve_repo_source(str(local_repo), cache_dir=tmp_path / "cache")
+
+    assert calls == []
+
+
+def test_resolve_repo_source_skips_npm_install_when_no_package_json(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    local_repo = tmp_path / "existing-checkout"
+    local_repo.mkdir()
+    calls = _fake_npm_run(monkeypatch)
+
+    resolve_repo_source(str(local_repo), cache_dir=tmp_path / "cache")
+
+    assert calls == []
+
+
+def test_resolve_repo_source_reuse_path_installs_if_node_modules_missing(
+    source_git_repo: Path, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A cached clone from before this fix (or one where `node_modules` was
+    later wiped) must still get installed on a later run, not just on the
+    very first clone.
+    """
+    cache_dir = tmp_path / "cache"
+    first = resolve_repo_source(str(source_git_repo), cache_dir=cache_dir)
+    (first / "package.json").write_text('{"name": "demo"}\n', encoding="utf-8")
+    calls = _fake_npm_run(monkeypatch)
+
+    second = resolve_repo_source(str(source_git_repo), cache_dir=cache_dir)
+
+    assert second == first
+    assert calls == [["npm", "install"]]
+    assert (second / "node_modules").is_dir()
+
+
+def test_resolve_repo_source_raises_repo_source_error_on_npm_install_failure(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    local_repo = tmp_path / "existing-checkout"
+    local_repo.mkdir()
+    (local_repo / "package.json").write_text('{"name": "demo"}\n', encoding="utf-8")
+    _fake_npm_run(monkeypatch, returncode=1, stderr="npm ERR! network timeout")
+
+    with pytest.raises(RepoSourceError, match="npm install failed"):
+        resolve_repo_source(str(local_repo), cache_dir=tmp_path / "cache")
+
+
+def test_resolve_repo_source_raises_repo_source_error_on_npm_install_timeout(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    local_repo = tmp_path / "existing-checkout"
+    local_repo.mkdir()
+    (local_repo / "package.json").write_text('{"name": "demo"}\n', encoding="utf-8")
+
+    def fake_run(cmd, **kwargs):  # noqa: ANN001, ANN003, ANN202
+        raise subprocess.TimeoutExpired(cmd=cmd, timeout=kwargs.get("timeout", 0))
+
+    monkeypatch.setattr(repo_source.subprocess, "run", fake_run)
+
+    with pytest.raises(RepoSourceError, match="npm install timed out"):
+        resolve_repo_source(str(local_repo), cache_dir=tmp_path / "cache")
 
 
 @pytest.mark.parametrize(

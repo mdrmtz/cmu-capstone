@@ -13,6 +13,28 @@ from a11y_fixer.adapters.audit_runner import AxeAuditRunner
 
 pytestmark = pytest.mark.e2e
 
+# The 11 routes registered in Hallucinate.io/src/app/app.routes.ts. This
+# used to be `adapters.audit_runner.DEFAULT_PAGES`, but that hardcoded,
+# Hallucinate.io-specific default was removed from production code (the
+# CLI now always discovers routes via `audit_crawler.discover_and_audit()`
+# instead of defaulting to this fixture's own route list). This benchmark
+# is reconciled against exactly these 11 real routes, so the literal list
+# is kept here, test-local, rather than swapped for a generic "/"-only
+# fallback that would silently audit a fraction of the fixture.
+HALLUCINATE_IO_ROUTES: tuple[str, ...] = (
+    "/",
+    "/home",
+    "/product",
+    "/case-studies",
+    "/docs",
+    "/careers",
+    "/blog",
+    "/pricing",
+    "/about",
+    "/contact",
+    "/status",
+)
+
 
 def test_full_audit_matches_reconciled_benchmark() -> None:
     """Reconciles against the ground-truth benchmark in agent-plan.md.
@@ -27,7 +49,7 @@ def test_full_audit_matches_reconciled_benchmark() -> None:
     """
     runner = AxeAuditRunner(fixture_path=config.fixture_path(), port=4288)
 
-    report = runner.run()
+    report = runner.run(pages=HALLUCINATE_IO_ROUTES)
 
     assert len(report["pages"]) == 11
     assert report["total_violation_instances"] == 22

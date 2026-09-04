@@ -7,9 +7,12 @@ interrupts (every `write_file`/`edit_file` pauses for approval - see
 dry-run diff, per `--live`/`--no-live`) and queues `route: "human"` results
 for review.
 
-Both subcommands accept `--repo <path-or-url>` to point at any Angular repo
-instead of the bundled Hallucinate.io fixture - a local path is used as-is,
-a git URL is shallow-cloned into `config.repo_cache_dir()`.
+Both subcommands require an explicit target - `--repo <path-or-url>` points
+at any Angular repo to audit/fix (a local path is used as-is, a git URL is
+shallow-cloned into `config.repo_cache_dir()`); `--url` audits a live site
+directly; `run` also accepts `--audit <path>` alone to replay a saved
+report. There is no implicit default target - the bundled Hallucinate.io
+fixture must be pointed at explicitly like any other repo.
 """
 
 from __future__ import annotations
@@ -33,7 +36,12 @@ from a11y_fixer import config
 from a11y_fixer.adapters.audit_runner import AxeAuditRunner, flatten_violation_instances
 from a11y_fixer.adapters.pr import delivery as pr_delivery
 from a11y_fixer.adapters.pr.github_pr_manager import GitHubPRManager
-from a11y_fixer.adapters.repo_source import derive_github_repo, resolve_repo_source
+from a11y_fixer.adapters.repo_source import (
+    derive_github_repo,
+    ensure_dependencies_installed,
+    resolve_repo_source,
+)
+from a11y_fixer.fleet_config import FleetManifestError, load_manifest
 from a11y_fixer.adapters.violation_store import (
     PrePipelineGate,
     HITLQueueGate,
@@ -84,6 +92,13 @@ def _apply_repo_override(repo_arg: str | None) -> None:
     Leaves `GITHUB_REPO` untouched when nothing github.com-shaped can be
     derived (e.g. a non-GitHub remote, or a local path with no `origin`),
     rather than clearing a value that may still be valid.
+
+    Also runs `ensure_dependencies_installed()` on whatever `config.
+    fixture_path()` resolves to even when `repo_arg` is falsy - previously
+    only the `--repo`-resolved path got dependency-install coverage, so the
+    bundled fixture path itself had no such guarantee if it were ever
+    missing `node_modules` (e.g. a fresh checkout of this repo before the
+    fixture's own deps had been installed).
     """
     if repo_arg:
         resolved = resolve_repo_source(repo_arg, cache_dir=config.repo_cache_dir())
@@ -98,10 +113,20 @@ def _apply_repo_override(repo_arg: str | None) -> None:
                 "target GitHub repo: could not derive from --repo "
                 f"(GITHUB_REPO stays {os.environ.get('GITHUB_REPO') or 'unset'})"
             )
+    else:
+        ensure_dependencies_installed(config.fixture_path())
     print(f"target repo: {config.fixture_path()}")  # noqa: T201
 
 
 def _cmd_audit(args: argparse.Namespace) -> int:
+    if not (args.repo or args.url):
+        print(  # noqa: T201
+            "one of --repo or --url is required: audit needs an explicit "
+            "target to scan - a local path/git URL via --repo, or a live "
+            "site via --url."
+        )
+        return 2
+
     if args.url:
         report = asyncio.run(_audit_live_url(args.url))
     else:
@@ -111,11 +136,7 @@ def _cmd_audit(args: argparse.Namespace) -> int:
 
         _apply_repo_override(args.repo)
         runner = AxeAuditRunner(fixture_path=config.fixture_path())
-        report = (
-            runner.run()
-            if config.is_default_fixture()
-            else asyncio.run(audit_crawler.discover_and_audit(runner))
-        )
+        report = asyncio.run(audit_crawler.discover_and_audit(runner))
     output_path = config.agent_root() / DEFAULT_AUDIT_OUTPUT
     output_path.parent.mkdir(parents=True, exist_ok=True)
     output_path.write_text(json.dumps(report, indent=2), encoding="utf-8")
@@ -131,7 +152,7 @@ async def _audit_live_url(url: str) -> dict:
     discover real routes at the given live URL and scan them directly.
 
     Falls back to auditing just the one given URL if discovery finds
-    nothing - `DEFAULT_PAGES` is Hallucinate.io-specific and would be wrong
+    nothing - there's no app-agnostic default route list to fall back to
     for an arbitrary external site.
     """
     from a11y_fixer.agents import (
@@ -250,6 +271,7 @@ def deliver_violation(
     pr_config: config.PRDeliveryConfig,
     output_dir: Path,
     p_ik_floor: float | None = None,
+    verified_deterministic: bool = False,
 ) -> dict:
     """Route one resolved violation to the human queue or PR delivery.
 
@@ -262,6 +284,9 @@ def deliver_violation(
     Args:
         p_ik_floor: Calibrated P(IK) floor from Phase 2/4 calibration. If provided,
                    overrides the default threshold for HITL escalation. Phase 3-4 feature.
+        verified_deterministic: Forwarded to `assess_risk()` - set only by
+            the html-has-lang fast-track call site (see that parameter's
+            docstring). Never set for LLM-authored fixes.
     """
     changes = _capture_and_reset_git_changes(fixture)
     no_changes = not changes
@@ -294,6 +319,8 @@ def deliver_violation(
     }
     if p_ik_floor is not None:
         assess_risk_kwargs["p_ik_floor"] = p_ik_floor
+    if verified_deterministic:
+        assess_risk_kwargs["verified_deterministic"] = True
     # No captured changes means no per-file path to run the blast-radius
     # check against - fall back to a single file_path="" assessment so the
     # rule-level (high_risk_rule) and confidence-level (low_confidence)
@@ -327,16 +354,18 @@ def deliver_violation(
         config.hitl_queue_dir().mkdir(parents=True, exist_ok=True)
 
         # NEW: Deduplication gate for HITL queue (Phase 3 feature)
-        store = ViolationStore(status_file=config.agent_root() / ".violation_status.json")
+        store = ViolationStore(
+            status_file=config.agent_root() / ".violation_status.json"
+        )
         queue_gate = HITLQueueGate(store)
-        
+
         # Determine action: ADD, SKIP, or REPLACE
         action, reason, old_queue_path = queue_gate.should_queue(
             rule_id=violation["rule"],
             selector=violation["selector"],
             score=response.score,
         )
-        
+
         if action == "SKIP":
             # Already queued with adequate or better solution
             return {
@@ -344,7 +373,7 @@ def deliver_violation(
                 "reason": f"hitl_queue_dedup: {reason}",
                 "route": route,
             }
-        
+
         # ADD or REPLACE: Write new queue entry
         queue_path = _hitl_queue_path(violation)
         queue_path.write_text(
@@ -362,7 +391,7 @@ def deliver_violation(
             ),
             encoding="utf-8",
         )
-        
+
         # Record in violation store
         queue_gate.record_queue_entry(
             rule_id=violation["rule"],
@@ -370,13 +399,13 @@ def deliver_violation(
             queue_path=str(queue_path),
             score=response.score,
         )
-        
+
         # Clean up old queue entry if replacing
         if action == "REPLACE" and old_queue_path:
             old_path = Path(old_queue_path)
             if old_path.exists():
                 old_path.unlink()  # Delete old file
-        
+
         return {
             "delivered": False,
             "queue_path": str(queue_path),
@@ -442,7 +471,9 @@ def deliver_violation(
                 # already handled this correctly (`if merge_result.success:`)
                 # - this mirrors that proven pattern.
                 if merge_result.success:
-                    print(f"  ✅ Auto-merged PR {pr_number}: {merge_result.reason}")  # noqa: T201
+                    print(
+                        f"  ✅ Auto-merged PR {pr_number}: {merge_result.reason}"
+                    )  # noqa: T201
 
                     # Task 3.3: Close duplicate PRs if merge succeeded.
                     # cleanup_duplicate_prs() returns list[PRCloseResult], not a dict.
@@ -547,6 +578,16 @@ async def _acmd_run(args: argparse.Namespace) -> int:
         abuild_agent,
     )  # noqa: PLC0415 - deferred: avoid MCP/network cost for --help etc.
 
+    if not (args.repo or args.url or args.audit):
+        # No implicit default target anymore - the caller must say what to
+        # fix: a repo/URL to crawl fresh, or a saved report to replay.
+        print(  # noqa: T201
+            "one of --repo, --url, or --audit is required: run needs an "
+            "explicit target - a repo checkout/URL to fix, a live URL to "
+            "audit (alongside --repo), or a saved audit report to replay."
+        )
+        return 2
+
     if args.url and not args.repo:
         # A live URL alone gives the pipeline nothing to write fixes into
         # and no repo to open PRs against - `audit --url` covers the
@@ -574,8 +615,6 @@ async def _acmd_run(args: argparse.Namespace) -> int:
         # useful when the live app differs from a plain local `ng serve`
         # (SSR output, prod config, etc.) but you still want fixes upstream.
         report = await _audit_live_url(args.url)
-    elif config.is_default_fixture():
-        report = AxeAuditRunner(fixture_path=config.fixture_path()).run()
     else:
         report = await audit_crawler.discover_and_audit(
             AxeAuditRunner(fixture_path=config.fixture_path())
@@ -619,14 +658,18 @@ async def _acmd_run(args: argparse.Namespace) -> int:
             p_ik_floor = results_data.get("calibrated_p_ik_floor")
         except Exception:  # noqa: BLE001
             pass  # Ignore if results file malformed
-    
+
     # Phase 4: If no pre-computed calibration, compute it from phase results
     if p_ik_floor is None:
         # Try full Phase 3 results first (results_phase_all.json)
-        phase_results_path = config.agent_root() / "evaluation" / "results" / "results_phase_all.json"
+        phase_results_path = (
+            config.agent_root() / "evaluation" / "results" / "results_phase_all.json"
+        )
         if phase_results_path.exists():
             try:
-                calibration = calibrate_from_results(phase_results_path, target_fpr=0.05)
+                calibration = calibrate_from_results(
+                    phase_results_path, target_fpr=0.05
+                )
                 if calibration.calibrated:
                     p_ik_floor = calibration.p_ik_floor
                     print(
@@ -680,7 +723,9 @@ async def _acmd_run(args: argparse.Namespace) -> int:
 
         # action == "CREATE" or "REPLACE" — check for html-lang fast-track
         if is_html_lang_violation(violation):
-            print(f"🎯 [HTML-LANG] {violation_id}: Fast-track html-has-lang fix")  # noqa: T201
+            print(
+                f"🎯 [HTML-LANG] {violation_id}: Fast-track html-has-lang fix"
+            )  # noqa: T201
             html_lang_fix = get_html_lang_fix()
             apply_result = await apply_html_lang(fixture)
 
@@ -703,24 +748,44 @@ async def _acmd_run(args: argparse.Namespace) -> int:
                 )
 
                 try:
-                    delivered = await deliver_violation(
+                    delivered = deliver_violation(
                         violation,
                         html_lang_response,
                         fixture=fixture,
                         pr_config=pr_config,
                         output_dir=output_dir,
                         p_ik_floor=p_ik_floor,
+                        verified_deterministic=True,
                     )
-                    print(f"  📤 Delivered: {delivered['route']} (auto-merge PR)")  # noqa: T201
-                    
-                    # Record as MERGED in violation store for deduplication
+                    print(
+                        f"  📤 Delivered: {delivered['route']} (auto-merge PR)"
+                    )  # noqa: T201
+
+                    # Record as MERGED in violation store for deduplication.
+                    # deliver_violation() only ever returns a bare "pr_number"
+                    # key on its (never-taken, pre-2026-09) human-route dict;
+                    # a real PR number for the auto route lives on its
+                    # LiveResult under "result" instead.
+                    pr_number = delivered.get("pr_number")
+                    delivery_result = delivered.get("result")
+                    if pr_number is None and isinstance(
+                        delivery_result, pr_delivery.LiveResult
+                    ):
+                        pr_number = delivery_result.pull_request_number
                     store.mark_merged(
                         violation_id=violation_id,
                         rule_id=violation["rule"],
                         selector=violation["selector"],
-                        pr_number=delivered.get("pr_number"),
+                        pr_number=pr_number,
                     )
-                    
+                    # mark_merged() only updates the in-memory cache (the
+                    # same contract hitl/review_queue.py's own call site
+                    # follows, saving right after) - without this, the
+                    # MERGED status never reaches .violation_status.json
+                    # and PrePipelineGate treats this violation as brand
+                    # new again on every subsequent run.
+                    store.save()
+
                     metrics["created"] += 1
                 except Exception as e:  # noqa: BLE001
                     print(f"  ❌ Delivery failed: {e}")  # noqa: T201
@@ -728,7 +793,9 @@ async def _acmd_run(args: argparse.Namespace) -> int:
 
                 continue  # Skip full pipeline, move to next violation
             else:
-                print(f"  ⚠️  Fast-track failed: {apply_result.get('error')}")  # noqa: T201
+                print(
+                    f"  ⚠️  Fast-track failed: {apply_result.get('error')}"
+                )  # noqa: T201
                 print("  🔄 Falling back to full pipeline...")  # noqa: T201
                 # Fall through to normal pipeline
 
@@ -924,7 +991,9 @@ def _cmd_queue_sync(args: argparse.Namespace) -> int:
 
     # Show summary
     print(f"\n📊 HITL Queue Status")  # noqa: T201
-    print(f"   Pending: {stats['pending']} | Reviewed: {stats['reviewed']} | Total: {stats['total']}")
+    print(
+        f"   Pending: {stats['pending']} | Reviewed: {stats['reviewed']} | Total: {stats['total']}"
+    )
 
     if not pending:
         print("   ✅ Queue is empty")  # noqa: T201
@@ -940,13 +1009,15 @@ def _cmd_queue_sync(args: argparse.Namespace) -> int:
             score = response.get("score", 0)
             rule = violation.get("rule", "unknown")
             selector = violation.get("selector", "?")
-            items_by_score.append({
-                "path": path,
-                "filename": path.name,
-                "score": score,
-                "rule": rule,
-                "selector": selector,
-            })
+            items_by_score.append(
+                {
+                    "path": path,
+                    "filename": path.name,
+                    "score": score,
+                    "rule": rule,
+                    "selector": selector,
+                }
+            )
         except Exception as e:  # noqa: BLE001
             print(f"   ⚠️  Failed to parse {path.name}: {e}")  # noqa: T201
 
@@ -955,7 +1026,9 @@ def _cmd_queue_sync(args: argparse.Namespace) -> int:
     # Show detailed list
     print(f"\n📋 Pending Queue Items (sorted by score):")  # noqa: T201
     for i, item in enumerate(items_by_score, 1):
-        score_emoji = "🟢" if item["score"] >= 18 else "🟡" if item["score"] >= 15 else "🔴"
+        score_emoji = (
+            "🟢" if item["score"] >= 18 else "🟡" if item["score"] >= 15 else "🔴"
+        )
         print(
             f"   {i}. [{score_emoji} {item['score']}/20] {item['rule']:20} | {item['selector'][:40]}"
         )  # noqa: T201
@@ -968,7 +1041,9 @@ def _cmd_queue_sync(args: argparse.Namespace) -> int:
             print(f"\n   No items with score ≥ 18.0 to auto-approve")  # noqa: T201
             return 0
 
-        print(f"\n✅ Auto-approving {len(high_score_items)} high-scoring item(s):")  # noqa: T201
+        print(
+            f"\n✅ Auto-approving {len(high_score_items)} high-scoring item(s):"
+        )  # noqa: T201
         for item in high_score_items:
             try:
                 result = queue.review(
@@ -1033,11 +1108,15 @@ def _check_merged_prs(pr_config: config.PRDeliveryConfig, live: bool | None) -> 
             try:
                 pr_resp = client.get(f"/repos/{owner}/{repo}/pulls/{pr_num}")
                 if pr_resp.status_code != 200:  # noqa: PLR2004
-                    print(f"   ⚠️  PR #{pr_num}: API error {pr_resp.status_code}")  # noqa: T201
+                    print(
+                        f"   ⚠️  PR #{pr_num}: API error {pr_resp.status_code}"
+                    )  # noqa: T201
                     continue
 
                 pr_data = pr_resp.json()
-                is_merged = pr_data.get("merged", False) or pr_data.get("merged_at") is not None
+                is_merged = (
+                    pr_data.get("merged", False) or pr_data.get("merged_at") is not None
+                )
                 state = pr_data.get("state")
 
                 if is_merged:
@@ -1063,12 +1142,93 @@ def _check_merged_prs(pr_config: config.PRDeliveryConfig, live: bool | None) -> 
 
     if live:
         store.save()
-        print(f"\n✅ Updated violation store: {merged_count} PR(s) marked as MERGED")  # noqa: T201
+        print(
+            f"\n✅ Updated violation store: {merged_count} PR(s) marked as MERGED"
+        )  # noqa: T201
     else:
-        print(f"\n📋 DRY-RUN: Would update {merged_count} PR(s) to MERGED state")  # noqa: T201
+        print(
+            f"\n📋 DRY-RUN: Would update {merged_count} PR(s) to MERGED state"
+        )  # noqa: T201
         print(f"   Run with --live to persist changes")  # noqa: T201
 
     return 0
+
+
+def _cmd_fleet(args: argparse.Namespace) -> int:
+    """Fleet entry point: run `run` against the one site declared in a YAML
+    manifest (`--config`), instead of a single `--repo` passed on the
+    command line.
+
+    Deliberately limited to exactly one site per manifest/invocation for
+    now: the HITL queue, `.violation_status.json`, and audit-output paths
+    (see `config.hitl_queue_dir()` et al.) are all global/unnamespaced, so
+    running more than one site through the same process risks one site's
+    state corrupting another's. Revisit this limit once that state is
+    per-site-namespaced.
+
+    `--live` is the default here, unlike `run` (which defaults to a safe
+    dry-run) - a fleet run is meant to be unattended, so opting into a
+    dry-run is the explicit choice (`--dry-run`) rather than the default.
+    Because that default flips the usual safety direction, the `LIVE: ...`
+    banner below is printed unconditionally before anything live happens,
+    so a human skimming the output can't miss it.
+
+    The site's GitHub token is resolved from the environment variable named
+    by its `github_token_env` (default `GITHUB_TOKEN`) - never written in
+    the manifest itself - and temporarily exported as `GITHUB_TOKEN` for
+    the duration of the run (mirroring how `_apply_repo_override` scopes
+    its own env overrides), then restored on the way out.
+    """
+    try:
+        sites = load_manifest(args.config)
+    except FleetManifestError as exc:
+        print(f"fleet: {exc}")  # noqa: T201
+        return 2
+
+    if len(sites) != 1:
+        print(  # noqa: T201
+            "fleet currently supports one site per invocation "
+            f"(manifest has {len(sites)})"
+        )
+        return 2
+
+    site = sites[0]
+    live = not args.dry_run
+
+    token_env = site.github_token_env
+    token_value = os.environ.get(token_env)
+    if live and not token_value:
+        print(  # noqa: T201
+            f"fleet: {site.site_id} needs a GitHub token for live delivery - "
+            f"set the {token_env} environment variable (see github_token_env "
+            "in the manifest) or pass --dry-run."
+        )
+        return 2
+
+    target = derive_github_repo(site.repo) or site.repo
+    mode = "LIVE" if live else "dry-run"
+    print(f"{mode}: {site.site_id} -> {site.repo} (PR target: {target})")  # noqa: T201
+    if site.audit:
+        print(f"  replaying saved audit report: {site.audit}")  # noqa: T201
+
+    previous_token = os.environ.get("GITHUB_TOKEN")
+    if token_value is not None:
+        os.environ["GITHUB_TOKEN"] = token_value
+    try:
+        run_args = argparse.Namespace(
+            repo=site.repo,
+            url=site.url,
+            audit=site.audit,
+            case_ids=None,
+            live=live,
+            yes=True,
+        )
+        return asyncio.run(_acmd_run(run_args))
+    finally:
+        if previous_token is None:
+            os.environ.pop("GITHUB_TOKEN", None)
+        else:
+            os.environ["GITHUB_TOKEN"] = previous_token
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -1078,11 +1238,11 @@ def build_parser() -> argparse.ArgumentParser:
     audit_parser = subparsers.add_parser(
         "audit", help="Run a full axe-core audit against the fixture"
     )
-    audit_target_group = audit_parser.add_mutually_exclusive_group()
+    audit_target_group = audit_parser.add_mutually_exclusive_group(required=True)
     audit_target_group.add_argument(
         "--repo",
         default=None,
-        help="Local path or git URL of the Angular repo to audit (default: the bundled Hallucinate.io fixture)",
+        help="Local path or git URL of the Angular repo to audit (required, unless --url is given)",
     )
     audit_target_group.add_argument(
         "--url",
@@ -1102,7 +1262,7 @@ def build_parser() -> argparse.ArgumentParser:
     run_parser.add_argument(
         "--repo",
         default=None,
-        help="Local path or git URL of the Angular repo to fix (default: the bundled Hallucinate.io fixture)",
+        help="Local path or git URL of the Angular repo to fix (required, unless --audit is given)",
     )
     run_parser.add_argument(
         "--url",
@@ -1207,6 +1367,22 @@ def build_parser() -> argparse.ArgumentParser:
         help="Force dry-run delivery for auto-approved items",
     )
     queue_sync_parser.set_defaults(func=_cmd_queue_sync)
+
+    fleet_parser = subparsers.add_parser(
+        "fleet",
+        help="Run `run` against the one site declared in a YAML manifest (see sites.example.yaml)",
+    )
+    fleet_parser.add_argument(
+        "--config",
+        required=True,
+        help="Path to a fleet manifest YAML file (see sites.example.yaml)",
+    )
+    fleet_parser.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="Write diffs instead of opening PRs (fleet defaults to LIVE delivery, unlike `run`)",
+    )
+    fleet_parser.set_defaults(func=_cmd_fleet)
 
     return parser
 

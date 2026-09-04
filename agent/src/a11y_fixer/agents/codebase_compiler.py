@@ -171,7 +171,7 @@ def build_from_tools(
         ),
         system_prompt=SYSTEM_PROMPT,
         tools=[*mcp_tools, locate_selector_in_component],
-        skills=[config.to_virtual_path(config.skills_dir() / "angular-cli-mcp")],
+        skills=[config.to_virtual_path(config.resolve_skill("angular-cli-mcp"))],
         permissions=_permissions(virtual_fixture),
         middleware=[
             FilesystemMiddleware(

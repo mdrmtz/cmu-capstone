@@ -26,6 +26,20 @@ Phase E still lacked:
     approve re-applies the persisted diff via `pr_delivery.deliver()`. Both
     were previously 100% unimplemented (the queue only ever recorded that a
     human SHOULD look, never what they decided).
+
+Bug fix (2026-09-04): `review()` used to stop at `wiki_pipeline`/
+`pr_delivery` and never touch `ViolationStore` at all - a human clicking
+Approve (from the CLI or the HITL dashboard, which shells out to the same
+`review --approve` command) delivered a real PR, sometimes even auto-merged
+it, and `.violation_status.json` never heard about it. The entry stayed at
+whatever state `PrePipelineGate` created it in when the violation was first
+queued (always `NEW`), which made `PrePipelineGate.should_process()` fall
+through to its `unknown_state_fallback` default on every later run instead
+of correctly recognizing "already approved" or "already merged, don't
+re-propose a fix". `review()` now updates the store on both approve
+(`PR_OPEN`, upgraded to `MERGED` if auto-merge succeeds) and reject
+(`WONT_FIX` - a state that existed in the schema from the start but that
+nothing ever actually set).
 """
 
 from __future__ import annotations
@@ -41,8 +55,13 @@ from a11y_fixer import config
 from a11y_fixer.adapters.pr import delivery as pr_delivery
 from a11y_fixer.adapters.pr.github_pr_manager import GitHubPRManager
 from a11y_fixer.adapters.retrieval import wiki_pipeline
+from a11y_fixer.adapters.violation_store import ViolationStore
 from a11y_fixer.domain.hitl_policy import DEFAULT_P_IK_FLOOR
-from a11y_fixer.domain.violations import compute_violation_id
+from a11y_fixer.domain.violations import (
+    ViolationState,
+    ViolationStatus,
+    compute_violation_id,
+)
 
 Decision = Literal["approve", "reject"]
 
@@ -192,11 +211,19 @@ class ReviewQueue:
         wiki_dir: Path,
         pr_config: config.PRDeliveryConfig,
         output_dir: Path,
+        store: ViolationStore | None = None,
     ) -> None:
         self._queue_dir = queue_dir
         self._wiki_dir = wiki_dir
         self._pr_config = pr_config
         self._output_dir = output_dir
+        # Defaults to the same real `.violation_status.json` every other
+        # entry point uses (`cli.py`'s `_acmd_run`/`_check_merged_prs`) so a
+        # decision made here is visible to them and vice versa. Tests (and
+        # any other caller that wants isolation) pass their own `store`.
+        self._store = store or ViolationStore(
+            status_file=config.agent_root() / ".violation_status.json"
+        )
 
     def _decision_path(self, queue_path: Path) -> Path:
         return queue_path.with_suffix(DECISION_SUFFIX)
@@ -212,6 +239,69 @@ class ReviewQueue:
             and not self._decision_path(path).exists()
         )
 
+    def _record_reject(self, violation_id: str, violation: dict, notes: str) -> None:
+        """Mark a rejected violation `WONT_FIX` so `PrePipelineGate` stops
+        re-proposing a fix for it. `WONT_FIX` already existed in
+        `ViolationState`/`should_process()`'s case 2 - nothing ever set it
+        until now, so a rejected violation kept getting re-surfaced (and
+        re-queued) on every subsequent run.
+        """
+        prior = self._store.get(violation_id)
+        status = ViolationStatus(
+            violation_id=violation_id,
+            rule_id=violation["rule"],
+            selector=violation["selector"],
+            state=ViolationState.WONT_FIX,
+            current_pr_number=prior.current_pr_number if prior else None,
+            current_score=prior.current_score if prior else None,
+            current_solution_hash=prior.current_solution_hash if prior else "",
+            best_solution_hash=prior.best_solution_hash if prior else "",
+            best_score=prior.best_score if prior else 0.0,
+            hitl_queue_path=prior.hitl_queue_path if prior else None,
+            hitl_queue_score=prior.hitl_queue_score if prior else None,
+            created_at=prior.created_at if prior else datetime.now(UTC),
+            updated_at=datetime.now(UTC),
+            closed_at=datetime.now(UTC),
+            close_reason=notes or "rejected by reviewer",
+        )
+        self._store.upsert(status)
+        self._store.save()
+
+    def _record_approve(
+        self,
+        violation_id: str,
+        violation: dict,
+        item: dict,
+        delivery_result: object,
+    ) -> None:
+        """Mark an approved violation `PR_OPEN` - the queue-side mirror of
+        `cli.py::deliver_violation()`'s own store update on the fully-
+        automated path (see module docstring for why this was missing).
+        """
+        prior = self._store.get(violation_id)
+        pr_number = (
+            delivery_result.pull_request_number
+            if isinstance(delivery_result, pr_delivery.LiveResult)
+            else None
+        )
+        status = ViolationStatus(
+            violation_id=violation_id,
+            rule_id=violation["rule"],
+            selector=violation["selector"],
+            state=ViolationState.PR_OPEN,
+            current_pr_number=pr_number,
+            current_score=item.get("response", {}).get("score"),
+            current_solution_hash=prior.current_solution_hash if prior else "",
+            best_solution_hash=prior.best_solution_hash if prior else "",
+            best_score=prior.best_score if prior else 0.0,
+            hitl_queue_path=prior.hitl_queue_path if prior else None,
+            hitl_queue_score=prior.hitl_queue_score if prior else None,
+            created_at=prior.created_at if prior else datetime.now(UTC),
+            updated_at=datetime.now(UTC),
+        )
+        self._store.upsert(status)
+        self._store.save()
+
     def review(
         self,
         queue_path: Path,
@@ -223,10 +313,11 @@ class ReviewQueue:
         """Record a human's real decision on one queued item.
 
         Reject: files the rejection as an institutional-memory lesson via
-        `wiki_pipeline.ingest_lesson()`. Approve: re-applies the persisted
-        diff and delivers it via `pr_delivery.deliver()`. Both were
-        previously dead ends - the queue only ever recorded that a human
-        SHOULD look, never what they actually decided.
+        `wiki_pipeline.ingest_lesson()`, and marks the violation `WONT_FIX`
+        in the violation store. Approve: re-applies the persisted diff,
+        delivers it via `pr_delivery.deliver()`, marks the violation
+        `PR_OPEN` (or `MERGED` if auto-merge succeeds), and auto-merges when
+        the score clears `AUTO_MERGE_THRESHOLD`.
         """
         if self._decision_path(queue_path).exists():
             msg = f"{queue_path} was already reviewed"
@@ -234,6 +325,7 @@ class ReviewQueue:
 
         item = json.loads(queue_path.read_text(encoding="utf-8"))
         violation = item["violation"]
+        violation_id = compute_violation_id(violation["rule"], violation["selector"])
         result: dict[str, Any] = {"decision": decision, "reviewer": reviewer}
 
         if decision == "reject":
@@ -249,6 +341,7 @@ class ReviewQueue:
                 constraint=notes,
             )
             result["lesson_id"] = lesson.id
+            self._record_reject(violation_id, violation, notes)
         elif decision == "approve":
             changes = [
                 pr_delivery.FileChange(**change) for change in item.get("changes", [])
@@ -268,6 +361,7 @@ class ReviewQueue:
                     plan, config=self._pr_config, output_dir=self._output_dir
                 )
                 result["result"] = vars(delivery_result)
+                self._record_approve(violation_id, violation, item, delivery_result)
 
                 # Auto-merge, mirroring cli.py::deliver_violation()'s Task 3.2-3.3
                 # (only possible once a real PR exists, i.e. live delivery succeeded).
@@ -290,9 +384,14 @@ class ReviewQueue:
                         result["auto_merge"] = vars(merge_result)
 
                         if merge_result.success:
-                            violation_id = compute_violation_id(
-                                violation["rule"], violation["selector"]
+                            self._store.mark_merged(
+                                violation_id,
+                                violation["rule"],
+                                violation["selector"],
+                                pr_number,
                             )
+                            self._store.save()
+
                             dup_results = pr_mgr.cleanup_duplicate_prs(
                                 violation_id, kept_pr_number=pr_number
                             )

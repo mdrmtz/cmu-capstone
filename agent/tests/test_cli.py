@@ -17,10 +17,27 @@ from a11y_fixer.agents import audit_crawler
 from a11y_fixer.deep_agent import ViolationResponse
 
 
+@pytest.fixture(autouse=True)
+def _no_real_dependency_install(monkeypatch: pytest.MonkeyPatch) -> None:
+    """`_apply_repo_override()` now also runs `ensure_dependencies_installed()`
+    on `config.fixture_path()` when no `--repo` is given (closing the gap
+    where only a `--repo`-resolved path got dependency-install coverage).
+    Most tests here call `run`/`audit` (or `_apply_repo_override` directly)
+    without pointing `A11Y_FIXTURE_PATH` at an isolated `tmp_path`, so
+    without this, that call would resolve to the real, bundled
+    Hallucinate.io checkout and touch its actual `node_modules` state (or
+    worse, shell out to a real `npm install`) as an unrelated side effect
+    of unit tests. Tests that specifically want the real behavior undo this
+    with their own `monkeypatch.setattr(cli, "ensure_dependencies_installed", ...)`.
+    """
+    monkeypatch.setattr(cli, "ensure_dependencies_installed", lambda path: None)  # noqa: ARG005
+
+
 def test_build_parser_audit_defaults() -> None:
     parser = cli.build_parser()
-    args = parser.parse_args(["audit"])
+    args = parser.parse_args(["audit", "--repo", "/tmp/x"])
     assert args.command == "audit"
+    assert args.repo == "/tmp/x"
     assert args.url is None
 
 
@@ -28,6 +45,16 @@ def test_build_parser_audit_rejects_conflicting_target_flags() -> None:
     parser = cli.build_parser()
     with pytest.raises(SystemExit):
         parser.parse_args(["audit", "--repo", "/tmp/x", "--url", "https://example.com"])
+
+
+def test_build_parser_audit_requires_a_target() -> None:
+    """No implicit default target anymore - `audit` with neither `--repo`
+    nor `--url` must fail fast at the argparse level, not silently fall
+    back to the bundled Hallucinate.io fixture.
+    """
+    parser = cli.build_parser()
+    with pytest.raises(SystemExit):
+        parser.parse_args(["audit"])
 
 
 def test_build_parser_run_accepts_url_flag_alongside_repo() -> None:
@@ -129,15 +156,31 @@ def test_cmd_review_approve_real_flow(tmp_path: Path, monkeypatch: pytest.Monkey
 
 
 def test_cmd_audit_writes_report(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """`audit` now always resolves `--repo` and goes through
+    `audit_crawler.discover_and_audit()` - there is no more implicit
+    default-fixture path that calls `AxeAuditRunner.run()` directly, so
+    this (and the discovery-path behavior itself) is exercised together
+    here rather than in a separate, now-redundant test.
+    """
     fake_report = {"total_violation_instances": 3, "pages": [{"url": "/", "violation_rules": ["html-has-lang"]}]}
-    monkeypatch.setattr(cli.AxeAuditRunner, "run", lambda self: fake_report)  # noqa: ARG005
+
+    async def _fake_discover_and_audit(runner: object) -> dict:  # noqa: ARG001
+        return fake_report
+
+    monkeypatch.setattr(audit_crawler, "discover_and_audit", _fake_discover_and_audit)
+    # `--repo` makes `_apply_repo_override` set `A11Y_FIXTURE_PATH` via a
+    # direct `os.environ[...] = ...` mutation, not through `monkeypatch` -
+    # priming it here (before that happens) is what makes monkeypatch's
+    # teardown actually restore it afterwards, instead of leaking a deleted
+    # tmp_path into every later test that calls `config.fixture_path()`.
+    monkeypatch.setenv("A11Y_FIXTURE_PATH", "")
 
     # Mock config.agent_root to return tmp_path, so output goes there
     monkeypatch.setattr(config, "agent_root", lambda: tmp_path)
     expected_output = tmp_path / "evaluation" / "results" / "audit.json"
 
     parser = cli.build_parser()
-    args = parser.parse_args(["audit"])
+    args = parser.parse_args(["audit", "--repo", str(tmp_path)])
 
     exit_code = cli._cmd_audit(args)  # noqa: SLF001
 
@@ -145,32 +188,27 @@ def test_cmd_audit_writes_report(tmp_path: Path, monkeypatch: pytest.MonkeyPatch
     assert json.loads(expected_output.read_text(encoding="utf-8")) == fake_report
 
 
-def test_cmd_audit_uses_crawler_discovery_for_non_default_fixture(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setenv("A11Y_FIXTURE_PATH", str(tmp_path))
-    fake_report = {"total_violation_instances": 0, "pages": []}
-
-    async def _fake_discover_and_audit(runner: object) -> dict:  # noqa: ARG001
-        return fake_report
-
-    monkeypatch.setattr(audit_crawler, "discover_and_audit", _fake_discover_and_audit)
-
-    # Mock config.agent_root to return a different tmp_path for output
-    output_tmp = tmp_path / "agent_root"
-    output_tmp.mkdir()
-    monkeypatch.setattr(config, "agent_root", lambda: output_tmp)
-    expected_output = output_tmp / "evaluation" / "results" / "audit.json"
-
+def test_cmd_audit_requires_a_target(capsys: pytest.CaptureFixture) -> None:
+    """Defense in depth alongside the argparse-level `required=True` group:
+    `_cmd_audit` itself also refuses to run with neither `--repo` nor
+    `--url` set, in case it's ever called directly with a hand-built
+    `Namespace` that bypassed argument parsing.
+    """
     parser = cli.build_parser()
-    args = parser.parse_args(["audit"])
+    args = parser.parse_args(["audit", "--repo", "/tmp/x"])
+    args.repo = None  # simulate a caller bypassing argparse's own validation
 
     exit_code = cli._cmd_audit(args)  # noqa: SLF001
 
-    assert exit_code == 0
-    assert json.loads(expected_output.read_text(encoding="utf-8")) == fake_report
+    assert exit_code == 2
+    assert "one of --repo or --url is required" in capsys.readouterr().out
 
 
-async def test_acmd_run_uses_crawler_discovery_for_non_default_fixture(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setenv("A11Y_FIXTURE_PATH", str(tmp_path))
+async def test_acmd_run_uses_crawler_discovery_when_repo_given(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    # See test_cmd_audit_writes_report's comment: prime A11Y_FIXTURE_PATH
+    # with monkeypatch before `_apply_repo_override` mutates it directly,
+    # so it's restored afterwards instead of leaking into later tests.
+    monkeypatch.setenv("A11Y_FIXTURE_PATH", "")
 
     async def _fake_discover_and_audit(runner: object) -> dict:  # noqa: ARG001
         return {"raw_reports": []}
@@ -178,11 +216,28 @@ async def test_acmd_run_uses_crawler_discovery_for_non_default_fixture(tmp_path:
     monkeypatch.setattr(audit_crawler, "discover_and_audit", _fake_discover_and_audit)
 
     parser = cli.build_parser()
-    args = parser.parse_args(["run"])
+    args = parser.parse_args(["run", "--repo", str(tmp_path)])
 
     exit_code = await cli._acmd_run(args)  # noqa: SLF001
 
     assert exit_code == 0
+
+
+async def test_acmd_run_requires_an_explicit_target(capsys: pytest.CaptureFixture) -> None:
+    """No implicit default target anymore - `run` needs an explicit
+    `--repo`, `--url`, or `--audit`; with none given it must fail fast
+    with a clear message instead of silently falling back to the bundled
+    Hallucinate.io fixture. Unlike `audit`, this isn't enforced at the
+    argparse level (`--audit` isn't part of a mutually-exclusive group
+    with `--repo`/`--url`), so it's checked here in `_acmd_run` itself.
+    """
+    parser = cli.build_parser()
+    args = parser.parse_args(["run"])
+
+    exit_code = await cli._acmd_run(args)  # noqa: SLF001
+
+    assert exit_code == 2
+    assert "one of --repo, --url, or --audit is required" in capsys.readouterr().out
 
 
 async def test_acmd_run_with_url_but_no_repo_rejects_with_clear_message(
@@ -459,6 +514,80 @@ def test_deliver_violation_assess_risk_overrides_auto_to_human_for_high_risk_rul
     assert outcome["route"] == "human"
     queued = json.loads(Path(outcome["queue_path"]).read_text(encoding="utf-8"))
     assert queued["risk_assessments"][0]["high_blast_radius"] is True
+
+
+def test_deliver_violation_verified_deterministic_waives_blast_radius(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """The html-lang fast-track's carve-out (2026-09): verified_deterministic=True
+    lets a build-verified html-has-lang fix auto-deliver despite touching the
+    high-blast-radius src/index.html - unlike the plain LLM-driven path covered
+    by test_deliver_violation_assess_risk_overrides_auto_to_human_for_high_risk_rule
+    above, which doesn't pass the flag and still (correctly) routes human.
+    """
+    monkeypatch.setattr("a11y_fixer.config.agent_root", lambda: tmp_path / "agent")
+    (tmp_path / "agent").mkdir()
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    subprocess.run(["git", "init", "-q"], cwd=repo, check=True)  # noqa: S603, S607
+    subprocess.run(["git", "config", "user.email", "t@example.com"], cwd=repo, check=True)  # noqa: S603, S607
+    subprocess.run(["git", "config", "user.name", "T"], cwd=repo, check=True)  # noqa: S603, S607
+    (repo / "index.html").write_text("<html>\n", encoding="utf-8")
+    subprocess.run(["git", "add", "."], cwd=repo, check=True)  # noqa: S603, S607
+    subprocess.run(["git", "commit", "-q", "-m", "init"], cwd=repo, check=True)  # noqa: S603, S607
+    (repo / "index.html").write_text('<html lang="en">\n', encoding="utf-8")
+
+    response = ViolationResponse(
+        rule="html-has-lang", wcag="3.1.1", selector="html", technique_id="H57", technique_type="sufficient",
+        code='<html lang="en">', rationale="site-wide language fix", score=20.0, route="auto",
+    )
+    outcome = cli.deliver_violation(
+        {"rule": "html-has-lang", "url": "/", "selector": "html", "html": "<html>"},
+        response,
+        fixture=repo,
+        pr_config=config.PRDeliveryConfig(live=False, github_token=None, github_repo=None),
+        output_dir=tmp_path / "prs",
+        verified_deterministic=True,
+    )
+
+    assert outcome["delivered"] is True
+    assert outcome["route"] == "auto"
+    assert isinstance(outcome["result"], DryRunResult)
+
+
+def test_deliver_violation_verified_deterministic_still_escalates_low_confidence(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """The carve-out must not become a blanket bypass: a low-score fix on the
+    same high-blast-radius file still escalates to human even with
+    verified_deterministic=True - the flag only waives blast radius, never
+    low_confidence (mirrors test_verified_deterministic_does_not_waive_low_confidence
+    in tests/domain/test_hitl_policy.py, but through the real deliver_violation()
+    call site instead of assess_risk() directly).
+    """
+    monkeypatch.setattr("a11y_fixer.config.agent_root", lambda: tmp_path / "agent")
+    (tmp_path / "agent").mkdir()
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    subprocess.run(["git", "init", "-q"], cwd=repo, check=True)  # noqa: S603, S607
+    subprocess.run(["git", "config", "user.email", "t@example.com"], cwd=repo, check=True)  # noqa: S603, S607
+    subprocess.run(["git", "config", "user.name", "T"], cwd=repo, check=True)  # noqa: S603, S607
+    (repo / "index.html").write_text("<html>\n", encoding="utf-8")
+    subprocess.run(["git", "add", "."], cwd=repo, check=True)  # noqa: S603, S607
+    subprocess.run(["git", "commit", "-q", "-m", "init"], cwd=repo, check=True)  # noqa: S603, S607
+    (repo / "index.html").write_text('<html lang="en">\n', encoding="utf-8")
+
+    response = ViolationResponse(
+        rule="html-has-lang", wcag="3.1.1", selector="html", technique_id="H57", technique_type="sufficient",
+        code='<html lang="en">', rationale="uncertain", score=8.0, route="auto",
+    )
+    outcome = cli.deliver_violation(
+        {"rule": "html-has-lang", "url": "/", "selector": "html", "html": "<html>"},
+        response,
+        fixture=repo,
+        pr_config=config.PRDeliveryConfig(live=False, github_token=None, github_repo=None),
+        output_dir=tmp_path / "prs",
+        verified_deterministic=True,
+    )
+
+    assert outcome["delivered"] is False
+    assert outcome["route"] == "human"
 
 
 def test_deliver_violation_path_guardrail_escalates_disallowed_extension(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
@@ -902,3 +1031,219 @@ def test_apply_repo_override_without_repo_arg_leaves_github_repo_untouched(
     cli._apply_repo_override(None)
 
     assert os.environ["GITHUB_REPO"] == "mdrmtz/Hallucinate.io"
+
+
+def test_build_parser_fleet_requires_config() -> None:
+    parser = cli.build_parser()
+    with pytest.raises(SystemExit):
+        parser.parse_args(["fleet"])
+
+
+def test_build_parser_fleet_defaults_to_live_dry_run_false() -> None:
+    """`fleet` inverts `run`'s default: no `--dry-run` flag means live."""
+    parser = cli.build_parser()
+    args = parser.parse_args(["fleet", "--config", "sites.yaml"])
+    assert args.dry_run is False
+    assert args.config == "sites.yaml"
+
+
+def test_build_parser_fleet_accepts_dry_run_flag() -> None:
+    parser = cli.build_parser()
+    args = parser.parse_args(["fleet", "--config", "sites.yaml", "--dry-run"])
+    assert args.dry_run is True
+
+
+def _write_manifest(tmp_path: Path, text: str) -> Path:
+    manifest = tmp_path / "sites.yaml"
+    manifest.write_text(text, encoding="utf-8")
+    return manifest
+
+
+def test_cmd_fleet_invalid_manifest_returns_2(
+    tmp_path: Path, capsys: pytest.CaptureFixture
+) -> None:
+    parser = cli.build_parser()
+    args = parser.parse_args(
+        ["fleet", "--config", str(tmp_path / "does-not-exist.yaml")]
+    )
+
+    exit_code = cli._cmd_fleet(args)  # noqa: SLF001
+
+    assert exit_code == 2
+    assert "not found" in capsys.readouterr().out
+
+
+def test_cmd_fleet_rejects_more_than_one_site(
+    tmp_path: Path, capsys: pytest.CaptureFixture
+) -> None:
+    manifest = _write_manifest(
+        tmp_path,
+        "sites:\n"
+        "  - repo: https://github.com/acme/one.git\n"
+        "  - repo: https://github.com/acme/two.git\n",
+    )
+    parser = cli.build_parser()
+    args = parser.parse_args(["fleet", "--config", str(manifest)])
+
+    exit_code = cli._cmd_fleet(args)  # noqa: SLF001
+
+    assert exit_code == 2
+    assert "one site per invocation" in capsys.readouterr().out
+
+
+def test_cmd_fleet_live_without_token_fails_fast_and_does_not_run(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture
+) -> None:
+    monkeypatch.setenv("ACME_GITHUB_TOKEN", "")
+    fake_acmd_run = AsyncMock(return_value=0)
+    monkeypatch.setattr(cli, "_acmd_run", fake_acmd_run)
+
+    manifest = _write_manifest(
+        tmp_path,
+        "sites:\n"
+        "  - repo: https://github.com/acme/one.git\n"
+        "    github_token_env: ACME_GITHUB_TOKEN\n",
+    )
+    parser = cli.build_parser()
+    args = parser.parse_args(["fleet", "--config", str(manifest)])
+
+    exit_code = cli._cmd_fleet(args)  # noqa: SLF001
+
+    assert exit_code == 2
+    out = capsys.readouterr().out
+    assert "ACME_GITHUB_TOKEN" in out
+    assert "--dry-run" in out
+    fake_acmd_run.assert_not_called()
+
+
+def test_cmd_fleet_dry_run_does_not_require_a_token(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("ACME_GITHUB_TOKEN", "")
+    fake_acmd_run = AsyncMock(return_value=0)
+    monkeypatch.setattr(cli, "_acmd_run", fake_acmd_run)
+
+    manifest = _write_manifest(
+        tmp_path,
+        "sites:\n"
+        "  - repo: https://github.com/acme/one.git\n"
+        "    github_token_env: ACME_GITHUB_TOKEN\n",
+    )
+    parser = cli.build_parser()
+    args = parser.parse_args(["fleet", "--config", str(manifest), "--dry-run"])
+
+    exit_code = cli._cmd_fleet(args)  # noqa: SLF001
+
+    assert exit_code == 0
+    fake_acmd_run.assert_called_once()
+    called_ns = fake_acmd_run.call_args[0][0]
+    assert called_ns.live is False
+
+
+def test_cmd_fleet_live_success_builds_expected_namespace_and_restores_token(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture
+) -> None:
+    """A live fleet run: prints the LIVE banner, temporarily exports the
+    site's token as GITHUB_TOKEN for the duration of `_acmd_run` only, and
+    calls `_acmd_run` with a Namespace equivalent to what `run --repo <repo>
+    --url <url> --live --yes` would produce.
+    """
+    monkeypatch.setenv("ACME_GITHUB_TOKEN", "secret-token-value")
+    monkeypatch.setenv("GITHUB_TOKEN", "previous-unrelated-token")
+
+    observed_token_during_run: list[str | None] = []
+
+    async def _fake_acmd_run(ns: object) -> int:
+        observed_token_during_run.append(os.environ.get("GITHUB_TOKEN"))
+        return 0
+
+    monkeypatch.setattr(cli, "_acmd_run", _fake_acmd_run)
+
+    manifest = _write_manifest(
+        tmp_path,
+        "sites:\n"
+        "  - repo: https://github.com/acme/one.git\n"
+        "    url: https://one.acme.com\n"
+        "    site_id: acme-one\n"
+        "    github_token_env: ACME_GITHUB_TOKEN\n",
+    )
+    parser = cli.build_parser()
+    args = parser.parse_args(["fleet", "--config", str(manifest)])
+
+    exit_code = cli._cmd_fleet(args)  # noqa: SLF001
+
+    assert exit_code == 0
+    assert "LIVE: acme-one -> https://github.com/acme/one.git" in capsys.readouterr().out
+    assert observed_token_during_run == ["secret-token-value"]
+    # The site's real token must never leak into the process env after the
+    # run - GITHUB_TOKEN must be restored to whatever it was before.
+    assert os.environ["GITHUB_TOKEN"] == "previous-unrelated-token"
+
+
+def test_cmd_fleet_passes_repo_and_url_through_to_acmd_run(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("GITHUB_TOKEN", "tok")
+    captured: list[object] = []
+
+    async def _fake_acmd_run(ns: object) -> int:
+        captured.append(ns)
+        return 0
+
+    monkeypatch.setattr(cli, "_acmd_run", _fake_acmd_run)
+
+    manifest = _write_manifest(
+        tmp_path,
+        "sites:\n"
+        "  - repo: https://github.com/acme/one.git\n"
+        "    url: https://one.acme.com\n",
+    )
+    parser = cli.build_parser()
+    args = parser.parse_args(["fleet", "--config", str(manifest)])
+
+    exit_code = cli._cmd_fleet(args)  # noqa: SLF001
+
+    assert exit_code == 0
+    assert len(captured) == 1
+    ns = captured[0]
+    assert ns.repo == "https://github.com/acme/one.git"
+    assert ns.url == "https://one.acme.com"
+    assert ns.audit is None
+    assert ns.case_ids is None
+    assert ns.live is True
+    assert ns.yes is True
+
+
+def test_cmd_fleet_passes_audit_through_to_acmd_run(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture
+) -> None:
+    """`audit:` in the manifest lets `fleet` replay a saved audit report
+    (mirrors `run --audit`) instead of always crawling `repo`/`url` live -
+    the fast-testing path for a known violation set.
+    """
+    monkeypatch.setenv("GITHUB_TOKEN", "tok")
+    captured: list[object] = []
+
+    async def _fake_acmd_run(ns: object) -> int:
+        captured.append(ns)
+        return 0
+
+    monkeypatch.setattr(cli, "_acmd_run", _fake_acmd_run)
+
+    audit_path = tmp_path / "audit.json"
+    manifest = _write_manifest(
+        tmp_path,
+        "sites:\n"
+        "  - repo: https://github.com/acme/one.git\n"
+        f"    audit: {audit_path}\n",
+    )
+    parser = cli.build_parser()
+    args = parser.parse_args(["fleet", "--config", str(manifest)])
+
+    exit_code = cli._cmd_fleet(args)  # noqa: SLF001
+
+    assert exit_code == 0
+    assert len(captured) == 1
+    ns = captured[0]
+    assert ns.audit == str(audit_path)
+    assert "replaying saved audit report" in capsys.readouterr().out

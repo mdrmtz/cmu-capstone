@@ -42,5 +42,5 @@ async def build() -> SubAgent:
         ),
         system_prompt=SYSTEM_PROMPT,
         tools=tools,
-        skills=[config.to_virtual_path(config.skills_dir() / "a11y-fixer")],
+        skills=[config.to_virtual_path(config.resolve_skill("a11y-fixer"))],
     )

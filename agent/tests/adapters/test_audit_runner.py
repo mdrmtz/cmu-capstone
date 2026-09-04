@@ -219,7 +219,7 @@ def test_run_starts_audits_then_always_stops(runner: AxeAuditRunner, monkeypatch
     monkeypatch.setattr(runner, "audit_pages", failing_audit)
 
     with pytest.raises(AuditRunnerError, match="boom"):
-        runner.run()
+        runner.run(pages=("/",))
 
     assert calls == ["start", "audit", "stop"]
 

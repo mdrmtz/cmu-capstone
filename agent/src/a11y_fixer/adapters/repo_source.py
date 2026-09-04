@@ -17,6 +17,10 @@ _GITHUB_URL_RE = re.compile(
     r"(?P<owner>[^/]+)/(?P<repo>[^/]+?)(?:\.git)?/?$"
 )
 
+# npm install can legitimately take a while on a large/cold dependency tree;
+# generous but bounded so a hung install doesn't hang the whole pipeline.
+NPM_INSTALL_TIMEOUT_SECONDS = 600
+
 
 class RepoSourceError(RuntimeError):
     """Raised when resolving or cloning the target repo fails."""
@@ -33,13 +37,57 @@ def _slug_for(url: str) -> str:
     return re.sub(r"\.git$", "", name) or "repo"
 
 
-def resolve_repo_source(source: str, *, cache_dir: Path) -> Path:
-    """Return a local, checked-out path for `source`.
+def ensure_dependencies_installed(path: Path) -> None:
+    """Run `npm install` in `path` if it's an npm project that isn't
+    installed yet.
 
-    A local directory path is resolved and returned as-is. A git URL is
+    A `git clone` (or a local checkout the caller points us at) only ever
+    fetches source - it never installs dependencies. Without this, every
+    downstream `npx ng build`/`ng serve` call (`html_lang_applier.py`,
+    `audit_runner.py`) fails on a fresh repo with a missing-`node_modules`
+    error that looks unrelated to the real, mundane cause. Runs for BOTH
+    the freshly-cloned path and a caller-supplied local path (and is a
+    no-op on a cache hit whose `node_modules` is already there), so this is
+    the one place that guarantees "downstream tooling can assume the repo
+    is ready to build" regardless of how `resolve_repo_source()` got here.
+
+    Public (no leading underscore) because `cli.py` also calls this
+    directly for the bundled fixture path when no `--repo` override
+    resolved a path itself - see `_apply_repo_override()`.
+    """
+    if not (path / "package.json").is_file():
+        return  # not an npm project - nothing to install
+
+    if (path / "node_modules").is_dir():
+        return  # already installed (repeat run against a cached clone)
+
+    try:
+        result = subprocess.run(  # noqa: S603, S607 - fixed subcommand, path is our own resolved clone/checkout
+            ["npm", "install"],
+            cwd=path,
+            capture_output=True,
+            text=True,
+            timeout=NPM_INSTALL_TIMEOUT_SECONDS,
+            check=False,
+        )
+    except subprocess.TimeoutExpired as exc:
+        msg = f"npm install timed out after {NPM_INSTALL_TIMEOUT_SECONDS}s in {path}"
+        raise RepoSourceError(msg) from exc
+
+    if result.returncode != 0:
+        msg = f"npm install failed in {path} (exit {result.returncode}):\n{result.stderr}"
+        raise RepoSourceError(msg)
+
+
+def resolve_repo_source(source: str, *, cache_dir: Path) -> Path:
+    """Return a local, checked-out, dependency-installed path for `source`.
+
+    A local directory path is resolved and used as-is. A git URL is
     shallow-cloned (`--depth 1`) into `cache_dir`, reusing an existing clone
     at the same URL-derived directory name if one is already present rather
-    than re-cloning on every run.
+    than re-cloning on every run. Either way, before returning, `npm
+    install` is run in the resolved path if it looks like an npm project
+    that hasn't been installed yet (see `ensure_dependencies_installed`).
     """
     stripped = source.strip()
     if not is_url(stripped):
@@ -47,11 +95,13 @@ def resolve_repo_source(source: str, *, cache_dir: Path) -> Path:
         if not path.is_dir():
             msg = f"local repo path does not exist: {path}"
             raise RepoSourceError(msg)
+        ensure_dependencies_installed(path)
         return path
 
     cache_dir.mkdir(parents=True, exist_ok=True)
     target = cache_dir / _slug_for(stripped)
     if target.is_dir():
+        ensure_dependencies_installed(target)
         return target
 
     result = subprocess.run(  # noqa: S603, S607 - fixed subcommand, source is the caller's own --repo argument
@@ -63,6 +113,7 @@ def resolve_repo_source(source: str, *, cache_dir: Path) -> Path:
     if result.returncode != 0:
         msg = f"git clone failed for {stripped!r} (exit {result.returncode}):\n{result.stderr}"
         raise RepoSourceError(msg)
+    ensure_dependencies_installed(target)
     return target
 
 

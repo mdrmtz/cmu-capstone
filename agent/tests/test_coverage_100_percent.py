@@ -336,7 +336,7 @@ class TestBuildParser:
     def test_build_parser_has_audit_subcommand(self) -> None:
         """Test parser has audit subcommand."""
         parser = cli.build_parser()
-        args = parser.parse_args(["audit"])
+        args = parser.parse_args(["audit", "--repo", "/tmp/x"])
         assert args.command == "audit"
 
     def test_build_parser_has_run_subcommand(self) -> None:
@@ -375,7 +375,7 @@ class TestMain:
         mock_cmd = MagicMock(return_value=0)
         monkeypatch.setattr("a11y_fixer.cli._cmd_audit", mock_cmd)
 
-        exit_code = cli.main(["audit"])
+        exit_code = cli.main(["audit", "--repo", "/tmp/x"])
         assert exit_code == 0
         mock_cmd.assert_called_once()
 
@@ -390,7 +390,7 @@ class TestMain:
 
     def test_main_no_argv_uses_sys_argv(self) -> None:
         """Test main() uses sys.argv when argv is None."""
-        with patch("sys.argv", ["prog", "audit"]):
+        with patch("sys.argv", ["prog", "audit", "--repo", "/tmp/x"]):
             with patch("a11y_fixer.cli._cmd_audit", return_value=0):
                 exit_code = cli.main(None)
                 assert exit_code == 0
@@ -398,7 +398,7 @@ class TestMain:
     def test_main_returns_exit_code(self, monkeypatch: pytest.MonkeyPatch) -> None:
         """Test main() returns the subcommand's exit code."""
         monkeypatch.setattr("a11y_fixer.cli._cmd_audit", MagicMock(return_value=42))
-        exit_code = cli.main(["audit"])
+        exit_code = cli.main(["audit", "--repo", "/tmp/x"])
         assert exit_code == 42
 
 
