@@ -202,8 +202,8 @@ def abuild_graph(
         system_prompt=TOP_LEVEL_SYSTEM_PROMPT,
         subagents=all_subagents,
         skills=[
-            config.to_virtual_path(config.skills_dir() / "a11y-fixer"),
-            config.to_virtual_path(config.skills_dir() / "cmu-capstone-docs"),
+            config.to_virtual_path(config.resolve_skill("a11y-fixer")),
+            config.to_virtual_path(config.resolve_skill("cmu-capstone-docs")),
         ],
         memory=[
             config.to_virtual_path(wiki_pipeline.memory_file_path(config.wiki_dir()))

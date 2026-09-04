@@ -8,7 +8,9 @@ the same code runs unmodified in local dev and CI.
 
 from __future__ import annotations
 
+import importlib.resources
 import os
+import shutil
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -18,7 +20,13 @@ load_dotenv(find_dotenv(usecwd=True))
 
 FIXTURE_DIR_NAME = "Hallucinate.io"
 
-# Repo layout is fixed: agent/src/a11y_fixer/config.py -> parents[3] == cmu-capstone/.
+# Repo layout is fixed *when running from the dev checkout*: agent/src/
+# a11y_fixer/config.py -> parents[3] == cmu-capstone/, parents[2] == agent/.
+# A real `pip install a11y-fixer` (wheel installed into some other
+# environment's site-packages, no cmu-capstone checkout nearby) breaks this
+# arithmetic - see `_is_dev_checkout()` and `workspace_root()` below, which
+# give every path helper a correct fallback instead of silently resolving
+# to a meaningless directory.
 _REPO_ROOT = Path(__file__).resolve().parents[3]
 
 _DEFAULT_MODELS = {
@@ -29,14 +37,61 @@ _DEFAULT_MODELS = {
 }
 
 
+def _is_dev_checkout() -> bool:
+    """True iff this file is running from inside the real source checkout.
+
+    Checks for `agent/pyproject.toml` two levels up from this file (`agent/
+    src/a11y_fixer/config.py` -> parents[2] == `agent/`). True for a plain
+    checkout and an editable install (`pip install -e .` leaves the file at
+    its real repo location, so `Path(__file__).resolve()` still finds it
+    there). False for a real wheel install, where this file lands directly
+    under some environment's `site-packages/a11y_fixer/` with no
+    `pyproject.toml` anywhere nearby. Deliberately not keyed on a sibling
+    like `.agents/skills` or `Hallucinate.io` - those can be legitimately
+    absent even in a valid checkout (e.g. a submodule not yet initialized).
+    """
+    return (Path(__file__).resolve().parents[2] / "pyproject.toml").is_file()
+
+
+def workspace_root() -> Path:
+    """Where a standalone (non-dev-checkout) install keeps its state.
+
+    Only consulted by `repo_root()`/`agent_root()` when `_is_dev_checkout()`
+    is False. Override with `A11Y_HOME` (same pattern as the existing
+    `A11Y_FIXTURE_PATH`); otherwise defaults to `./.a11y-fixer` under
+    wherever the CLI is invoked from - mirrors how tools like git/terraform
+    keep their own state relative to the invocation directory rather than
+    scattering files directly into the user's project.
+    """
+    override = os.environ.get("A11Y_HOME")
+    if override:
+        return Path(override).resolve()
+    return Path.cwd() / ".a11y-fixer"
+
+
 def repo_root() -> Path:
-    """The cmu-capstone repo root (parent of both agent/ and Hallucinate.io/)."""
-    return _REPO_ROOT
+    """The dev checkout's repo root (parent of both agent/ and Hallucinate.
+    io/) - or, outside the dev checkout, the standalone workspace root.
+
+    This is also the deep agent's `FilesystemBackend` sandbox root (see
+    `to_virtual_path()`), so it must be a real, existing-or-creatable
+    directory that contains everything the agent needs to see.
+    """
+    if _is_dev_checkout():
+        return _REPO_ROOT
+    return workspace_root()
 
 
 def agent_root() -> Path:
-    """The agent/ package root (parent of src/)."""
-    return Path(__file__).resolve().parents[2]
+    """The agent/ package root (parent of src/) in the dev checkout - or,
+    outside the dev checkout, the standalone workspace root.
+
+    In the dev tree `agent/` is a subfolder of `repo_root()`; a standalone
+    install has no such split, so both collapse onto one workspace.
+    """
+    if _is_dev_checkout():
+        return Path(__file__).resolve().parents[2]
+    return workspace_root()
 
 
 def fixture_path() -> Path:
@@ -67,8 +122,50 @@ def repo_cache_dir() -> Path:
 
 
 def skills_dir() -> Path:
-    """The `.agents/skills/` directory (cmu-capstone root, shared across the project)."""
+    """The `.agents/skills/` directory (cmu-capstone root, shared across the project).
+
+    Dev-checkout only - see `resolve_skill()` for the function actual call
+    sites should use, which also works in a standalone install.
+    """
     return repo_root() / ".agents" / "skills"
+
+
+def resolve_skill(name: str) -> Path:
+    """Resolve a real, on-disk skill directory usable as a `create_deep_
+    agent(skills=[...])` source, in both the dev checkout and a standalone
+    install.
+
+    In the dev checkout this is a pure passthrough to `skills_dir() / name`
+    - unchanged behavior, since `deepagents`' `SkillsMiddleware` reads skill
+    content exclusively through the `FilesystemBackend` rooted at `repo_
+    root()`, and in dev mode that's still `.agents/skills/<name>` same as
+    always.
+
+    Outside the dev checkout, `repo_root()` becomes `workspace_root()`
+    instead - a directory with no skill content in it at all, since none of
+    `agent/src/a11y_fixer/skills/<name>/` (the copy bundled into the
+    installed package as package data) lives under it. So this materializes
+    the bundled copy into `workspace_root() / ".skills" / name` (copying it
+    fresh each call to stay in sync with whatever package version is
+    installed - these are read-only reference files, never user-edited at
+    the destination, so there's no "preserve local edits" concern) and
+    returns that path, which *is* reachable under the sandbox root.
+    """
+    if _is_dev_checkout():
+        return skills_dir() / name
+
+    dest = workspace_root() / ".skills" / name
+    with importlib.resources.as_file(
+        importlib.resources.files("a11y_fixer") / "skills" / name
+    ) as bundled:
+        if not bundled.is_dir():
+            msg = f"no bundled skill named {name!r} (expected {bundled})"
+            raise FileNotFoundError(msg)
+        if dest.exists():
+            shutil.rmtree(dest)
+        dest.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copytree(bundled, dest)
+    return dest
 
 
 def to_virtual_path(path: Path) -> str:

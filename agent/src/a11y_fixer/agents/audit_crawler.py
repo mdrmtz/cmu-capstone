@@ -68,7 +68,7 @@ async def build(model: str = DEFAULT_CRAWLER_MODEL) -> SubAgent:
         description="Crawls the running app via Playwright MCP to discover routes dynamically for the axe-core audit.",
         system_prompt=SYSTEM_PROMPT,
         tools=tools,
-        skills=[config.to_virtual_path(config.skills_dir() / "playwright-mcp")],
+        skills=[config.to_virtual_path(config.resolve_skill("playwright-mcp"))],
         model=model,
     )
 
@@ -104,7 +104,7 @@ async def discover_routes(
             model=model,
             tools=tools,
             system_prompt=SYSTEM_PROMPT,
-            skills=[config.to_virtual_path(config.skills_dir() / "playwright-mcp")],
+            skills=[config.to_virtual_path(config.resolve_skill("playwright-mcp"))],
             response_format=ToolStrategy(schema=DiscoveredRoutes),
             checkpointer=InMemorySaver(),
         )
