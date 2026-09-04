@@ -41,9 +41,20 @@ jobs:
       # https://github.com/mdrmtz/dashboard-app) - it must be checked out
       # explicitly, otherwise the directory is empty and later steps
       # (npm cache lookup, npm ci, npm run build) fail.
+      #
+      # NOTE: we intentionally do not use `submodules: true` here. This repo
+      # also references Hallucinate.io as a dynamic submodule that is not
+      # (and should not be) pinned in .gitmodules - it can point at a
+      # different repo/ref at different times and is managed outside of
+      # git's submodule mechanism. `submodules: true` would try to
+      # `git submodule update --init` it too and fail with "No url found for
+      # submodule path 'Hallucinate.io' in .gitmodules". Instead, init only
+      # the submodule this job actually needs.
       - uses: actions/checkout@v4
-        with:
-          submodules: true
+
+      - name: Checkout dashboard-app submodule
+        working-directory: .
+        run: git submodule update --init --depth=1 -- dashboard-app
 
       - uses: actions/setup-node@v4
         with:
