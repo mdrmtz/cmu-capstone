@@ -1,0 +1,8 @@
+....                                                                     [100%]
+=============================== warnings summary ===============================
+tests/e2e/test_deep_agent_e2e.py::test_build_agent_compiles_the_full_graph
+  /Users/dks0721706/dev/cmu-agentic-ai-program-2026/cmu-capstone/agent/src/a11y_fixer/agents/codebase_compiler.py:89: LangChainBetaWarning: The middleware `RubricMiddleware` is in beta. It is actively being worked on, so the API may change.
+    middleware=[RubricMiddleware(model=model, system_prompt=RUBRIC_SYSTEM_PROMPT, max_iterations=3)],
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+4 passed, 1 warning in 10.06s

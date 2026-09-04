@@ -1,0 +1,19 @@
+
+> hallucinate-io@0.0.0 build
+> ng build
+
+❯ Building...
+✔ Building...
+Initial chunk files | Names         |  Raw size | Estimated transfer size
+main-3EST2E5B.js    | main          | 211.91 kB |                57.74 kB
+styles-5INURTSO.css | styles        |   0 bytes |                 0 bytes
+
+                    | Initial total | 211.91 kB |                57.74 kB
+
+Application bundle generation complete. [2.010 seconds] - 2026-08-31T17:39:24.634Z
+
+Output location: /private/tmp/hallucinate-smoke/dist/hallucinate-io
+
+real 3.35
+user 3.93
+sys 1.78

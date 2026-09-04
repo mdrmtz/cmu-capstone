@@ -1,0 +1,9 @@
+........................................................................ [ 61%]
+..............................................                           [100%]
+=============================== warnings summary ===============================
+tests/agents/test_subagents.py::test_codebase_compiler_spec_permission_ordering
+  /Users/dks0721706/dev/cmu-agentic-ai-program-2026/cmu-capstone/agent/src/a11y_fixer/agents/codebase_compiler.py:89: LangChainBetaWarning: The middleware `RubricMiddleware` is in beta. It is actively being worked on, so the API may change.
+    middleware=[RubricMiddleware(model=model, system_prompt=RUBRIC_SYSTEM_PROMPT, max_iterations=3)],
+
+-- Docs: https://docs.pytest.org/en/stable/how-to/capture-warnings.html
+118 passed, 4 deselected, 1 warning in 4.63s

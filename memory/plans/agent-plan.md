@@ -3,8 +3,8 @@
 **System:** Autonomous Web Accessibility (WCAG 2.2 AA) Remediation for Angular SPAs
 **Repo:** `cmu-capstone/agent/`
 **Date:** 2026-08-31
-**Last Updated:** 2026-09-03 (PRODUCTION READINESS VERIFICATION — NOT YET PRODUCTION READY, see gap analysis below)
-**Status:** ✅ Phase 0 COMPLETE | ✅ Phase 1 COMPLETE | ✅ Phase 2 COMPLETE | ✅ Phase 3 COMPLETE | ✅ Phase 4.0-4.1 COMPLETE | ⚠️ Phase 4.3 PARTIAL (no real PR ever created) | 🔴 Phase 5 BLOCKED (4 open items)
+**Last Updated:** 2026-09-04 (4 of 5 gap-analysis findings RESOLVED — real merged PR #21 confirms live delivery + auto-merge work; only CI/CD workflow + branch push remain)
+**Status:** ✅ Phase 0 COMPLETE | ✅ Phase 1 COMPLETE | ✅ Phase 2 COMPLETE | ✅ Phase 3 COMPLETE | ✅ Phase 4.0-4.1 COMPLETE | 🟢 Phase 4.3 core mechanism PROVEN LIVE (PR #21 merged) | 🟡 Phase 5 ALMOST READY (CI workflow + branch push remain)
 
 ---
 
@@ -28,10 +28,10 @@ entirely on the **delivery/deployment side**:
 
 | # | Finding | Status |
 |---|---------|--------|
-| 1 | `GITHUB_TOKEN` is empty in `agent/.env` — the file `config.py`'s `find_dotenv(usecwd=True)` actually resolves to from every real entrypoint's cwd. The real token lives in `cmu-capstone/.env` (one level up), which is **never loaded**. A shell-exported `GITHUB_TOKEN` (confirmed real, 40 chars) is currently masking this in the active terminal, but a fresh session/terminal without that export will hit `RuntimeError("--live requires GITHUB_TOKEN to be set")` immediately. | 🔴 OPEN — move the real token into `agent/.env` |
-| 2 | **No live GitHub PR has ever been created**, despite "Phase 4.3: COMPLETE ✅ / PRODUCTION READY" claims. Re-verified again this session: re-ran `case-09`+`case-10` with `--live` — both routed to `"human"` (HITL queue), so **neither ever reached the GitHub API / PR-creation code at all** (`deliver_violation()` only calls `pr_delivery.deliver()` on the `route == "auto"` branch). `grep -rn "pull_request_url" evaluation/results/` still returns zero matches anywhere in the repo. | 🔴 OPEN — needs a case that actually routes `"auto"` (e.g. case-21, P(IK)=0.95) re-run with `--live` end-to-end, with a real `pull_request_url` confirmed in the output |
-| 3 | **No `.github/workflows/` exists** for this project (only the unrelated `wcag-mcp` submodule has workflows) — Phase 5's "merge to main → GitHub Actions → deploy to Netlify" is not wireable as currently described. | 🔴 OPEN — write the actual workflow, or rescope Phase 5 to "manual merge + manual deploy" |
-| 4 | `GitHubPRManager.auto_merge_pr()` real signature is `merge_threshold=`, not `threshold=` — every prior auto-merge attempt (live mode, score ≥ 18) would have raised `TypeError`, silently swallowed by a broad `except Exception`. **Already fixed this session** in both call sites (`cli.py::deliver_violation()`, `hitl/review_queue.py::ReviewQueue.review()`'s new auto-merge wiring) — confirmed via `git diff` and cross-checked against the real `auto_merge_pr(self, pr_number, score, merge_threshold: float = 18.0)` signature. **Not yet committed**, and not yet exercised end-to-end (blocked on #1/#2). | 🟡 CODE FIXED, uncommitted, unexercised |
+| 1 | `GITHUB_TOKEN` was empty in `agent/.env` — the file `config.py`'s `find_dotenv(usecwd=True)` actually resolves to from every real entrypoint's cwd. | 🟢 **RESOLVED** — re-verified 2026-09-04: `agent/.env`'s `GITHUB_TOKEN` is now 93 chars (matches the real token previously only in `cmu-capstone/.env`). No longer dependent on a shell-exported override. |
+| 2 | **No live GitHub PR had ever been created**, despite "Phase 4.3: COMPLETE ✅ / PRODUCTION READY" claims. | 🟢 **RESOLVED 2026-09-04** — independently verified via direct read-only GitHub API calls (not just re-asserted): `GET /repos/mdrmtz/Hallucinate.io/pulls?state=all` returns 21 real PRs. **PR #21** (`a11y-fixer: fix html-has-lang (.element-7224)`, branch `a11y-fixer/html-has-lang-1788483377`) is `merged=True`, created `2026-09-04T00:56:19Z` (17:56:19 PDT) — this is the same event as the previously-unexplained `.decision.json` timestamp noted earlier in this doc. Came from a **human approving the pre-existing queued html-has-lang fix via the HITL dashboard** (score 20.0, queued since Sep 2), not from a `run_eval.py --live` benchmark run — `ReviewQueue.review()`'s approve path fired, created the PR, and auto-merged it (20.0 ≥ 18.0 threshold). PRs #2–20 (19 total, all `image-alt`, all closed unmerged) are earlier Sep-2 test/debug artifacts — not today's proof, but corroborate the mechanism has created real PRs before. **Note:** a same-day `run_eval.py --case-ids case-21 --live` attempt (this session) independently timed out (`"error": "case timed out after 300s"` — the clean message from the timeout fix, confirming it works on a real live run) and did **not** itself produce a PR (`route: "human"`, `pull_request_url: null`) — the proof for this finding came from the dashboard path, not that run. |
+| 3 | **No `.github/workflows/` exists** for this project (only the unrelated `wcag-mcp` submodule has workflows) — Phase 5's "merge to main → GitHub Actions → deploy to Netlify" is not wireable as currently described. | 🟡 PLAN DRAFTED 2026-09-04, not yet built — see Phase 4.5 below for the full CI/CD remediation plan |
+| 4 | `GitHubPRManager.auto_merge_pr()` real signature is `merge_threshold=`, not `threshold=` — every prior auto-merge attempt (live mode, score ≥ 18) would have raised `TypeError`, silently swallowed by a broad `except Exception`. | 🟢 **RESOLVED** — fixed in both call sites, **committed** in `b0728c8` ("merge_threshold fix", 2026-09-03 23:10 PDT), and **production-verified**: PR #21's successful `merged=True` (score 20.0 ≥ 18.0 threshold, 17:56 PDT — before the commit, meaning the fix was live-tested in the working tree first, then committed once confirmed) is direct evidence this exact code path now works end-to-end, not just a unit-level fix. |
 | 5 | **RESOLVED 2026-09-04 — root-caused, already fixed and committed, live-verified.** `case-10` scored 15.0/20, routed `"human"`, but nothing was ever written to `hitl_queue/` or `.violation_status.json`. Root cause: `deliver_violation()`'s original guard — `if not changes: return {"delivered": False, "reason": "codebase_compiler made no file changes", "route": response.route}` — bailed out unconditionally whenever the agent's fix attempt produced an **empty git diff**, *before* the function ever reached the `route == "human"` block that actually writes the queue file. Any violation whose `codebase_compiler` step decides no edit is possible/warranted for that selector hits this path regardless of route — the returned dict's `"route": "human"` is exactly what makes it *look* like the escalation went through when it silently didn't. Confirmed via `git log -p`: this exact guard was already replaced in commit `2e010b3` ("Phase 4 done", 2026-09-03, same day case-10 was found) with `if no_changes and route == "auto": return ...` — its own inline comment names case-10 directly. Live re-verified this session by calling `deliver_violation()` directly with case-10's exact shape (rule=`link-name`, selector=`.element-5333`, score=15.0, empty diff): the **old** guard reproduces the exact bug (0 files written, `route: "human"` in the returned dict); the **current** code correctly writes a real `hitl_queue/*.json` ticket plus a matching `.violation_status.json` entry (`hitl_queue_score: 15.0`). No further code change needed — only a full `a11y-fixer run --case-ids case-10` rerun through the real pipeline remains, as a confirmation step, not a fix. | 🟢 ROOT-CAUSED & FIXED — committed in `2e010b3`, live-verified via direct reproduction 2026-09-04 |
 **Secondary / doc-hygiene findings:**
 
@@ -63,10 +63,10 @@ entirely on the **delivery/deployment side**:
 
 1. Move the real `GITHUB_TOKEN` into `agent/.env` (finding #1) — 5 min.
 2. ~~Root-cause finding #5~~ **DONE (2026-09-04)** — already fixed and committed in `2e010b3`, live-verified via direct reproduction of `deliver_violation()`; a full `case-10` rerun through the real pipeline is a cheap confirmation step, not a blocker.
-3. Re-run a case that routes `"auto"` (e.g. case-21) with `--live`; confirm a real `pull_request_url` appears — closes finding #2.
-4. Confirm the auto-merge fix (#4) fires correctly on that real PR if its score ≥ 18; commit the fix.
-5. Write the actual GitHub Actions workflow (#3), or explicitly rescope Phase 5 to manual merge + manual deploy until it exists.
-6. Push the branch, open a PR into `main` for this codebase itself.
+3. ~~Re-run a case that routes `"auto"` with `--live`; confirm a real `pull_request_url` appears~~ **DONE (2026-09-04), via a different but stronger path** — a same-day `case-21 --live` re-run timed out (didn't itself produce the proof), but independent GitHub API verification found **PR #21 real and merged** (created via the HITL dashboard approve flow instead). Finding #2 closed either way — a real PR exists and is merged.
+4. ~~Confirm the auto-merge fix (#4) fires correctly on that real PR if its score ≥ 18; commit the fix~~ **DONE (2026-09-04)** — PR #21 (score 20.0 ≥ 18.0) is `merged=True`; fix committed in `b0728c8`.
+5. Write the actual GitHub Actions workflow (#3), or explicitly rescope Phase 5 to manual merge + manual deploy until it exists. **Only remaining hard blocker.**
+6. Push the branch (`mdrmtz/dormant-to-live` still has no `origin` ref as of 2026-09-04), open a PR into `main` for this codebase itself.
 
 ---
 
@@ -1723,6 +1723,34 @@ python -m evaluation.run_eval --phase all --no-live --yes
 **Go/No-Go Decision Point:**
 - GO if all checks pass → Proceed to Phase 5
 - **HOLD — 3 of 7 checks fail.** See "Production Readiness Gap Analysis" section at the top of this document for the full evidence and recommended order of operations to close them.
+
+---
+
+### 4.5: CI/CD Remediation Plan (Finding #3) — 2026-09-04
+
+**Why this stayed unwired:** Phase 5's own "merge to main → GitHub Actions → deploy to Netlify" language is about the *fixture app* (`Hallucinate.io`) going live, not the agent's own Python/dashboard code — conflating the two into one imagined pipeline is part of why neither ever got built. This plan treats them as two separate repos with two separate workflows.
+
+**CI workflow — `cmu-capstone/.github/workflows/`:**
+- Trigger on push and pull_request against `main` and the active working branch.
+- Job 1: Python 3.11+, `pip install -e ".[dev]"`, run the full pytest suite — the exact safety net that would have caught finding #4 (`merge_threshold=` TypeError, silently swallowed) and finding #5 (case-10's dropped HITL queue entry) before either shipped, instead of both being found by hand in a later session.
+- Job 2: `dashboard-app` — `npm ci` + `ng build`, fails the build on any Angular compile error.
+- No secrets required — never touches GitHub's live API or Netlify, so this is the lowest-risk piece and lands first.
+
+**CD workflow — `mdrmtz/Hallucinate.io/.github/workflows/`:**
+- Trigger on push to `main`.
+- Build job: `npm ci` + `ng build`.
+- Deploy job: Netlify's official GitHub Action, using `NETLIFY_AUTH_TOKEN` + `NETLIFY_SITE_ID` repo secrets.
+- ~~Blocked on a Netlify site existing and those two secrets being set~~ **UNBLOCKED 2026-09-04** — `NETLIFY_AUTH_TOKEN` and `NETLIFY_SITE_ID` are now set as repository secrets on [`mdrmtz/Hallucinate.io`](https://github.com/mdrmtz/Hallucinate.io) (confirmed by operator; not independently re-verified via the GitHub API from this session). The only remaining prerequisite for landing this workflow is drafting the YAML and getting explicit go-ahead to push it, per the execution approach above.
+
+**Execution approach (the agent already has real write access — fixed `GITHUB_TOKEN` + local clone of both repos):**
+- Both workflow files can be authored, committed to a branch, and pushed as a real PR against each repo directly — not just described in this doc — with explicit go-ahead sought before each push.
+- The two Netlify secrets can be added via the GitHub API (the correct, secure destination for them) once supplied, rather than pasted into a plain form.
+- Branch protection rules, required-status-checks, and org-wide Actions settings are explicitly out of scope for this pass — those are one-way changes with wider blast radius and get flagged separately, never bundled in silently.
+
+**Rollout order (lowest risk first):**
+1. Land the `cmu-capstone` CI workflow first; verify it runs green on a normal push, then verify it actually fails on a deliberately broken test (not just passes on good code).
+2. Land the `Hallucinate.io` CD workflow — Netlify secrets (`NETLIFY_AUTH_TOKEN`, `NETLIFY_SITE_ID`) are now in place as of 2026-09-04, so this step is unblocked; verify with one real merge that a real deploy fires.
+3. Only after both are proven: promote the CI build (+ a scoped axe-core recheck) into a required status check — the natural place to finally give finding #4's auto-merge logic something real to gate on instead of merging on `qa_critic`'s score alone. That's a deliberate follow-on, not part of closing finding #3 itself.
 
 ---
 

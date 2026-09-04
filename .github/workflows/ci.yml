@@ -1,0 +1,49 @@
+name: CI
+
+# mdrmtz/dormant-to-live is the current active working branch - remove it
+# from these lists once merged to main.
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  test-agent:
+    name: Agent test suite (pytest)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: agent
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+          cache-dependency-path: agent/pyproject.toml
+
+      - run: pip install -e ".[dev]"
+
+      # e2e tests (git/npm/docker-dependent) are excluded by pyproject.toml's
+      # own `addopts = "-m 'not e2e'"` - this runs the same fast suite as local dev.
+      - run: pytest
+
+  build-dashboard-app:
+    name: dashboard-app build (Angular SSR)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: dashboard-app
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: dashboard-app/package-lock.json
+
+      - run: npm ci
+      - run: npm run build

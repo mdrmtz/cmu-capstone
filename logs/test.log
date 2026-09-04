@@ -1,0 +1,8 @@
+
+> hallucinate-io@0.0.0 test
+> ng test --run
+
+Error: Unknown argument: run
+real 0.56
+user 0.21
+sys 0.10

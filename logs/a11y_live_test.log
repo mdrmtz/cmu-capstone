@@ -1,0 +1,34 @@
+chrome-devtools-mcp exposes content of the browser instance to the MCP clients allowing them to inspect,
+debug, and modify any data in the browser or DevTools.
+Avoid sharing sensitive or personal information that you do not want to share with MCP clients.
+Performance tools may send trace URLs to the Google CrUX API to fetch real-user experience data. To disable, run with --no-performance-crux.
+
+Google collects usage statistics to improve Chrome DevTools MCP. To opt-out, run with --no-usage-statistics.
+For more details, visit: https://github.com/ChromeDevTools/chrome-devtools-mcp#usage-statistics
+[chrome-devtools-mcp] The connecting client did not negotiate the MCP roots capability. File-writing tools will be restricted to the OS temp directory. To restore the previous unrestricted behavior, start the server with --allow-unrestricted-paths.
+/Users/dks0721706/dev/cmu-agentic-ai-program-2026/cmu-capstone/agent/src/a11y_fixer/agents/codebase_compiler.py:156: LangChainBetaWarning: The middleware `RubricMiddleware` is in beta. It is actively being worked on, so the API may change.
+  RubricMiddleware(
+chrome-devtools-mcp exposes content of the browser instance to the MCP clients allowing them to inspect,
+debug, and modify any data in the browser or DevTools.
+Avoid sharing sensitive or personal information that you do not want to share with MCP clients.
+Performance tools may send trace URLs to the Google CrUX API to fetch real-user experience data. To disable, run with --no-performance-crux.
+
+Google collects usage statistics to improve Chrome DevTools MCP. To opt-out, run with --no-usage-statistics.
+For more details, visit: https://github.com/ChromeDevTools/chrome-devtools-mcp#usage-statistics
+[chrome-devtools-mcp] The connecting client did not negotiate the MCP roots capability. File-writing tools will be restricted to the OS temp directory. To restore the previous unrestricted behavior, start the server with --allow-unrestricted-paths.
+target repo: /Users/dks0721706/dev/cmu-agentic-ai-program-2026/cmu-capstone/agent/.repo-cache/Hallucinate.io
+🎯 [HTML-LANG] c8f6abec9eba: Fast-track html-has-lang fix
+  ⚠️  Fast-track failed: Fix had no effect: '<html>' not found in src/index.html (already fixed or different format?)
+  🔄 Falling back to full pipeline...
+▶️  Processing c8f6abec9eba: CREATE
+[html-has-lang] {'delivered': False, 'queue_path': '/Users/dks0721706/dev/cmu-agentic-ai-program-2026/cmu-capstone/agent/hitl_queue/1788359902772951000-html-has-lang-html.json', 'route': 'human', 'queue_action': 'ADD'}
+
+==================================================
+=== Phase 0.2 Violation Tracking Metrics ===
+Total violations in audit: 1
+Skipped (duplicates prevented): 0
+Created (new violations): 1
+Replaced (better solution): 0
+Failed to resolve: 0
+==================================================
+
