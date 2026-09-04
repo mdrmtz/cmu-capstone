@@ -7,9 +7,12 @@ interrupts (every `write_file`/`edit_file` pauses for approval - see
 dry-run diff, per `--live`/`--no-live`) and queues `route: "human"` results
 for review.
 
-Both subcommands accept `--repo <path-or-url>` to point at any Angular repo
-instead of the bundled Hallucinate.io fixture - a local path is used as-is,
-a git URL is shallow-cloned into `config.repo_cache_dir()`.
+Both subcommands require an explicit target - `--repo <path-or-url>` points
+at any Angular repo to audit/fix (a local path is used as-is, a git URL is
+shallow-cloned into `config.repo_cache_dir()`); `--url` audits a live site
+directly; `run` also accepts `--audit <path>` alone to replay a saved
+report. There is no implicit default target - the bundled Hallucinate.io
+fixture must be pointed at explicitly like any other repo.
 """
 
 from __future__ import annotations
@@ -33,7 +36,11 @@ from a11y_fixer import config
 from a11y_fixer.adapters.audit_runner import AxeAuditRunner, flatten_violation_instances
 from a11y_fixer.adapters.pr import delivery as pr_delivery
 from a11y_fixer.adapters.pr.github_pr_manager import GitHubPRManager
-from a11y_fixer.adapters.repo_source import derive_github_repo, resolve_repo_source
+from a11y_fixer.adapters.repo_source import (
+    derive_github_repo,
+    ensure_dependencies_installed,
+    resolve_repo_source,
+)
 from a11y_fixer.fleet_config import FleetManifestError, load_manifest
 from a11y_fixer.adapters.violation_store import (
     PrePipelineGate,
@@ -85,6 +92,13 @@ def _apply_repo_override(repo_arg: str | None) -> None:
     Leaves `GITHUB_REPO` untouched when nothing github.com-shaped can be
     derived (e.g. a non-GitHub remote, or a local path with no `origin`),
     rather than clearing a value that may still be valid.
+
+    Also runs `ensure_dependencies_installed()` on whatever `config.
+    fixture_path()` resolves to even when `repo_arg` is falsy - previously
+    only the `--repo`-resolved path got dependency-install coverage, so the
+    bundled fixture path itself had no such guarantee if it were ever
+    missing `node_modules` (e.g. a fresh checkout of this repo before the
+    fixture's own deps had been installed).
     """
     if repo_arg:
         resolved = resolve_repo_source(repo_arg, cache_dir=config.repo_cache_dir())
@@ -99,10 +113,20 @@ def _apply_repo_override(repo_arg: str | None) -> None:
                 "target GitHub repo: could not derive from --repo "
                 f"(GITHUB_REPO stays {os.environ.get('GITHUB_REPO') or 'unset'})"
             )
+    else:
+        ensure_dependencies_installed(config.fixture_path())
     print(f"target repo: {config.fixture_path()}")  # noqa: T201
 
 
 def _cmd_audit(args: argparse.Namespace) -> int:
+    if not (args.repo or args.url):
+        print(  # noqa: T201
+            "one of --repo or --url is required: audit needs an explicit "
+            "target to scan - a local path/git URL via --repo, or a live "
+            "site via --url."
+        )
+        return 2
+
     if args.url:
         report = asyncio.run(_audit_live_url(args.url))
     else:
@@ -112,11 +136,7 @@ def _cmd_audit(args: argparse.Namespace) -> int:
 
         _apply_repo_override(args.repo)
         runner = AxeAuditRunner(fixture_path=config.fixture_path())
-        report = (
-            runner.run()
-            if config.is_default_fixture()
-            else asyncio.run(audit_crawler.discover_and_audit(runner))
-        )
+        report = asyncio.run(audit_crawler.discover_and_audit(runner))
     output_path = config.agent_root() / DEFAULT_AUDIT_OUTPUT
     output_path.parent.mkdir(parents=True, exist_ok=True)
     output_path.write_text(json.dumps(report, indent=2), encoding="utf-8")
@@ -132,7 +152,7 @@ async def _audit_live_url(url: str) -> dict:
     discover real routes at the given live URL and scan them directly.
 
     Falls back to auditing just the one given URL if discovery finds
-    nothing - `DEFAULT_PAGES` is Hallucinate.io-specific and would be wrong
+    nothing - there's no app-agnostic default route list to fall back to
     for an arbitrary external site.
     """
     from a11y_fixer.agents import (
@@ -548,6 +568,16 @@ async def _acmd_run(args: argparse.Namespace) -> int:
         abuild_agent,
     )  # noqa: PLC0415 - deferred: avoid MCP/network cost for --help etc.
 
+    if not (args.repo or args.url or args.audit):
+        # No implicit default target anymore - the caller must say what to
+        # fix: a repo/URL to crawl fresh, or a saved report to replay.
+        print(  # noqa: T201
+            "one of --repo, --url, or --audit is required: run needs an "
+            "explicit target - a repo checkout/URL to fix, a live URL to "
+            "audit (alongside --repo), or a saved audit report to replay."
+        )
+        return 2
+
     if args.url and not args.repo:
         # A live URL alone gives the pipeline nothing to write fixes into
         # and no repo to open PRs against - `audit --url` covers the
@@ -575,8 +605,6 @@ async def _acmd_run(args: argparse.Namespace) -> int:
         # useful when the live app differs from a plain local `ng serve`
         # (SSR output, prod config, etc.) but you still want fixes upstream.
         report = await _audit_live_url(args.url)
-    elif config.is_default_fixture():
-        report = AxeAuditRunner(fixture_path=config.fixture_path()).run()
     else:
         report = await audit_crawler.discover_and_audit(
             AxeAuditRunner(fixture_path=config.fixture_path())
@@ -1156,11 +1184,11 @@ def build_parser() -> argparse.ArgumentParser:
     audit_parser = subparsers.add_parser(
         "audit", help="Run a full axe-core audit against the fixture"
     )
-    audit_target_group = audit_parser.add_mutually_exclusive_group()
+    audit_target_group = audit_parser.add_mutually_exclusive_group(required=True)
     audit_target_group.add_argument(
         "--repo",
         default=None,
-        help="Local path or git URL of the Angular repo to audit (default: the bundled Hallucinate.io fixture)",
+        help="Local path or git URL of the Angular repo to audit (required, unless --url is given)",
     )
     audit_target_group.add_argument(
         "--url",
@@ -1180,7 +1208,7 @@ def build_parser() -> argparse.ArgumentParser:
     run_parser.add_argument(
         "--repo",
         default=None,
-        help="Local path or git URL of the Angular repo to fix (default: the bundled Hallucinate.io fixture)",
+        help="Local path or git URL of the Angular repo to fix (required, unless --audit is given)",
     )
     run_parser.add_argument(
         "--url",

@@ -1,6 +1,6 @@
 """SubAgent spec: crawls the running app via Playwright MCP to discover
-routes dynamically, instead of relying on `adapters.audit_runner.
-DEFAULT_PAGES`'s hardcoded list going stale as the fixture grows.
+routes dynamically, instead of relying on a hardcoded, app-specific route
+list going stale as the fixture grows.
 """
 
 from __future__ import annotations
@@ -16,13 +16,12 @@ from a11y_fixer.adapters.mcp_clients import aget_tools
 
 NAME = "audit_crawler"
 
-# `discover_and_audit()` below only ever runs for a repo OTHER than the
-# bundled Hallucinate.io fixture (see cli.py: `is_default_fixture()` routes
-# the default fixture straight to `runner.run()`, never through here) - so
-# falling back to `adapters.audit_runner.DEFAULT_PAGES` (Hallucinate.io's own
-# 11 routes) on discovery failure would 404 on every page of whatever repo
-# is actually being audited. "/" is the one route every web app is
-# guaranteed to serve, so it's the only safe app-agnostic fallback.
+# `discover_and_audit()` below is the ONLY audit path now - `cli.py` no
+# longer branches on whether the target is the bundled Hallucinate.io
+# fixture or any other repo, so this fallback must work for any app, not
+# just the bundled one. "/" is the one route every web app is guaranteed
+# to serve, so it's the only safe app-agnostic fallback when discovery
+# finds nothing.
 FALLBACK_PAGES: tuple[str, ...] = ("/",)
 
 # A narrow, bounded discovery task (navigate, snapshot, extract hrefs) doesn't
@@ -31,13 +30,29 @@ DEFAULT_CRAWLER_MODEL = "openrouter:openrouter/free"
 
 SYSTEM_PROMPT = """You are the Audit Crawler for The A11y Fixer.
 
-Discover every route in the running app: navigate to its root page, use
-`browser_snapshot` to read the rendered DOM, and follow in-app navigation
-links (parse anchor `href`s from the nav). Return the discovered routes as
-relative paths (e.g. "/about"), not full URLs - the caller joins them with
-its own base URL, whether that's a local dev server or a live external
-site. If the Playwright MCP tools are unavailable, report that plainly so
-the caller can fall back to `adapters.audit_runner.DEFAULT_PAGES`.
+Discover every route in the running app deterministically - do not guess
+routes from a visual snapshot. Navigate to the app's root page, then call
+`browser_evaluate` to run JavaScript directly against the live page and
+extract real routing data, for example:
+
+    Array.from(document.querySelectorAll("a[href]"))
+      .map(a => new URL(a.getAttribute("href"), location.href).pathname)
+
+Prefer reading the app's actual client-side router configuration when it's
+reachable from the page context (e.g. an Angular `Router`'s registered
+paths exposed on `window`, or any router state object already present in
+the DOM/JS runtime) over scraping rendered anchors, since rendered links
+can miss routes that aren't linked from the current page. Only fall back
+to scraping anchor `href`s out of the DOM when no such router data is
+reachable via `browser_evaluate`.
+
+Return the discovered routes as relative paths (e.g. "/about"), not full
+URLs - the caller joins them with its own base URL, whether that's a local
+dev server or a live external site. Deduplicate routes and drop external
+links (anything not on the same origin as the page you navigated to). If
+the Playwright MCP tools are unavailable, or `browser_evaluate` finds no
+routes, report that plainly - the caller falls back to a single "/" page
+when discovery comes back empty.
 """
 
 

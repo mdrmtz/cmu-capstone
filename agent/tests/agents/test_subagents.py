@@ -137,12 +137,10 @@ async def test_discover_and_audit_uses_discovered_routes(monkeypatch: pytest.Mon
 async def test_discover_and_audit_falls_back_to_fallback_pages_when_discovery_finds_nothing(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """`discover_and_audit()` only ever runs for a repo OTHER than the bundled
-    Hallucinate.io fixture (`is_default_fixture()` routes that one straight to
-    `runner.run()`), so falling back to Hallucinate.io's own `DEFAULT_PAGES`
-    route list on discovery failure would 404 on every page of whatever repo
-    is actually being audited. The fallback must be the app-agnostic
-    `FALLBACK_PAGES = ("/",)` instead.
+    """`discover_and_audit()` is the only audit path now - it runs for every
+    repo, including the bundled Hallucinate.io fixture - so its own-route
+    discovery-failure fallback must be app-agnostic, not a Hallucinate.io-
+    specific route list. The fallback is `FALLBACK_PAGES = ("/",)`.
     """
     async def _fake_discover_routes(base_url: str, *, model: str = "") -> list[str]:  # noqa: ARG001
         return []

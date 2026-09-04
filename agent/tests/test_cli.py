@@ -17,10 +17,27 @@ from a11y_fixer.agents import audit_crawler
 from a11y_fixer.deep_agent import ViolationResponse
 
 
+@pytest.fixture(autouse=True)
+def _no_real_dependency_install(monkeypatch: pytest.MonkeyPatch) -> None:
+    """`_apply_repo_override()` now also runs `ensure_dependencies_installed()`
+    on `config.fixture_path()` when no `--repo` is given (closing the gap
+    where only a `--repo`-resolved path got dependency-install coverage).
+    Most tests here call `run`/`audit` (or `_apply_repo_override` directly)
+    without pointing `A11Y_FIXTURE_PATH` at an isolated `tmp_path`, so
+    without this, that call would resolve to the real, bundled
+    Hallucinate.io checkout and touch its actual `node_modules` state (or
+    worse, shell out to a real `npm install`) as an unrelated side effect
+    of unit tests. Tests that specifically want the real behavior undo this
+    with their own `monkeypatch.setattr(cli, "ensure_dependencies_installed", ...)`.
+    """
+    monkeypatch.setattr(cli, "ensure_dependencies_installed", lambda path: None)  # noqa: ARG005
+
+
 def test_build_parser_audit_defaults() -> None:
     parser = cli.build_parser()
-    args = parser.parse_args(["audit"])
+    args = parser.parse_args(["audit", "--repo", "/tmp/x"])
     assert args.command == "audit"
+    assert args.repo == "/tmp/x"
     assert args.url is None
 
 
@@ -28,6 +45,16 @@ def test_build_parser_audit_rejects_conflicting_target_flags() -> None:
     parser = cli.build_parser()
     with pytest.raises(SystemExit):
         parser.parse_args(["audit", "--repo", "/tmp/x", "--url", "https://example.com"])
+
+
+def test_build_parser_audit_requires_a_target() -> None:
+    """No implicit default target anymore - `audit` with neither `--repo`
+    nor `--url` must fail fast at the argparse level, not silently fall
+    back to the bundled Hallucinate.io fixture.
+    """
+    parser = cli.build_parser()
+    with pytest.raises(SystemExit):
+        parser.parse_args(["audit"])
 
 
 def test_build_parser_run_accepts_url_flag_alongside_repo() -> None:
@@ -129,15 +156,31 @@ def test_cmd_review_approve_real_flow(tmp_path: Path, monkeypatch: pytest.Monkey
 
 
 def test_cmd_audit_writes_report(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """`audit` now always resolves `--repo` and goes through
+    `audit_crawler.discover_and_audit()` - there is no more implicit
+    default-fixture path that calls `AxeAuditRunner.run()` directly, so
+    this (and the discovery-path behavior itself) is exercised together
+    here rather than in a separate, now-redundant test.
+    """
     fake_report = {"total_violation_instances": 3, "pages": [{"url": "/", "violation_rules": ["html-has-lang"]}]}
-    monkeypatch.setattr(cli.AxeAuditRunner, "run", lambda self: fake_report)  # noqa: ARG005
+
+    async def _fake_discover_and_audit(runner: object) -> dict:  # noqa: ARG001
+        return fake_report
+
+    monkeypatch.setattr(audit_crawler, "discover_and_audit", _fake_discover_and_audit)
+    # `--repo` makes `_apply_repo_override` set `A11Y_FIXTURE_PATH` via a
+    # direct `os.environ[...] = ...` mutation, not through `monkeypatch` -
+    # priming it here (before that happens) is what makes monkeypatch's
+    # teardown actually restore it afterwards, instead of leaking a deleted
+    # tmp_path into every later test that calls `config.fixture_path()`.
+    monkeypatch.setenv("A11Y_FIXTURE_PATH", "")
 
     # Mock config.agent_root to return tmp_path, so output goes there
     monkeypatch.setattr(config, "agent_root", lambda: tmp_path)
     expected_output = tmp_path / "evaluation" / "results" / "audit.json"
 
     parser = cli.build_parser()
-    args = parser.parse_args(["audit"])
+    args = parser.parse_args(["audit", "--repo", str(tmp_path)])
 
     exit_code = cli._cmd_audit(args)  # noqa: SLF001
 
@@ -145,32 +188,27 @@ def test_cmd_audit_writes_report(tmp_path: Path, monkeypatch: pytest.MonkeyPatch
     assert json.loads(expected_output.read_text(encoding="utf-8")) == fake_report
 
 
-def test_cmd_audit_uses_crawler_discovery_for_non_default_fixture(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setenv("A11Y_FIXTURE_PATH", str(tmp_path))
-    fake_report = {"total_violation_instances": 0, "pages": []}
-
-    async def _fake_discover_and_audit(runner: object) -> dict:  # noqa: ARG001
-        return fake_report
-
-    monkeypatch.setattr(audit_crawler, "discover_and_audit", _fake_discover_and_audit)
-
-    # Mock config.agent_root to return a different tmp_path for output
-    output_tmp = tmp_path / "agent_root"
-    output_tmp.mkdir()
-    monkeypatch.setattr(config, "agent_root", lambda: output_tmp)
-    expected_output = output_tmp / "evaluation" / "results" / "audit.json"
-
+def test_cmd_audit_requires_a_target(capsys: pytest.CaptureFixture) -> None:
+    """Defense in depth alongside the argparse-level `required=True` group:
+    `_cmd_audit` itself also refuses to run with neither `--repo` nor
+    `--url` set, in case it's ever called directly with a hand-built
+    `Namespace` that bypassed argument parsing.
+    """
     parser = cli.build_parser()
-    args = parser.parse_args(["audit"])
+    args = parser.parse_args(["audit", "--repo", "/tmp/x"])
+    args.repo = None  # simulate a caller bypassing argparse's own validation
 
     exit_code = cli._cmd_audit(args)  # noqa: SLF001
 
-    assert exit_code == 0
-    assert json.loads(expected_output.read_text(encoding="utf-8")) == fake_report
+    assert exit_code == 2
+    assert "one of --repo or --url is required" in capsys.readouterr().out
 
 
-async def test_acmd_run_uses_crawler_discovery_for_non_default_fixture(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setenv("A11Y_FIXTURE_PATH", str(tmp_path))
+async def test_acmd_run_uses_crawler_discovery_when_repo_given(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    # See test_cmd_audit_writes_report's comment: prime A11Y_FIXTURE_PATH
+    # with monkeypatch before `_apply_repo_override` mutates it directly,
+    # so it's restored afterwards instead of leaking into later tests.
+    monkeypatch.setenv("A11Y_FIXTURE_PATH", "")
 
     async def _fake_discover_and_audit(runner: object) -> dict:  # noqa: ARG001
         return {"raw_reports": []}
@@ -178,11 +216,28 @@ async def test_acmd_run_uses_crawler_discovery_for_non_default_fixture(tmp_path:
     monkeypatch.setattr(audit_crawler, "discover_and_audit", _fake_discover_and_audit)
 
     parser = cli.build_parser()
-    args = parser.parse_args(["run"])
+    args = parser.parse_args(["run", "--repo", str(tmp_path)])
 
     exit_code = await cli._acmd_run(args)  # noqa: SLF001
 
     assert exit_code == 0
+
+
+async def test_acmd_run_requires_an_explicit_target(capsys: pytest.CaptureFixture) -> None:
+    """No implicit default target anymore - `run` needs an explicit
+    `--repo`, `--url`, or `--audit`; with none given it must fail fast
+    with a clear message instead of silently falling back to the bundled
+    Hallucinate.io fixture. Unlike `audit`, this isn't enforced at the
+    argparse level (`--audit` isn't part of a mutually-exclusive group
+    with `--repo`/`--url`), so it's checked here in `_acmd_run` itself.
+    """
+    parser = cli.build_parser()
+    args = parser.parse_args(["run"])
+
+    exit_code = await cli._acmd_run(args)  # noqa: SLF001
+
+    assert exit_code == 2
+    assert "one of --repo, --url, or --audit is required" in capsys.readouterr().out
 
 
 async def test_acmd_run_with_url_but_no_repo_rejects_with_clear_message(

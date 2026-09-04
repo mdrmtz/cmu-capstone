@@ -37,7 +37,7 @@ def _slug_for(url: str) -> str:
     return re.sub(r"\.git$", "", name) or "repo"
 
 
-def _ensure_dependencies_installed(path: Path) -> None:
+def ensure_dependencies_installed(path: Path) -> None:
     """Run `npm install` in `path` if it's an npm project that isn't
     installed yet.
 
@@ -50,6 +50,10 @@ def _ensure_dependencies_installed(path: Path) -> None:
     no-op on a cache hit whose `node_modules` is already there), so this is
     the one place that guarantees "downstream tooling can assume the repo
     is ready to build" regardless of how `resolve_repo_source()` got here.
+
+    Public (no leading underscore) because `cli.py` also calls this
+    directly for the bundled fixture path when no `--repo` override
+    resolved a path itself - see `_apply_repo_override()`.
     """
     if not (path / "package.json").is_file():
         return  # not an npm project - nothing to install
@@ -83,7 +87,7 @@ def resolve_repo_source(source: str, *, cache_dir: Path) -> Path:
     at the same URL-derived directory name if one is already present rather
     than re-cloning on every run. Either way, before returning, `npm
     install` is run in the resolved path if it looks like an npm project
-    that hasn't been installed yet (see `_ensure_dependencies_installed`).
+    that hasn't been installed yet (see `ensure_dependencies_installed`).
     """
     stripped = source.strip()
     if not is_url(stripped):
@@ -91,13 +95,13 @@ def resolve_repo_source(source: str, *, cache_dir: Path) -> Path:
         if not path.is_dir():
             msg = f"local repo path does not exist: {path}"
             raise RepoSourceError(msg)
-        _ensure_dependencies_installed(path)
+        ensure_dependencies_installed(path)
         return path
 
     cache_dir.mkdir(parents=True, exist_ok=True)
     target = cache_dir / _slug_for(stripped)
     if target.is_dir():
-        _ensure_dependencies_installed(target)
+        ensure_dependencies_installed(target)
         return target
 
     result = subprocess.run(  # noqa: S603, S607 - fixed subcommand, source is the caller's own --repo argument
@@ -109,7 +113,7 @@ def resolve_repo_source(source: str, *, cache_dir: Path) -> Path:
     if result.returncode != 0:
         msg = f"git clone failed for {stripped!r} (exit {result.returncode}):\n{result.stderr}"
         raise RepoSourceError(msg)
-    _ensure_dependencies_installed(target)
+    ensure_dependencies_installed(target)
     return target
 
 

@@ -57,13 +57,13 @@ class ViolationResponse(BaseModel):
 
 
 @tool
-def run_axe_audit() -> dict:
-    """Run a full axe-core WCAG 2.2 AA audit against the Hallucinate.io
-    fixture (starts `ng serve`, runs `@axe-core/cli`, tears the server back
-    down) and return the normalized violation report.
+async def run_axe_audit() -> dict:
+    """Run a full axe-core WCAG 2.2 AA audit against the configured fixture
+    (starts `ng serve`, discovers routes, runs `@axe-core/cli`, tears the
+    server back down) and return the normalized violation report.
     """
     runner = AxeAuditRunner(fixture_path=config.fixture_path())
-    return runner.run()
+    return await audit_crawler.discover_and_audit(runner)
 
 
 TOP_LEVEL_SYSTEM_PROMPT = """You are The A11y Fixer: an autonomous WCAG 2.2 AA
