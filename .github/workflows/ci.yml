@@ -4,9 +4,9 @@ name: CI
 # from these lists once merged to main.
 on:
   push:
-    branches: [main]
+    branches: [main, mdrmtz/dormant-to-live]
   pull_request:
-    branches: [main]
+    branches: [main, mdrmtz/dormant-to-live]
 
 jobs:
   test-agent:
