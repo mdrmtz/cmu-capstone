@@ -36,6 +36,7 @@ def test_load_manifest_parses_a_full_single_site_entry(tmp_path: Path) -> None:
         SiteEntry(
             repo="https://github.com/acme/marketing-site.git",
             url="https://marketing.acme.com",
+            audit=None,
             site_id="acme-marketing",
             github_token_env="ACME_GITHUB_TOKEN",
         )
@@ -134,3 +135,43 @@ def test_load_manifest_two_sites_both_parse(tmp_path: Path) -> None:
         "https://github.com/acme/one.git",
         "https://github.com/acme/two.git",
     ]
+
+
+def test_load_manifest_audit_defaults_to_none(tmp_path: Path) -> None:
+    manifest = _write(
+        tmp_path,
+        "sites:\n  - repo: https://github.com/acme/one.git\n",
+    )
+
+    sites = load_manifest(manifest)
+
+    assert sites[0].audit is None
+
+
+def test_load_manifest_parses_audit_field(tmp_path: Path) -> None:
+    """`audit:` points fleet at a saved audit report (see `run --audit`) to
+    replay instead of crawling `repo`/`url` live - the fast-testing path for
+    a known violation set.
+    """
+    manifest = _write(
+        tmp_path,
+        "sites:\n"
+        "  - repo: https://github.com/acme/one.git\n"
+        "    audit: evaluation/results/audit.json\n",
+    )
+
+    sites = load_manifest(manifest)
+
+    assert sites[0].audit == "evaluation/results/audit.json"
+
+
+def test_load_manifest_rejects_non_string_audit(tmp_path: Path) -> None:
+    manifest = _write(
+        tmp_path,
+        "sites:\n"
+        "  - repo: https://github.com/acme/one.git\n"
+        "    audit: [1, 2, 3]\n",
+    )
+
+    with pytest.raises(FleetManifestError, match="audit must be a string"):
+        load_manifest(manifest)

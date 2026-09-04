@@ -1126,6 +1126,8 @@ def _cmd_fleet(args: argparse.Namespace) -> int:
     target = derive_github_repo(site.repo) or site.repo
     mode = "LIVE" if live else "dry-run"
     print(f"{mode}: {site.site_id} -> {site.repo} (PR target: {target})")  # noqa: T201
+    if site.audit:
+        print(f"  replaying saved audit report: {site.audit}")  # noqa: T201
 
     previous_token = os.environ.get("GITHUB_TOKEN")
     if token_value is not None:
@@ -1134,7 +1136,7 @@ def _cmd_fleet(args: argparse.Namespace) -> int:
         run_args = argparse.Namespace(
             repo=site.repo,
             url=site.url,
-            audit=None,
+            audit=site.audit,
             case_ids=None,
             live=live,
             yes=True,

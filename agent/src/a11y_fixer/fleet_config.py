@@ -39,6 +39,7 @@ class SiteEntry:
 
     repo: str
     url: str | None
+    audit: str | None
     site_id: str
     github_token_env: str
 
@@ -54,6 +55,15 @@ def _derive_site_id(repo: str) -> str:
 def _fail(manifest_path: Path, message: str) -> NoReturn:
     msg = f"fleet manifest {manifest_path}: {message}"
     raise FleetManifestError(msg)
+
+
+def _optional_str_field(
+    manifest_path: Path, site: dict, index: int, field: str
+) -> str | None:
+    value = site.get(field)
+    if value is not None and not isinstance(value, str):
+        _fail(manifest_path, f"sites[{index}].{field} must be a string")
+    return value
 
 
 def load_manifest(path: str | Path) -> list[SiteEntry]:
@@ -95,9 +105,12 @@ def load_manifest(path: str | Path) -> list[SiteEntry]:
         if not repo or not isinstance(repo, str):
             _fail(manifest_path, f"sites[{i}] is missing required 'repo'")
 
-        url = site.get("url")
-        if url is not None and not isinstance(url, str):
-            _fail(manifest_path, f"sites[{i}].url must be a string")
+        url = _optional_str_field(manifest_path, site, i, "url")
+        # Path to a saved audit report (see `run --audit`): when set, fleet
+        # replays this report instead of running a fresh audit against
+        # `repo`/`url` - the fast-testing path for a known violation set,
+        # or for a live site whose route discovery is unreliable.
+        audit = _optional_str_field(manifest_path, site, i, "audit")
 
         github_token_env = site.get("github_token_env") or DEFAULT_GITHUB_TOKEN_ENV
         if not isinstance(github_token_env, str):
@@ -111,6 +124,7 @@ def load_manifest(path: str | Path) -> list[SiteEntry]:
             SiteEntry(
                 repo=repo,
                 url=url,
+                audit=audit,
                 site_id=site_id,
                 github_token_env=github_token_env,
             )

@@ -1083,3 +1083,38 @@ def test_cmd_fleet_passes_repo_and_url_through_to_acmd_run(
     assert ns.case_ids is None
     assert ns.live is True
     assert ns.yes is True
+
+
+def test_cmd_fleet_passes_audit_through_to_acmd_run(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture
+) -> None:
+    """`audit:` in the manifest lets `fleet` replay a saved audit report
+    (mirrors `run --audit`) instead of always crawling `repo`/`url` live -
+    the fast-testing path for a known violation set.
+    """
+    monkeypatch.setenv("GITHUB_TOKEN", "tok")
+    captured: list[object] = []
+
+    async def _fake_acmd_run(ns: object) -> int:
+        captured.append(ns)
+        return 0
+
+    monkeypatch.setattr(cli, "_acmd_run", _fake_acmd_run)
+
+    audit_path = tmp_path / "audit.json"
+    manifest = _write_manifest(
+        tmp_path,
+        "sites:\n"
+        "  - repo: https://github.com/acme/one.git\n"
+        f"    audit: {audit_path}\n",
+    )
+    parser = cli.build_parser()
+    args = parser.parse_args(["fleet", "--config", str(manifest)])
+
+    exit_code = cli._cmd_fleet(args)  # noqa: SLF001
+
+    assert exit_code == 0
+    assert len(captured) == 1
+    ns = captured[0]
+    assert ns.audit == str(audit_path)
+    assert "replaying saved audit report" in capsys.readouterr().out
