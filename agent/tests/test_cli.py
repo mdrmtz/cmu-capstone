@@ -9,7 +9,9 @@ import pytest
 from langgraph.types import Command
 
 from a11y_fixer import cli, config
+from a11y_fixer.adapters.pr import delivery as pr_delivery
 from a11y_fixer.adapters.pr.delivery import DryRunResult
+from a11y_fixer.adapters.pr.github_pr_manager import PRCloseResult, PRMergeResult
 from a11y_fixer.agents import audit_crawler
 from a11y_fixer.deep_agent import ViolationResponse
 
@@ -647,3 +649,111 @@ def test_warn_on_overconfidence_is_silent_for_well_calibrated_text(capsys: pytes
 
     assert capsys.readouterr().out == ""
 
+
+
+def _init_git_fixture(repo: Path, filename: str, before: str, after: str) -> None:
+    repo.mkdir()
+    subprocess.run(["git", "init", "-q"], cwd=repo, check=True)  # noqa: S603, S607
+    subprocess.run(["git", "config", "user.email", "t@example.com"], cwd=repo, check=True)  # noqa: S603, S607
+    subprocess.run(["git", "config", "user.name", "T"], cwd=repo, check=True)  # noqa: S603, S607
+    (repo / filename).write_text(before, encoding="utf-8")
+    subprocess.run(["git", "add", "."], cwd=repo, check=True)  # noqa: S603, S607
+    subprocess.run(["git", "commit", "-q", "-m", "init"], cwd=repo, check=True)  # noqa: S603, S607
+    (repo / filename).write_text(after, encoding="utf-8")
+
+
+def test_deliver_violation_auto_merge_success_runs_cleanup(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """Regression test (2026-09-04): auto_merge_pr() returns a PRMergeResult
+    dataclass, but deliver_violation() used to do `merge_result.get("merged")`
+    - an AttributeError on every call, silently swallowed, that made a real
+    merge success print as "Auto-merge/cleanup failed" and left
+    cleanup_duplicate_prs() unreachable. Asserts cleanup actually runs on a
+    real success and the success is reported without the old crash message.
+    """
+    repo = tmp_path / "repo"
+    _init_git_fixture(repo, "about.component.html", "<img>\n", '<img alt="logo">\n')
+
+    response = ViolationResponse(
+        rule="image-alt", wcag="1.1.1", selector="img", technique_id="H37", technique_type="sufficient",
+        code='<img alt="logo">', rationale="descriptive alt text", score=20.0, route="auto",
+    )
+
+    live_result = pr_delivery.LiveResult(
+        pull_request_url="https://github.com/owner/repo/pull/7",
+        pull_request_number=7,
+        branch_name="a11y-fixer/abc123",
+    )
+    monkeypatch.setattr(cli.pr_delivery, "deliver", lambda plan, config, output_dir: live_result)
+
+    fake_manager = MagicMock()
+    fake_manager.auto_merge_pr.return_value = PRMergeResult(
+        success=True, pr_number=7, reason="auto_merged_high_score (20.0 >= 18.0)"
+    )
+    fake_manager.cleanup_duplicate_prs.return_value = [
+        PRCloseResult(success=True, pr_number=3, reason="closed_as_duplicate_of_pr_7"),
+    ]
+    monkeypatch.setattr(cli, "GitHubPRManager", lambda **kwargs: fake_manager)  # noqa: ARG005
+
+    outcome = cli.deliver_violation(
+        {"rule": "image-alt", "url": "/about", "selector": "img", "html": "<img>"},
+        response,
+        fixture=repo,
+        pr_config=config.PRDeliveryConfig(live=True, github_token="fake-token", github_repo="owner/repo"),
+        output_dir=tmp_path / "prs",
+    )
+
+    assert outcome["delivered"] is True
+    assert outcome["result"] is live_result
+    fake_manager.cleanup_duplicate_prs.assert_called_once()
+    _, cleanup_kwargs = fake_manager.cleanup_duplicate_prs.call_args
+    assert cleanup_kwargs["kept_pr_number"] == 7
+
+    captured = capsys.readouterr()
+    assert "Auto-merged PR 7" in captured.out
+    assert "Auto-merge/cleanup failed" not in captured.out
+
+
+def test_deliver_violation_auto_merge_failure_skips_cleanup_without_crashing(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """A merge that legitimately doesn't happen (GitHub rejects it, branch
+    protection, etc.) must be reported honestly and must not run duplicate
+    cleanup - only a confirmed merge earns that - and must not crash.
+    """
+    repo = tmp_path / "repo"
+    _init_git_fixture(repo, "about.component.html", "<img>\n", '<img alt="logo">\n')
+
+    response = ViolationResponse(
+        rule="image-alt", wcag="1.1.1", selector="img", technique_id="H37", technique_type="sufficient",
+        code='<img alt="logo">', rationale="descriptive alt text", score=19.0, route="auto",
+    )
+
+    live_result = pr_delivery.LiveResult(
+        pull_request_url="https://github.com/owner/repo/pull/8",
+        pull_request_number=8,
+        branch_name="a11y-fixer/def456",
+    )
+    monkeypatch.setattr(cli.pr_delivery, "deliver", lambda plan, config, output_dir: live_result)
+
+    fake_manager = MagicMock()
+    fake_manager.auto_merge_pr.return_value = PRMergeResult(
+        success=False, pr_number=8, reason="merge_failed (409)"
+    )
+    monkeypatch.setattr(cli, "GitHubPRManager", lambda **kwargs: fake_manager)  # noqa: ARG005
+
+    outcome = cli.deliver_violation(
+        {"rule": "image-alt", "url": "/about", "selector": "img", "html": "<img>"},
+        response,
+        fixture=repo,
+        pr_config=config.PRDeliveryConfig(live=True, github_token="fake-token", github_repo="owner/repo"),
+        output_dir=tmp_path / "prs",
+    )
+
+    assert outcome["delivered"] is True
+    fake_manager.cleanup_duplicate_prs.assert_not_called()
+
+    captured = capsys.readouterr()
+    assert "merge_failed" in captured.out
+    assert "Auto-merge/cleanup failed" not in captured.out

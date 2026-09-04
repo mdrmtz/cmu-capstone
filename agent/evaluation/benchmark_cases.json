@@ -40,7 +40,7 @@
     "rule": "link-name",
     "selector": ".element-1434",
     "wcag": "4.1.2",
-    "ground_truth_fix": "Apply fix for color-contrast violation"
+    "ground_truth_fix": "Apply fix for link-name violation"
   },
   {
     "id": "case-06",
@@ -48,7 +48,7 @@
     "rule": "link-name",
     "selector": ".element-7873",
     "wcag": "1.4.3",
-    "ground_truth_fix": "Apply fix for button-name violation"
+    "ground_truth_fix": "Apply fix for link-name violation"
   },
   {
     "id": "case-07",
@@ -56,7 +56,7 @@
     "rule": "image-alt",
     "selector": ".element-1106",
     "wcag": "1.4.3",
-    "ground_truth_fix": "Apply fix for button-name violation"
+    "ground_truth_fix": "Apply fix for image-alt violation"
   },
   {
     "id": "case-08",
@@ -81,7 +81,7 @@
     "rule": "link-name",
     "selector": ".element-5333",
     "wcag": "1.1.1",
-    "ground_truth_fix": "Apply fix for button-name violation"
+    "ground_truth_fix": "Apply fix for link-name violation"
   },
   {
     "id": "case-11",
@@ -98,7 +98,7 @@
     "rule": "link-name",
     "selector": ".element-6925",
     "wcag": "4.1.2",
-    "ground_truth_fix": "Apply fix for color-contrast violation"
+    "ground_truth_fix": "Apply fix for link-name violation"
   },
   {
     "id": "case-13",
@@ -115,7 +115,7 @@
     "rule": "color-contrast",
     "selector": ".element-2654",
     "wcag": "3.1.1",
-    "ground_truth_fix": "Apply fix for image-alt violation"
+    "ground_truth_fix": "Apply fix for color-contrast violation"
   },
   {
     "id": "case-15",
@@ -131,7 +131,7 @@
     "rule": "image-alt",
     "selector": ".element-2169",
     "wcag": "4.1.2",
-    "ground_truth_fix": "Apply fix for color-contrast violation"
+    "ground_truth_fix": "Apply fix for image-alt violation"
   },
   {
     "id": "case-17",
@@ -139,7 +139,7 @@
     "rule": "color-contrast",
     "selector": ".element-3677",
     "wcag": "3.1.1",
-    "ground_truth_fix": "Apply fix for button-name violation"
+    "ground_truth_fix": "Apply fix for color-contrast violation"
   },
   {
     "id": "case-18",
@@ -147,7 +147,7 @@
     "rule": "link-name",
     "selector": ".element-4598",
     "wcag": "2.1.1",
-    "ground_truth_fix": "Apply fix for html-has-lang violation"
+    "ground_truth_fix": "Apply fix for link-name violation"
   },
   {
     "id": "case-19",
@@ -164,7 +164,7 @@
     "rule": "color-contrast",
     "selector": ".element-6155",
     "wcag": "1.4.3",
-    "ground_truth_fix": "Apply fix for button-name violation"
+    "ground_truth_fix": "Apply fix for color-contrast violation"
   },
   {
     "id": "case-21",
@@ -172,7 +172,7 @@
     "rule": "button-name",
     "selector": ".element-3340",
     "wcag": "2.1.1",
-    "ground_truth_fix": "Apply fix for color-contrast violation"
+    "ground_truth_fix": "Apply fix for button-name violation"
   },
   {
     "id": "case-22",

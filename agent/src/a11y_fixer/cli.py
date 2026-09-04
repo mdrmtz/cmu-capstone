@@ -408,17 +408,34 @@ def deliver_violation(
                 merge_result = pr_mgr.auto_merge_pr(
                     pr_number, response.score, merge_threshold=auto_merge_threshold
                 )
-                print(f"  ✅ Auto-merged PR {pr_number}: {merge_result}")  # noqa: T201
 
-                # Task 3.3: Close duplicate PRs if merge succeeded
-                if merge_result.get("merged"):
-                    dup_result = pr_mgr.cleanup_duplicate_prs(
+                # Bug fix (2026-09-04): auto_merge_pr() returns a PRMergeResult
+                # dataclass (success/pr_number/reason), not a dict. The old
+                # `merge_result.get("merged")` raised AttributeError on every
+                # call - success or failure - silently caught below and
+                # misreported as "Auto-merge/cleanup failed" even when the
+                # merge genuinely succeeded. That also made
+                # cleanup_duplicate_prs() unreachable dead code, which is why
+                # closed-but-unmerged duplicate PRs accumulated (18 on the
+                # image-alt rule alone) instead of being cleaned up.
+                # hitl/review_queue.py's independent auto-merge call site
+                # already handled this correctly (`if merge_result.success:`)
+                # - this mirrors that proven pattern.
+                if merge_result.success:
+                    print(f"  ✅ Auto-merged PR {pr_number}: {merge_result.reason}")  # noqa: T201
+
+                    # Task 3.3: Close duplicate PRs if merge succeeded.
+                    # cleanup_duplicate_prs() returns list[PRCloseResult], not a dict.
+                    dup_results = pr_mgr.cleanup_duplicate_prs(
                         violation_id, kept_pr_number=pr_number
                     )
-                    if dup_result.get("closed_duplicates"):
-                        print(
-                            f"  🧹 Closed {len(dup_result['closed_duplicates'])} duplicate PRs"
-                        )  # noqa: T201
+                    closed = [dup for dup in dup_results if dup.success]
+                    if closed:
+                        print(f"  🧹 Closed {len(closed)} duplicate PRs")  # noqa: T201
+                else:
+                    print(
+                        f"  ⏸️  Auto-merge not completed for PR {pr_number}: {merge_result.reason}"
+                    )  # noqa: T201
             except Exception as exc:  # noqa: BLE001
                 print(f"  ⚠️  Auto-merge/cleanup failed: {exc}")  # noqa: T201
         else:
