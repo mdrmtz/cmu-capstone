@@ -1,0 +1,37 @@
+{
+  "phase": "bundle_5",
+  "timestamp": "2026-09-03T04:45:41.888187+00:00",
+  "total_cases": 3,
+  "cases": [
+    {
+      "case_id": "case-14",
+      "rule": "color-contrast",
+      "page": "/",
+      "rubric_score": 15.0,
+      "cleared": true,
+      "route": "human",
+      "latency_seconds": 55.514170040987665,
+      "error": null
+    },
+    {
+      "case_id": "case-15",
+      "rule": "image-alt",
+      "page": "/pricing",
+      "rubric_score": 0.0,
+      "cleared": false,
+      "route": "human",
+      "latency_seconds": 77.57731687498745,
+      "error": "Request blocked: PII detected (invalid_json_after_redaction)"
+    },
+    {
+      "case_id": "case-16",
+      "rule": "image-alt",
+      "page": "/about",
+      "rubric_score": 16.0,
+      "cleared": false,
+      "route": "human",
+      "latency_seconds": 218.7942735000106,
+      "error": null
+    }
+  ]
+}

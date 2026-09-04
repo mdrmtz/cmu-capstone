@@ -1,0 +1,44 @@
+{
+  "phase": "phase_4_3_live_test",
+  "timestamp": "2026-09-03T09:43:52.044238+00:00",
+  "summary": {
+    "total_cases": 5,
+    "violation_clearance_rate": 0.8,
+    "human_escalation_rate": 0.6,
+    "error_rate": 0.2,
+    "mean_latency_seconds": 142.91007015799988,
+    "brier_score": 0.0015000000000000026,
+    "expected_calibration_error": 0.030000000000000072,
+    "by_rule": {
+      "color-contrast": {
+        "total": 1,
+        "cleared": 1
+      },
+      "image-alt": {
+        "total": 1,
+        "cleared": 1
+      },
+      "html-has-lang": {
+        "total": 1,
+        "cleared": 1
+      },
+      "link-name": {
+        "total": 1,
+        "cleared": 0
+      },
+      "button-name": {
+        "total": 1,
+        "cleared": 1
+      }
+    }
+  },
+  "cases_by_route": {
+    "auto": 2,
+    "human": 3
+  },
+  "cases_by_error": {
+    "cleared": 4,
+    "errored": 1,
+    "pending_review": 0
+  }
+}

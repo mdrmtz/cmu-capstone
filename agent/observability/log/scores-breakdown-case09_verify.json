@@ -1,0 +1,17 @@
+{
+  "phase": "case09_verify",
+  "timestamp": "2026-09-02T19:49:04.369981+00:00",
+  "total_cases": 1,
+  "cases": [
+    {
+      "case_id": "case-09",
+      "rule": "html-has-lang",
+      "page": "/",
+      "rubric_score": 0.0,
+      "cleared": false,
+      "route": "human",
+      "latency_seconds": 7.63419820801937,
+      "error": "axe-core cli failed (exit 1):\n/Users/dks0721706/dev/cmu-agentic-ai-program-2026/cmu-capstone/Hallucinate.io/node_modules/@axe-core/cli/dist/src/lib/utils.js:67\n            throw new Error('Unknown browser ' + browser);\n                  ^\n\nError: Unknown browser chrome-headless\n    at parseBrowser (/Users/dks0721706/dev/cmu-agentic-ai-program-2026/cmu-capstone/Hallucinate.io/node_modules/@axe-core/cli/dist/src/lib/utils.js:67:19)\n    at /Users/dks0721706/dev/cmu-agentic-ai-program-2026/cmu-capstone/Hallucinate.io/node_modules/@axe-core/cli/dist/src/bin/index.js:30:45\n    at Generator.next (<anonymous>)\n    at /Users/dks0721706/dev/cmu-agentic-ai-program-2026/cmu-capstone/Hallucinate.io/node_modules/@axe-core/cli/dist/src/bin/index.js:8:71\n    at new Promise (<anonymous>)\n    at __awaiter (/Users/dks0721706/dev/cmu-agentic-ai-program-2026/cmu-capstone/Hallucinate.io/node_modules/@axe-core/cli/dist/src/bin/index.js:4:12)\n    at Command.cli (/Users/dks0721706/dev/cmu-agentic-ai-program-2026/cmu-capstone/Hallucinate.io/node_modules/@axe-core/cli/dist/src/bin/index.js:21:28)\n    at Command.listener [as _actionHandler] (/Users/dks0721706/dev/cmu-agentic-ai-program-2026/cmu-capstone/Hallucinate.io/node_modules/commander/lib/command.js:482:17)\n    at /Users/dks0721706/dev/cmu-agentic-ai-program-2026/cmu-capstone/Hallucinate.io/node_modules/commander/lib/command.js:1283:65\n    at Command._chainOrCall (/Users/dks0721706/dev/cmu-agentic-ai-program-2026/cmu-capstone/Hallucinate.io/node_modules/commander/lib/command.js:1177:12)\n\nNode.js v24.19.0\n"
+    }
+  ]
+}

@@ -1,0 +1,63 @@
+{
+  "phase": "test",
+  "timestamp": "2026-09-02T08:22:01.021780+00:00",
+  "total_cases": 2,
+  "cases": [
+    {
+      "case_id": "case-01",
+      "rule": "html-has-lang",
+      "page": "/",
+      "rubric_score": 0.0,
+      "cleared": false,
+      "route": "human",
+      "latency_seconds": 45.3,
+      "error": "timeout",
+      "scoring_details": {
+        "criteria_breakdown": [
+          {
+            "name": "Build Pass",
+            "max_points": 8.0,
+            "awarded": 0.0,
+            "passed": false,
+            "reason": "Missing import for HtmlModule"
+          },
+          {
+            "name": "WCAG Compliance",
+            "max_points": 5.0,
+            "awarded": 0.0,
+            "passed": false,
+            "reason": "Only detects 50% of violations"
+          }
+        ]
+      }
+    },
+    {
+      "case_id": "case-02",
+      "rule": "image-alt",
+      "page": "/blog",
+      "rubric_score": 15.5,
+      "cleared": true,
+      "route": "auto",
+      "latency_seconds": 32.1,
+      "error": null,
+      "scoring_details": {
+        "criteria_breakdown": [
+          {
+            "name": "Build Pass",
+            "max_points": 8.0,
+            "awarded": 8.0,
+            "passed": true,
+            "reason": "Build succeeded"
+          },
+          {
+            "name": "WCAG Compliance",
+            "max_points": 5.0,
+            "awarded": 3.1,
+            "passed": true,
+            "reason": "LLM judge confidence: 62.0% - detects 3/4 images"
+          }
+        ]
+      }
+    }
+  ]
+}

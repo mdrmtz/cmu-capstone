@@ -1,0 +1,10 @@
+<svg width="32" height="32" viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <!-- Dark green rounded square -->
+  <rect width="32" height="32" rx="7" fill="#15803D"/>
+  <!-- White "A" letterform (accessibility) -->
+  <path d="M8 25.5 L16 6.5 L24 25.5" stroke="white" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+  <line x1="11.5" y1="19" x2="20.5" y2="19" stroke="white" stroke-width="2.6" stroke-linecap="round"/>
+  <!-- Fixed badge: bright green circle + checkmark -->
+  <circle cx="25" cy="7" r="5.5" fill="#16A34A"/>
+  <path d="M22.5 7 L24.3 9 L27.5 5.5" stroke="#07C983" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" fill="none"/>
+</svg>

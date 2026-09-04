@@ -1,0 +1,27 @@
+{
+  "phase": "phase_f1",
+  "timestamp": "2026-09-02T08:58:44.782876+00:00",
+  "total_cases": 2,
+  "cases": [
+    {
+      "case_id": "case-16",
+      "rule": "image-alt",
+      "page": "/about",
+      "rubric_score": 0.0,
+      "cleared": false,
+      "route": "human",
+      "latency_seconds": 120.76382162500522,
+      "error": "unhandled errors in a TaskGroup (1 sub-exception)"
+    },
+    {
+      "case_id": "case-17",
+      "rule": "image-alt",
+      "page": "/about",
+      "rubric_score": 18.5,
+      "cleared": false,
+      "route": "auto",
+      "latency_seconds": 325.7368491249799,
+      "error": null
+    }
+  ]
+}

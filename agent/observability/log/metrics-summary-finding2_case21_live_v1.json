@@ -1,0 +1,28 @@
+{
+  "phase": "finding2_case21_live_v1",
+  "timestamp": "2026-09-04T07:12:11.893124+00:00",
+  "summary": {
+    "total_cases": 1,
+    "violation_clearance_rate": 1.0,
+    "human_escalation_rate": 0.0,
+    "error_rate": 0.0,
+    "mean_latency_seconds": 85.8936252919957,
+    "brier_score": 0.0025000000000000044,
+    "expected_calibration_error": 0.050000000000000044,
+    "by_rule": {
+      "button-name": {
+        "total": 1,
+        "cleared": 1
+      }
+    }
+  },
+  "cases_by_route": {
+    "auto": 1,
+    "human": 0
+  },
+  "cases_by_error": {
+    "cleared": 1,
+    "errored": 0,
+    "pending_review": 0
+  }
+}

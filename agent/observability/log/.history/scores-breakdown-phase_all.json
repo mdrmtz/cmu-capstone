@@ -1,0 +1,28 @@
+{
+  "phase": "phase_all",
+  "timestamp": "2026-09-02T08:38:15.773158+00:00",
+  "total_cases": 1,
+  "cases": [
+    {
+      "case_id": "case-01",
+      "rule": "html-has-lang",
+      "page": "/",
+      "rubric_score": 0.0,
+      "cleared": false,
+      "route": "human",
+      "latency_seconds": 45.3,
+      "error": null,
+      "scoring_details": {
+        "criteria_breakdown": [
+          {
+            "name": "Build Pass",
+            "max_points": 8.0,
+            "awarded": 0.0,
+            "passed": false,
+            "reason": "Missing import"
+          }
+        ]
+      }
+    }
+  ]
+}

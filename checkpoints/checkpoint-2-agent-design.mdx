@@ -1,0 +1,127 @@
+---
+title: "Checkpoint 2.1 — Agent Design Refinement"
+description: "The A11y Fixer: ReAct reasoning loop, dual memory architecture, external tool integration, and overcoming the static-to-dynamic compilation gap."
+---
+
+# Capstone Project Checkpoint 2.1: Capstone Agent Design Refinement
+
+**Agent Name:** The A11y Fixer
+**Target Domain:** Autonomous Web Accessibility (A11y) Remediation in Angular Codebases  
+**Intended Users:** Front-end Developers, QA Automation Engineers, and DevOps Teams
+
+---
+
+## 1. Refined Agent Concept and Task Description
+
+The **A11y Fixer** is an autonomous software remediation agent engineered to eliminate web accessibility (A11y) technical debt within complex, single-page applications built on the Angular framework. Accessibility compliance—governed by the Web Content Accessibility Guidelines (WCAG 2.1/2.2 Level AA)—is historically audited using automated tools like `axe-core` and Lighthouse. However, while these tools excel at detecting failures (such as missing `aria-labels`, poor color contrast, or broken heading hierarchies), the remediation of these violations remains a tedious, manual, and error-prone engineering bottleneck.
+
+The task of the **A11y Fixer** is to automate the execution ("doing") layer of accessibility compliance. It operates directly within a project's repository and local development server environment to:
+
+1. Parse automated accessibility audit logs.
+2. Inspect the live rendered DOM and the computed accessibility tree of the application.
+3. Trace dynamic runtime HTML violations back to their static TypeScript/HTML template source files.
+4. Programmatically apply precise code modifications using abstract syntax trees (ASTs).
+5. Compile, run unit tests, and verify that the fixes successfully resolve the violations without introducing visual or logical regressions.
+6. Open a clean, pre-verified Pull Request for human review.
+
+---
+
+## 2. The Agentic Reasoning Loop (ReAct Framework)
+
+The agent utilizes the **ReAct (Reasoning and Acting)** framework (Yao et al., 2022) to tightly couple its language-model-based planning with real-time feedback from its development environment. Standalone language models suffer from a lack of execution feedback, making them highly fragile on multi-step tasks. The ReAct framework addresses this by structuring the agent's execution into an iterative **Thought → Action → Observation** sequence.
+
+The A11y Fixer executes this reasoning loop through six systematic phases:
+
+```
+          [1] Inspect & Analyze (DevTools MCP)
+                         │
+                         ▼
+          [2] Trace & Locate (Source Maps/ripgrep)
+                         │
+                         ▼
+          [3] Formulate Hypothesis (WCAG RAG)
+                         │
+                         ▼
+          [4] Modify Source Code (AST Parsers)
+                         │
+                         ▼
+       ┌➔ [5] Validate & Verify (Local Compile/Audit)
+       │               │
+       │               ▼
+       │      {Did checks pass?} ── NO ──┐
+       │               │                 │
+       │              YES                ▼
+       │               │         [Rollback & Self-Correct]
+       │               ▼         (Episodic Memory / Retry)
+       └─────── [6] Deliver PR           │
+                (Octokit API) ◄──────────┘
+```
+
+1. **Inspect & Analyze:** The agent analyzes structured JSON audit logs from `axe-core` and queries the live browser. It reasons about what violation exists and what DOM element is affected.
+2. **Trace & Locate:** Because browser-rendered HTML elements do not map one-to-one with static source templates in Angular, the agent uses localization tools to bridge this gap, tracing the runtime element back to a specific file and line number.
+3. **Formulate Hypothesis:** The agent queries its long-term RAG knowledge base to retrieve WCAG remediation patterns and drafts a precise plan for injecting the missing semantic elements or attributes.
+4. **Modify Source Code:** The agent invokes code-parsing tools to modify the source code's Abstract Syntax Tree (AST) non-destructively, avoiding regular-expression-based search-and-replace which can easily corrupt surrounding code blocks.
+5. **Validate & Verify:** The agent triggers a containerized compile check and runs the accessibility auditor on the hot-reloaded page.
+6. **Deliver or Roll Back:** If all validation checks pass, the agent uses Git APIs to push the branch and open a Pull Request. If validation fails, it records the failure in short-term memory, rolls back the local workspace using Git, and restarts the loop with revised parameters.
+
+---
+
+## 3. The Agent Memory Architecture
+
+To operate reliably without repeating mistakes, the agent integrates a dual-memory system:
+
+### A. Short-Term (Episodic) Memory
+
+Short-term memory stores the in-context execution trajectory (thoughts, actions, and observations) of the active debugging session. This is vital for **state tracking and error correction** (Shinn et al., 2023). If an applied AST patch successfully compiles but causes an Angular runtime lifecycle exception, the agent notes this failure in its short-term memory. When it loops back to reformulate its hypothesis, it uses this episodic history to ensure it does not generate the same incorrect code twice. The agent operates under a strict **3-iteration self-correction threshold** to prevent infinite execution loops.
+
+### B. Long-Term (Retrieval-Based) Memory
+
+Long-term memory acts as a persistent, read-only repository of structured semantic knowledge. This memory is composed of two parts:
+
+- **The WCAG and Framework RAG Store:** Pre-indexed vector embeddings containing the WCAG Level AA requirements, WAI-ARIA authoring practices, and Angular template coding standards.
+- **The Reflexion Log:** A historical database of generalized "lessons learned" from past successful and failed remediation sessions across different codebases.
+
+---
+
+## 4. External Tool Integration and Environmental Grounding
+
+| Tool | Specific Remediation Task | Limitation Addressed | Grounding Mechanism |
+|---|---|---|---|
+| **Chrome DevTools MCP Server** | Inspects the live computed accessibility tree, reads browser console exception logs, and evaluates color contrast ratios. | Lack of Runtime Grounding: LLMs cannot predict how CSS and JavaScript dynamic bindings render on screen. | Queries the browser's layout engine to fetch actual, computed DOM values. |
+| **Angular Template & AST Parsers** | Parses static component HTML templates into an AST, programmatically injects attributes, and serializes code back to disk. | Syntax Fragility: Standard code-generation often produces invalid syntax or corrupts Angular structural directives. | Ensures modifications are syntactically valid by editing the structural model (AST) rather than raw text. |
+| **ripgrep & Source Map Bridger** | Processes Angular source maps and runs pattern-matching search queries to map browser-rendered selectors to physical file paths. | Combinatorial State Space Search: Probabilistic LLMs struggle with navigating large, multi-directory file systems. | Uses deterministic index mapping to find the exact file and line number instantly. |
+
+---
+
+## 5. Overcoming Prompt-Only Limitations: Resolving the "Compilation Gap"
+
+### The Static-to-Dynamic Compilation Gap
+
+Consider an Angular component template with a button that lacks an accessible name. A standard prompt response might suggest adding `aria-labelledby="title-id"`. In a static text environment, this looks correct. However, in the dynamic Angular runtime environment:
+
+1. The element with `id="title-id"` is nested inside an `*ngIf` structural directive, meaning it is conditionally stripped from the DOM at runtime.
+2. When the page renders, the button's `aria-labelledby` points to a non-existent ID, resulting in a severe WCAG violation.
+3. The button might also have custom CSS styles; adding the fix might shift surrounding text, causing a **visual layout regression**.
+
+```
+PROMPT-ONLY REMEDIATION (Static Vacuum)
+[User Input] → [Standalone LLM] → [Generated Code] → Unverified Syntax/Visual Regressions 🛑
+
+A11Y FIXER AGENT WORKFLOW (Active Loop)
+[AST Code Edit] → [Local Compilation] → [DevTools Browser Audit] → [Layout Bounding Boxes] ✔
+```
+
+The **A11y Fixer** resolves this failure mode through active environmental validation. After applying the AST patch, the agent compiles the code in an isolated Docker sandbox. It queries the Chrome DevTools MCP server to ensure:
+
+- No runtime compilation or JavaScript errors are logged.
+- The computed accessibility tree verifies that the accessible name is resolved.
+- **Layout Bounding Box Guardrail:** If the element's visual dimensions or layout positions shift beyond a **2% visual tolerance threshold**, the visual feedback flags a layout regression.
+
+---
+
+## References
+
+- Kojima, T. et al. (2022). _Large Language Models are Zero-Shot Reasoners._ arXiv:2205.11916.
+- Cobbe, K. et al. (2021). _Training Verifiers to Solve Math Word Problems._ arXiv:2110.14168.
+- Yao, S. et al. (2022). _ReAct: Synergizing Reasoning and Acting in Language Models._ arXiv:2210.03629.
+- Shinn, N. et al. (2023). _Reflexion: Language Agents with Systematic Self-Reflection._ arXiv:2303.11366.

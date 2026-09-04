@@ -1,0 +1,44 @@
+---
+title: "The A11y Fixer"
+description: "CMU Agentic AI Capstone — Autonomous Web Accessibility Remediation Agent for Angular Single Page Applications"
+---
+
+**The A11y Fixer** is an autonomous, multi-agent software remediation system engineered to eliminate WCAG 2.2 AA technical debt in Angular codebases. It inspects live browser accessibility trees, traces violations to static source files, applies AST-level code patches, and delivers verified Pull Requests — without human intervention.
+
+<CardGroup cols={2}>
+  <Card title="Checkpoint 1 — Agent Scoping" icon="crosshairs" href="/checkpoints/checkpoint-1-agent-scoping">
+    Problem definition, environment, tools, ReAct action loop, and feedback guardrails.
+  </Card>
+  <Card title="Checkpoint 2 — Agent Design" icon="brain" href="/checkpoints/checkpoint-2-agent-design">
+    ReAct reasoning loop, dual memory architecture, and overcoming the static-to-dynamic compilation gap.
+  </Card>
+  <Card title="Checkpoint 3 — RAG & Retrieval" icon="database" href="/checkpoints/checkpoint-3-rag-retrieval">
+    Hybrid retrieval: Stateless Semantic Search (MMR) + Deterministic LLM Wiki for zero-hallucination fixes.
+  </Card>
+  <Card title="Checkpoint 4 — Tree of Thought" icon="sitemap" href="/checkpoints/checkpoint-4-tree-of-thought">
+    DFS-guided ToT search, adaptive sibling inflation, and the 0–20 composite scoring rubric.
+  </Card>
+  <Card title="Checkpoint 5 — Multi-Agent Architecture" icon="users" href="/checkpoints/checkpoint-5-multi-agent-architecture">
+    Role-decomposed team: Compliance Planner, Codebase Compiler, and QA Critic coordinated by LangGraph.
+  </Card>
+  <Card title="Demo — Hybrid Retrieval Router" icon="code" href="/demos/rag-hybrid-retrieval">
+    Production-grade router combining exact LLM Wiki lookup with MMR-ranked vector search.
+  </Card>
+</CardGroup>
+
+## System Architecture
+
+The A11y Fixer uses a three-agent sequential pipeline governed by LangGraph:
+
+| Agent | Role | Key Output |
+|---|---|---|
+| **Compliance Planner** | Retrieves authoritative WCAG clauses via Hybrid RAG | Structured compliance manifest |
+| **Codebase Compiler** | Applies Tree-of-Thought AST patches (k=3 branches) | Candidate code diffs on isolated Git branches |
+| **QA Critic** | Compiles, audits, and scores each patch (0–20 rubric) | Approve PR or trigger backtrack |
+
+## Key Technical Decisions
+
+- **Hybrid RAG** over naive vector search — deterministic LLM Wiki for known `axe-core` error codes, MMR-reranked semantic search for exploratory queries
+- **Tree-of-Thought DFS** over linear Chain-of-Thought — handles combinatorial constraint complexity and enables safe backtracking without state pollution
+- **LangGraph** over loose swarm orchestration — full auditability of every state transition for developer-reviewable Pull Requests
+- **Git-backed transactional sandbox** — each ToT branch runs in a pristine workspace (`git checkout -f && git clean -fd`) to prevent state fragmentation

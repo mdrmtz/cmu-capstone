@@ -1,0 +1,298 @@
+---
+title: "Demo — Hybrid Retrieval Router"
+description: "Production-grade hybrid retrieval combining a deterministic LLM Wiki (exact rule lookup) with Stateless Semantic Search (MMR reranking) — the core of The A11y Fixer's retrieval engine."
+---
+
+# Demo: Hybrid Retrieval Router
+
+This demo implements the full **Enterprise Stacking Pattern** from Checkpoint 3.1: a router that dynamically chooses between deterministic exact-match lookup and probabilistic MMR-ranked vector search based on the inbound query type.
+
+**Two pathways:**
+- **Pathway A — Stateless Semantic Search:** Cosine similarity + Maximal Marginal Relevance (MMR, λ=0.5) for exploratory queries.
+- **Pathway B — Deterministic Context Compilation (LLM Wiki):** Hash-key lookup for known axe-core error codes — bypasses vector search entirely.
+
+---
+
+## Architecture
+
+```
+[Inbound Query]
+      │
+      ▼
+{ Is it a known axe-core error key? }
+ /                                  \
+[Yes]                               [No]
+  │                                   │
+  ▼                                   ▼
+LLM Wiki                    Stateless Semantic Search
+(direct_lookup)             (retrieve_mmr, λ=0.5, k=2)
+  │                                   │
+  └─────────────┬─────────────────────┘
+                │
+                ▼
+        [Compliance Result]
+```
+
+---
+
+## Source Code
+
+```python
+import numpy as np
+import json
+import re
+
+# =====================================================================
+# 1. THE DETERMINISTIC LLM WIKI DATABASE
+# =====================================================================
+
+class LLMWiki:
+    """
+    Implements Pathway B: Deterministic Context Compilation.
+    Uses exact key matches from audit reports to fetch zero-variance,
+    pre-vetted compliance references directly from a structured registry.
+    """
+    def __init__(self):
+        # In production, this would load static markdown files from disk.
+        self._registry = {
+            "button-name": {
+                "rule_id": "WCAG 2.4.4 (Level A) / WAI-ARIA 1.2",
+                "standard": "Interactive elements must have discernible, accessible names.",
+                "angular_template": (
+                    "<button class=\"close-btn\" [attr.aria-label]=\"closeLabel\">\n"
+                    "  <svg aria-hidden=\"true\" focusable=\"false\">...</svg>\n"
+                    "</button>"
+                ),
+                "remediation_guideline": (
+                    "CRITICAL: Do NOT use the 'alt' attribute on a <button> tag. In Angular, "
+                    "bind dynamic text using template interpolation [attr.aria-label] to avoid "
+                    "DOM compilation mismatch. Ensure SVG icons are hidden from screen readers "
+                    "using aria-hidden=\"true\" and focusable=\"false\"."
+                )
+            },
+            "color-contrast": {
+                "rule_id": "WCAG 1.4.3 (Level AA)",
+                "standard": "The visual presentation of text must have a contrast ratio of at least 4.5:1.",
+                "angular_template": (
+                    "/* Remediation applied via global/component stylesheet */\n"
+                    ".high-contrast-text {\n"
+                    "  color: #1a1a1a;       /* Dark charcoal */\n"
+                    "  background-color: #ffffff; /* Contrast ratio 16.8:1 */\n"
+                    "}"
+                ),
+                "remediation_guideline": (
+                    "Contrast failures must be remediated in the CSS tier. Locate the CSS/SCSS file "
+                    "associated with the component. Ensure text styles achieve 4.5:1 contrast against "
+                    "their background. Avoid inline style injections that bypass Angular style encapsulation."
+                )
+            },
+            "bypass": {
+                "rule_id": "WCAG 2.4.1 (Level A)",
+                "standard": "Provide a mechanism to bypass blocks of content that are repeated on multiple Web pages.",
+                "angular_template": (
+                    "<a class=\"skip-link\" href=\"#main-content\" "
+                    "[attr.aria-label]=\"skipToMainLabel\">Skip to main content</a>\n"
+                    "...\n"
+                    "<main id=\"main-content\" tabindex=\"-1\">...</main>"
+                ),
+                "remediation_guideline": (
+                    "In Angular Single Page Applications (SPAs), skip links must point to a stable element "
+                    "with a matching ID. Set tabindex=\"-1\" on the target container to allow programmatic "
+                    "focus shifts during route transitions without shifting visual layouts."
+                )
+            }
+        }
+
+    def direct_lookup(self, query: str) -> dict:
+        """
+        Scans the query for known error keys in the registry.
+        Bypasses probabilistic vector search entirely if found.
+        """
+        query_lower = query.lower()
+        for key, entry in self._registry.items():
+            if key in query_lower:
+                return entry
+        return None
+
+
+# =====================================================================
+# 2. STATELESS SEMANTIC SEARCH & MMR RERANKING
+# =====================================================================
+
+class StatelessSemanticSearch:
+    """
+    Implements Pathway A: Stateless Semantic Search (RAG).
+    Provides similarity matching for exploratory queries.
+    Utilizes Maximal Marginal Relevance (MMR) to maximize information diversity.
+    """
+    def __init__(self):
+        # Mock index representing high-dimensional semantic spaces of WCAG documentation
+        self.corpus = [
+            {
+                "id": 0,
+                "topic": "Keyboard Navigation",
+                "text": "WCAG 2.1 Keyboard Accessible: Ensure all interactive elements can be focused and triggered using standard Tab and Enter/Space keys.",
+                "vector": np.array([0.85, 0.10, 0.05, 0.05, 0.10])
+            },
+            {
+                "id": 1,
+                "topic": "Keyboard Focus Traps",
+                "text": "WAI-ARIA Pattern: Modals and dialog components must implement focus trapping. When opened, focus must be constrained to the modal wrapper and cycled logically.",
+                "vector": np.array([0.80, 0.15, 0.10, 0.02, 0.08])
+            },
+            {
+                "id": 2,
+                "topic": "Angular Lifecycle Focus",
+                "text": "Angular Focus Directive: Use the AfterViewInit lifecycle hook to programmatically set focus on dynamically rendered elements using ElementRef.nativeElement.focus().",
+                "vector": np.array([0.45, 0.75, 0.20, 0.10, 0.30])
+            },
+            {
+                "id": 3,
+                "topic": "Alternative Text Standards",
+                "text": "WCAG 1.1.1 Non-text Content: All non-text elements (images, SVG icons, visual charts) must provide descriptive alternative text using alt attributes or aria-labels.",
+                "vector": np.array([0.10, 0.20, 0.85, 0.35, 0.15])
+            },
+            {
+                "id": 4,
+                "topic": "Angular Dynamic Labels",
+                "text": "Angular Dynamic Interpolation: For components utilizing internationalization, bind dynamic alt text or aria-labels using the bracketed attribute syntax: [attr.aria-label].",
+                "vector": np.array([0.20, 0.30, 0.80, 0.40, 0.25])
+            }
+        ]
+
+    def _cosine_similarity(self, vec_a: np.ndarray, vec_b: np.ndarray) -> float:
+        norm_a = np.linalg.norm(vec_a)
+        norm_b = np.linalg.norm(vec_b)
+        if norm_a == 0 or norm_b == 0:
+            return 0.0
+        return float(np.dot(vec_a, vec_b) / (norm_a * norm_b))
+
+    def retrieve_mmr(self, query_vector: np.ndarray, top_k: int = 2, lmbda: float = 0.5) -> list:
+        """
+        Two-stage retrieval pipeline:
+        Stage 1: Cosine similarity ranking (fast candidate selection).
+        Stage 2: MMR selection to eliminate redundant results.
+
+        MMR equation: λ * Sim(Query, Doc) - (1 - λ) * Max_Sim(Doc, Selected)
+        """
+        # Stage 1: Fast similarity ranking
+        candidates = []
+        for doc in self.corpus:
+            sim_to_query = self._cosine_similarity(query_vector, doc["vector"])
+            candidates.append((doc, sim_to_query))
+        candidates.sort(key=lambda x: x[1], reverse=True)
+
+        # Stage 2: MMR Selection Loop
+        selected_docs = []
+        unselected_idx = list(range(len(candidates)))
+
+        while len(selected_docs) < top_k and len(unselected_idx) > 0:
+            best_mmr_score = -float('inf')
+            best_candidate_idx = -1
+
+            for idx in unselected_idx:
+                doc, query_sim = candidates[idx]
+
+                if len(selected_docs) == 0:
+                    mmr_score = query_sim
+                else:
+                    max_sim_to_selected = max(
+                        self._cosine_similarity(doc["vector"], sel_doc["vector"])
+                        for sel_doc, _ in selected_docs
+                    )
+                    mmr_score = lmbda * query_sim - (1 - lmbda) * max_sim_to_selected
+
+                if mmr_score > best_mmr_score:
+                    best_mmr_score = mmr_score
+                    best_candidate_idx = idx
+
+            selected_docs.append(candidates[best_candidate_idx])
+            unselected_idx.remove(best_candidate_idx)
+
+        return [doc for doc, _ in selected_docs]
+
+
+# =====================================================================
+# 3. THE HYBRID RETRIEVAL ROUTER
+# =====================================================================
+
+class HybridRetrievalRouter:
+    """
+    The orchestrator module for the A11y Fixer.
+    Inspects queries to dynamically route them through either a deterministic
+    LLM Wiki compilation or a stateless semantic vector pipeline.
+    """
+    def __init__(self):
+        self.wiki = LLMWiki()
+        self.semantic_retriever = StatelessSemanticSearch()
+
+    def orchestrate_retrieval(self, query: str) -> dict:
+        print(f"\n[Thought] Parsing inbound system query: '{query}'")
+
+        # Pathway B: Direct hash matching via LLM Wiki
+        wiki_data = self.wiki.direct_lookup(query)
+
+        if wiki_data:
+            print("[Action] Direct lookup match triggered on LLM Wiki. Bypassing vector database.")
+            print(f"[Observation] Retrieved deterministic compliance entry: Rule ID = {wiki_data['rule_id']}")
+            return {
+                "pathway": "B_DETERMINISTIC",
+                "source": "LLM Wiki",
+                "result": wiki_data
+            }
+
+        # Pathway A: Stateless Semantic Search with MMR
+        print("[Action] No direct match found. Routing to Stateless Semantic Search (MMR).")
+        # For demo purposes, use a fixed query vector representing keyboard navigation
+        query_vector = np.array([0.75, 0.20, 0.05, 0.03, 0.12])
+        retrieved_docs = self.semantic_retriever.retrieve_mmr(query_vector, top_k=2, lmbda=0.5)
+
+        print(f"[Observation] Retrieved {len(retrieved_docs)} diverse chunks via MMR reranking.")
+        return {
+            "pathway": "A_SEMANTIC",
+            "source": "Stateless Semantic Search",
+            "result": [{"topic": doc["topic"], "text": doc["text"]} for doc in retrieved_docs]
+        }
+
+
+# =====================================================================
+# 4. DEMO EXECUTION
+# =====================================================================
+
+if __name__ == "__main__":
+    router = HybridRetrievalRouter()
+
+    print("=" * 60)
+    print("TEST CASE 1: Structured axe-core violation (Pathway B)")
+    print("=" * 60)
+    result_1 = router.orchestrate_retrieval("Fix the axe-core button-name violation in the nav component")
+    print(f"\nResult pathway: {result_1['pathway']}")
+    print(f"Angular template fix:\n{result_1['result']['angular_template']}")
+
+    print("\n" + "=" * 60)
+    print("TEST CASE 2: Exploratory design query (Pathway A)")
+    print("=" * 60)
+    result_2 = router.orchestrate_retrieval("How do I design an accessible keyboard navigation pattern?")
+    print(f"\nResult pathway: {result_2['pathway']}")
+    for doc in result_2['result']:
+        print(f"  - [{doc['topic']}] {doc['text'][:80]}...")
+```
+
+---
+
+## Key Concepts Demonstrated
+
+| Concept | Implementation |
+|---|---|
+| **Deterministic lookup** | `LLMWiki.direct_lookup()` — O(1) hash match, zero similarity noise |
+| **MMR reranking** | Two-stage: cosine similarity candidates → MMR selection loop |
+| **MMR λ parameter** | λ=0.5 balances relevance vs. diversity equally |
+| **Routing logic** | `HybridRetrievalRouter.orchestrate_retrieval()` — Pathway B first, Pathway A fallback |
+| **State isolation** | Each call is fully stateless — no session memory between retrievals |
+
+## Relation to The A11y Fixer
+
+This is the exact retrieval engine described in **Checkpoint 3.1**. In production:
+- `LLMWiki._registry` is replaced with disk-loaded markdown files indexed by axe-core error codes
+- `StatelessSemanticSearch.corpus` is replaced with a persistent vector database (e.g., Chroma, Pinecone) holding the full WCAG 2.2 specification
+- The mock numpy vectors are replaced with real `bge-base-en-v1.5` embeddings

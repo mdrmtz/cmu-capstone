@@ -1,0 +1,178 @@
+[
+  {
+    "id": "case-01",
+    "page": "/",
+    "rule": "html-has-lang",
+    "selector": "html",
+    "wcag": "3.1.1",
+    "ground_truth_fix": "Add lang=\"en\" to the root <html> element in src/index.html (site-wide fix, clears this rule on all 11 pages)."
+  },
+  {
+    "id": "case-02",
+    "page": "/home",
+    "rule": "html-has-lang",
+    "selector": "html",
+    "wcag": "3.1.1",
+    "ground_truth_fix": "Add lang=\"en\" to the root <html> element in src/index.html (site-wide fix, clears this rule on all 11 pages)."
+  },
+  {
+    "id": "case-03",
+    "page": "/product",
+    "rule": "color-contrast",
+    "selector": "p",
+    "wcag": "1.4.3",
+    "ground_truth_fix": "Darken the paragraph text color (#999999 on #ffffff, 2.84:1) to at least a 4.5:1 ratio, e.g. #666666 or darker, without changing the background."
+  },
+  {
+    "id": "case-04",
+    "page": "/product",
+    "rule": "html-has-lang",
+    "selector": "html",
+    "wcag": "3.1.1",
+    "ground_truth_fix": "Add lang=\"en\" to the root <html> element in src/index.html (site-wide fix, clears this rule on all 11 pages)."
+  },
+  {
+    "id": "case-05",
+    "page": "/case-studies",
+    "rule": "html-has-lang",
+    "selector": "html",
+    "wcag": "3.1.1",
+    "ground_truth_fix": "Add lang=\"en\" to the root <html> element in src/index.html (site-wide fix, clears this rule on all 11 pages)."
+  },
+  {
+    "id": "case-06",
+    "page": "/case-studies",
+    "rule": "image-alt",
+    "selector": "img[src$=\"atlas-dashboard.svg\"]",
+    "wcag": "1.1.1",
+    "ground_truth_fix": "Add a descriptive alt attribute to the <img> (/images/atlas-dashboard.svg) describing its semantic content (or alt=\"\" if verified decorative)."
+  },
+  {
+    "id": "case-07",
+    "page": "/case-studies",
+    "rule": "image-alt",
+    "selector": "article:nth-child(2) > img",
+    "wcag": "1.1.1",
+    "ground_truth_fix": "Add a descriptive alt attribute to the <img> (/images/northstar-dashboard.svg) describing its semantic content (or alt=\"\" if verified decorative)."
+  },
+  {
+    "id": "case-08",
+    "page": "/case-studies",
+    "rule": "image-alt",
+    "selector": "img[src$=\"signal-dashboard.svg\"]",
+    "wcag": "1.1.1",
+    "ground_truth_fix": "Add a descriptive alt attribute to the <img> (/images/signal-dashboard.svg) describing its semantic content (or alt=\"\" if verified decorative)."
+  },
+  {
+    "id": "case-09",
+    "page": "/docs",
+    "rule": "html-has-lang",
+    "selector": "html",
+    "wcag": "3.1.1",
+    "ground_truth_fix": "Add lang=\"en\" to the root <html> element in src/index.html (site-wide fix, clears this rule on all 11 pages)."
+  },
+  {
+    "id": "case-10",
+    "page": "/careers",
+    "rule": "html-has-lang",
+    "selector": "html",
+    "wcag": "3.1.1",
+    "ground_truth_fix": "Add lang=\"en\" to the root <html> element in src/index.html (site-wide fix, clears this rule on all 11 pages)."
+  },
+  {
+    "id": "case-11",
+    "page": "/blog",
+    "rule": "button-name",
+    "selector": "button",
+    "wcag": "4.1.2",
+    "ground_truth_fix": "Add [attr.aria-label] (or visible text) to the icon-only <button> describing its action."
+  },
+  {
+    "id": "case-12",
+    "page": "/blog",
+    "rule": "html-has-lang",
+    "selector": "html",
+    "wcag": "3.1.1",
+    "ground_truth_fix": "Add lang=\"en\" to the root <html> element in src/index.html (site-wide fix, clears this rule on all 11 pages)."
+  },
+  {
+    "id": "case-13",
+    "page": "/blog",
+    "rule": "link-name",
+    "selector": "article > a[href$=\"blog\"]",
+    "wcag": "2.4.4",
+    "ground_truth_fix": "Add [attr.aria-label] (or visible text) to the icon-only <a href=\"/blog\"> describing its destination."
+  },
+  {
+    "id": "case-14",
+    "page": "/pricing",
+    "rule": "html-has-lang",
+    "selector": "html",
+    "wcag": "3.1.1",
+    "ground_truth_fix": "Add lang=\"en\" to the root <html> element in src/index.html (site-wide fix, clears this rule on all 11 pages)."
+  },
+  {
+    "id": "case-15",
+    "page": "/about",
+    "rule": "html-has-lang",
+    "selector": "html",
+    "wcag": "3.1.1",
+    "ground_truth_fix": "Add lang=\"en\" to the root <html> element in src/index.html (site-wide fix, clears this rule on all 11 pages)."
+  },
+  {
+    "id": "case-16",
+    "page": "/about",
+    "rule": "image-alt",
+    "selector": "img[src$=\"maya.svg\"]",
+    "wcag": "1.1.1",
+    "ground_truth_fix": "Add a descriptive alt attribute to the <img> (/images/maya.svg) describing its semantic content (or alt=\"\" if verified decorative)."
+  },
+  {
+    "id": "case-17",
+    "page": "/about",
+    "rule": "image-alt",
+    "selector": "img[src$=\"leo.svg\"]",
+    "wcag": "1.1.1",
+    "ground_truth_fix": "Add a descriptive alt attribute to the <img> (/images/leo.svg) describing its semantic content (or alt=\"\" if verified decorative)."
+  },
+  {
+    "id": "case-18",
+    "page": "/contact",
+    "rule": "color-contrast",
+    "selector": "p",
+    "wcag": "1.4.3",
+    "ground_truth_fix": "Darken the paragraph text color (#999999 on #ffffff, 2.84:1) to at least a 4.5:1 ratio, e.g. #666666 or darker, without changing the background."
+  },
+  {
+    "id": "case-19",
+    "page": "/contact",
+    "rule": "html-has-lang",
+    "selector": "html",
+    "wcag": "3.1.1",
+    "ground_truth_fix": "Add lang=\"en\" to the root <html> element in src/index.html (site-wide fix, clears this rule on all 11 pages)."
+  },
+  {
+    "id": "case-20",
+    "page": "/contact",
+    "rule": "link-name",
+    "selector": "a[href$=\"example.com\"]:nth-child(2)",
+    "wcag": "2.4.4",
+    "ground_truth_fix": "Add [attr.aria-label] (or visible text) to the icon-only <a href=\"https://example.com\"> describing its destination."
+  },
+  {
+    "id": "case-21",
+    "page": "/contact",
+    "rule": "link-name",
+    "selector": "a[href$=\"example.com\"]:nth-child(3)",
+    "wcag": "2.4.4",
+    "ground_truth_fix": "Add [attr.aria-label] (or visible text) to the icon-only <a href=\"https://example.com\"> describing its destination."
+  },
+  {
+    "id": "case-22",
+    "page": "/status",
+    "rule": "html-has-lang",
+    "selector": "html",
+    "wcag": "3.1.1",
+    "ground_truth_fix": "Add lang=\"en\" to the root <html> element in src/index.html (site-wide fix, clears this rule on all 11 pages)."
+  }
+]

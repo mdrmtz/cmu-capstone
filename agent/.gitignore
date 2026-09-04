@@ -1,0 +1,18 @@
+# Python
+__pycache__/
+*.pyc
+.venv/
+*.egg-info/
+.pytest_cache/
+
+# Runtime-generated state (not source of truth - safe to delete/regenerate)
+wiki/lessons/*.json
+wiki/AGENTS.md
+hitl_queue/
+.repo-cache/
+evaluation/results/audit.json
+evaluation/results/results_summary.json
+evaluation/results/prs/
+
+# Local env
+.env

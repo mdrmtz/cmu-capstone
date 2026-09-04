@@ -1,0 +1,17 @@
+{
+  "phase": "test_option2_forced_timeout",
+  "timestamp": "2026-09-03T15:29:35.862404+00:00",
+  "total_cases": 1,
+  "cases": [
+    {
+      "case_id": "case-10",
+      "rule": "link-name",
+      "page": "/features",
+      "rubric_score": 0.0,
+      "cleared": false,
+      "route": "human",
+      "latency_seconds": 10.014914833009243,
+      "error": "case timed out after 10s"
+    }
+  ]
+}

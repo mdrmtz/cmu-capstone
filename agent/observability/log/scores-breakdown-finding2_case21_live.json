@@ -1,0 +1,17 @@
+{
+  "phase": "finding2_case21_live",
+  "timestamp": "2026-09-04T06:59:35.973559+00:00",
+  "total_cases": 1,
+  "cases": [
+    {
+      "case_id": "case-21",
+      "rule": "button-name",
+      "page": "/pricing",
+      "rubric_score": 0.0,
+      "cleared": false,
+      "route": "human",
+      "latency_seconds": 61.14439600001788,
+      "error": "ForbiddenResponseError: Request blocked: PII detected (invalid_json_after_redaction)"
+    }
+  ]
+}
