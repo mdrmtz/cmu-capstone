@@ -24,6 +24,7 @@ import yaml
 
 from a11y_fixer import cli, config
 from a11y_fixer.adapters.audit_runner import AxeAuditRunner
+from a11y_fixer.adapters.pr import delivery as pr_delivery
 from a11y_fixer.adapters.html_lang_applier import apply_html_lang
 from a11y_fixer.domain.guardrail_rules import brier_score, expected_calibration_error
 from a11y_fixer.domain.html_lang_fix import get_html_lang_fix
@@ -46,6 +47,14 @@ class CaseResult:
     latency_seconds: float
     error: str | None = None
     scoring_details: dict | None = None  # Per-criterion breakdown from qa_critic
+    # Finding #2 (gap analysis): deliver_violation()'s outcome was previously
+    # discarded here, so a real live PR delivery left no trace in
+    # evaluation/results/*.json. These three surface exactly what that
+    # finding's acceptance test checks for - a real pull_request_url - and
+    # stay None for every other route/mode (dry-run, human queue, no-op).
+    delivered: bool | None = None
+    pull_request_url: str | None = None
+    pull_request_number: int | None = None
 
 
 def load_benchmark_cases(path: Path = BENCHMARK_CASES_PATH) -> list[dict]:
@@ -256,6 +265,25 @@ async def _wait_for_index_html_rebuild(
     return False
 
 
+def _pr_delivery_fields(outcome: dict) -> dict[str, object]:
+    """Extract PR-delivery fields from a deliver_violation() outcome dict.
+
+    `outcome["result"]` is only a `pr_delivery.LiveResult` when
+    `route == "auto"` and `--live` actually created a PR - every other
+    case (dry-run, human queue, no-op) leaves `pull_request_url`/
+    `pull_request_number` as None, which is the correct, honest signal
+    that no real PR exists yet.
+    """
+    result = outcome.get("result")
+    if isinstance(result, pr_delivery.LiveResult):
+        return {
+            "delivered": outcome.get("delivered"),
+            "pull_request_url": result.pull_request_url,
+            "pull_request_number": result.pull_request_number,
+        }
+    return {"delivered": outcome.get("delivered"), "pull_request_url": None, "pull_request_number": None}
+
+
 async def _run_one_case(
     graph: Any,
     case: dict,
@@ -341,6 +369,7 @@ async def _run_one_case(
                         "visual_error": None,
                         "fast_track": "html_lang_applier",
                     },
+                    **_pr_delivery_fields(outcome),
                 )
             # apply_html_lang() failed (build broke and was rolled back, file
             # missing, or fixture was already fixed) - fall through to the
@@ -407,6 +436,7 @@ async def _run_one_case(
                     cleared=cleared,
                     latency_seconds=time.monotonic() - start,
                     scoring_details=response.scoring_details,
+                    **_pr_delivery_fields(outcome),
                 )
             except asyncio.TimeoutError:
                 return CaseResult(

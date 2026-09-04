@@ -406,7 +406,7 @@ def deliver_violation(
                     github_repo=pr_config.github_repo,
                 )
                 merge_result = pr_mgr.auto_merge_pr(
-                    pr_number, response.score, threshold=auto_merge_threshold
+                    pr_number, response.score, merge_threshold=auto_merge_threshold
                 )
                 print(f"  ✅ Auto-merged PR {pr_number}: {merge_result}")  # noqa: T201
 

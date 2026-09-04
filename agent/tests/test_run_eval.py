@@ -351,3 +351,68 @@ def test_main_rejects_case_ids_combined_with_case_range(
 
     assert exit_code == 1
     assert "mutually exclusive" in capsys.readouterr().out
+
+
+def test_pr_delivery_fields_extracts_live_result_url_and_number() -> None:
+    """Finding #2 (gap analysis): a real live PR delivery must surface
+    pull_request_url - that's the actual bar for "PR delivery verified".
+    """
+    live_result = run_eval_module.pr_delivery.LiveResult(
+        pull_request_url="https://github.com/mdrmtz/Hallucinate.io/pull/42",
+        pull_request_number=42,
+        branch_name="a11y-fixer/abc123",
+    )
+    outcome = {"delivered": True, "result": live_result, "route": "auto"}
+
+    fields = run_eval_module._pr_delivery_fields(outcome)
+
+    assert fields == {
+        "delivered": True,
+        "pull_request_url": "https://github.com/mdrmtz/Hallucinate.io/pull/42",
+        "pull_request_number": 42,
+    }
+
+
+def test_pr_delivery_fields_none_for_non_live_outcomes() -> None:
+    """Dry-run, human-queue, and no-op outcomes carry no LiveResult - the PR
+    fields must stay None rather than fabricate a URL that doesn't exist.
+    """
+    dry_run_outcome = {
+        "delivered": True,
+        "result": run_eval_module.pr_delivery.DryRunResult(
+            diff_path=Path("/tmp/x.diff"),
+            description_path=Path("/tmp/x.md"),
+            unified_diff="",
+        ),
+        "route": "auto",
+    }
+    human_outcome = {"delivered": False, "queue_path": "/tmp/q.json", "route": "human"}
+    no_op_outcome = {
+        "delivered": False,
+        "reason": "codebase_compiler made no file changes",
+        "route": "auto",
+    }
+
+    for outcome in (dry_run_outcome, human_outcome, no_op_outcome):
+        fields = run_eval_module._pr_delivery_fields(outcome)
+        assert fields["pull_request_url"] is None
+        assert fields["pull_request_number"] is None
+        assert fields["delivered"] == outcome.get("delivered")
+
+
+def test_case_result_pr_delivery_fields_default_to_none() -> None:
+    """New CaseResult fields must default to None so every existing
+    construction site (and every existing test) is unaffected.
+    """
+    result = CaseResult(
+        case_id="case-01",
+        rule="html-has-lang",
+        page="/",
+        route="auto",
+        rubric_score=20.0,
+        cleared=True,
+        latency_seconds=1.0,
+    )
+    assert result.delivered is None
+    assert result.pull_request_url is None
+    assert result.pull_request_number is None

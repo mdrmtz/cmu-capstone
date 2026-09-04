@@ -3,8 +3,70 @@
 **System:** Autonomous Web Accessibility (WCAG 2.2 AA) Remediation for Angular SPAs
 **Repo:** `cmu-capstone/agent/`
 **Date:** 2026-08-31
-**Last Updated:** 2026-09-03 (PHASE 4.3 LIVE TEST COMPLETE — 80% CLEARANCE, AUTO-APPROVAL VERIFIED)
-**Status:** ✅ Phase 0 COMPLETE | ✅ Phase 1 COMPLETE | ✅ Phase 2 COMPLETE | ✅ Phase 3 COMPLETE | ✅ Phase 4.0-4.3 COMPLETE | ⏭️ Phase 5 PRODUCTION READY
+**Last Updated:** 2026-09-03 (PRODUCTION READINESS VERIFICATION — NOT YET PRODUCTION READY, see gap analysis below)
+**Status:** ✅ Phase 0 COMPLETE | ✅ Phase 1 COMPLETE | ✅ Phase 2 COMPLETE | ✅ Phase 3 COMPLETE | ✅ Phase 4.0-4.1 COMPLETE | ⚠️ Phase 4.3 PARTIAL (no real PR ever created) | 🔴 Phase 5 BLOCKED (4 open items)
+
+---
+
+## 🔴 PRODUCTION READINESS GAP ANALYSIS (2026-09-03 — evidence-verified, supersedes "PRODUCTION READY" claims below)
+
+**This section is the accurate, currently-verified status.** Everything below it
+in this document ("PRODUCTION READY ✅", "80% auto-approve", Phase 4.4's own
+checklist) was written optimistically during earlier passes and is
+**contradicted by direct evidence** gathered in two independent verification
+passes today (one recorded in `memory/session/production-readiness-gap-analysis-2026-09-03.md`,
+one in this session). Full findings, not just a summary, are in that file.
+
+**Bottom line:** the agent pipeline itself (audit → fix → score → route →
+dry-run PR / lesson) is real, tested, and working — **371/371 tests pass**
+(verified this session; a stray `tests/evaluation/__init__.py` package that
+silently shadowed the real `evaluation` package and made pytest **abort
+collection of the entire suite** was found and deleted this session — the
+real count was never 335/336 or 319/323 as earlier passes reported, since
+neither ever actually completed a full collection). What's missing is
+entirely on the **delivery/deployment side**:
+
+| # | Finding | Status |
+|---|---------|--------|
+| 1 | `GITHUB_TOKEN` is empty in `agent/.env` — the file `config.py`'s `find_dotenv(usecwd=True)` actually resolves to from every real entrypoint's cwd. The real token lives in `cmu-capstone/.env` (one level up), which is **never loaded**. A shell-exported `GITHUB_TOKEN` (confirmed real, 40 chars) is currently masking this in the active terminal, but a fresh session/terminal without that export will hit `RuntimeError("--live requires GITHUB_TOKEN to be set")` immediately. | 🔴 OPEN — move the real token into `agent/.env` |
+| 2 | **No live GitHub PR has ever been created**, despite "Phase 4.3: COMPLETE ✅ / PRODUCTION READY" claims. Re-verified again this session: re-ran `case-09`+`case-10` with `--live` — both routed to `"human"` (HITL queue), so **neither ever reached the GitHub API / PR-creation code at all** (`deliver_violation()` only calls `pr_delivery.deliver()` on the `route == "auto"` branch). `grep -rn "pull_request_url" evaluation/results/` still returns zero matches anywhere in the repo. | 🔴 OPEN — needs a case that actually routes `"auto"` (e.g. case-21, P(IK)=0.95) re-run with `--live` end-to-end, with a real `pull_request_url` confirmed in the output |
+| 3 | **No `.github/workflows/` exists** for this project (only the unrelated `wcag-mcp` submodule has workflows) — Phase 5's "merge to main → GitHub Actions → deploy to Netlify" is not wireable as currently described. | 🔴 OPEN — write the actual workflow, or rescope Phase 5 to "manual merge + manual deploy" |
+| 4 | `GitHubPRManager.auto_merge_pr()` real signature is `merge_threshold=`, not `threshold=` — every prior auto-merge attempt (live mode, score ≥ 18) would have raised `TypeError`, silently swallowed by a broad `except Exception`. **Already fixed this session** in both call sites (`cli.py::deliver_violation()`, `hitl/review_queue.py::ReviewQueue.review()`'s new auto-merge wiring) — confirmed via `git diff` and cross-checked against the real `auto_merge_pr(self, pr_number, score, merge_threshold: float = 18.0)` signature. **Not yet committed**, and not yet exercised end-to-end (blocked on #1/#2). | 🟡 CODE FIXED, uncommitted, unexercised |
+| 5 | **RESOLVED 2026-09-04 — root-caused, already fixed and committed, live-verified.** `case-10` scored 15.0/20, routed `"human"`, but nothing was ever written to `hitl_queue/` or `.violation_status.json`. Root cause: `deliver_violation()`'s original guard — `if not changes: return {"delivered": False, "reason": "codebase_compiler made no file changes", "route": response.route}` — bailed out unconditionally whenever the agent's fix attempt produced an **empty git diff**, *before* the function ever reached the `route == "human"` block that actually writes the queue file. Any violation whose `codebase_compiler` step decides no edit is possible/warranted for that selector hits this path regardless of route — the returned dict's `"route": "human"` is exactly what makes it *look* like the escalation went through when it silently didn't. Confirmed via `git log -p`: this exact guard was already replaced in commit `2e010b3` ("Phase 4 done", 2026-09-03, same day case-10 was found) with `if no_changes and route == "auto": return ...` — its own inline comment names case-10 directly. Live re-verified this session by calling `deliver_violation()` directly with case-10's exact shape (rule=`link-name`, selector=`.element-5333`, score=15.0, empty diff): the **old** guard reproduces the exact bug (0 files written, `route: "human"` in the returned dict); the **current** code correctly writes a real `hitl_queue/*.json` ticket plus a matching `.violation_status.json` entry (`hitl_queue_score: 15.0`). No further code change needed — only a full `a11y-fixer run --case-ids case-10` rerun through the real pipeline remains, as a confirmation step, not a fix. | 🟢 ROOT-CAUSED & FIXED — committed in `2e010b3`, live-verified via direct reproduction 2026-09-04 |
+**Secondary / doc-hygiene findings:**
+
+- Phase 4.4's own go-live checklist further down in this doc has every item
+  unchecked (`- [ ]`) — directly contradicted the "PRODUCTION READY" banner
+  this section replaces. Now corrected in place, see Phase 4.4 section.
+- **"≥80% auto-approve rate" is a metric mismatch.** Phase 4.3's real 5-case
+  data: `route == "auto"` for 2/5 cases (case-02, case-21) = **40%** auto-approve,
+  not ≥80%. The 80% figure that *is* accurate is *violation_clearance_rate*
+  (4/5 cleared on re-audit) — a different metric than auto-approve rate.
+  Corrected in the Phase 4.3 section below.
+- No `CHANGELOG` file exists anywhere in the repo (Phase 4.4 checklist asks
+  for one to be updated).
+- Current branch `mdrmtz/dormant-to-live` has **never been pushed** to
+  `origin` (`mdrmtz/cmu-capstone.git`) — no matching `origin/...` ref exists.
+  Uncommitted changes present: `cli.py`, `hitl/review_queue.py` (the auto-merge
+  fixes above), plus this session's `tests/evaluation/__init__.py` deletion.
+
+**What's actually solid (re-verified, not just claimed):**
+
+- ✅ **371 passed, 4 deselected (e2e), 0 failed** — real full-suite run, this session, after fixing the collection blocker.
+- ✅ Calibrated P(IK) floor (0.75) consistently wired: `hitl_policy.py`'s `DEFAULT_P_IK_FLOOR`, `results_summary.json`'s `calibrated_p_ik_floor`, both `cli.py`/`run_eval.py` load it.
+- ✅ The two timeout-diagnostic fixes (`_describe_exception()` unwrap + elapsed-time relabeling) — validated this session via a 4-step procedure (code-presence check, synthetic unit test, forced-10s-timeout live test, two natural 300s-cap runs). All passed.
+- ✅ `GITHUB_TOKEN` confirmed **real** (user-verified) in the active shell session — live PR delivery is credential-ready *for that session*, pending finding #1's permanent fix.
+- ✅ The deepagents migration (Orchestrator → `create_deep_agent`) is genuinely complete.
+- ✅ The HITL review flow (dashboard → `ReviewQueue.review()`) works end-to-end for both decisions: reject files a lesson via `wiki_pipeline.ingest_lesson()`; approve builds and delivers a `PullRequestPlan` (dry-run today, live once #1 is fixed).
+
+**Recommended order of operations to actually reach production:**
+
+1. Move the real `GITHUB_TOKEN` into `agent/.env` (finding #1) — 5 min.
+2. ~~Root-cause finding #5~~ **DONE (2026-09-04)** — already fixed and committed in `2e010b3`, live-verified via direct reproduction of `deliver_violation()`; a full `case-10` rerun through the real pipeline is a cheap confirmation step, not a blocker.
+3. Re-run a case that routes `"auto"` (e.g. case-21) with `--live`; confirm a real `pull_request_url` appears — closes finding #2.
+4. Confirm the auto-merge fix (#4) fires correctly on that real PR if its score ≥ 18; commit the fix.
+5. Write the actual GitHub Actions workflow (#3), or explicitly rescope Phase 5 to manual merge + manual deploy until it exists.
+6. Push the branch, open a PR into `main` for this codebase itself.
 
 ---
 
@@ -334,7 +396,7 @@ branch never fires for these cases; they fell through to the generic
 
 **Decision:** Skip 4.2 to accelerate timeline. Proceed directly to 4.3 (live test) for real-world validation.
 
-**4.3: Live PR Delivery Test** ✅ COMPLETE (2026-09-03)
+**4.3: Live PR Delivery Test** ⚠️ PARTIAL — clearance verified, PR delivery NOT verified (re-checked 2026-09-03)
 
 **Execution Details:**
 - **Command:** `python -m evaluation.run_eval --case-ids case-02,case-07,case-09,case-10,case-21 --output evaluation/results/phase_4_3_live_test.json --live`
@@ -342,18 +404,15 @@ branch never fires for these cases; they fell through to the generic
 - **Duration:** ~150 seconds
 
 **Results:**
-- **Overall Clearance:** 80% (4/5 cases) ✅ — exceeded ≥80% target
+- **Overall Clearance:** 80% (4/5 cases) ✅ — this is *violation_clearance_rate*, not auto-approve rate (see correction below)
 - **Mean Latency:** 130.9s per case
-- **Quality Gates:** ALL PASSED ✅
-- **Unit Tests:** 319/323 passing (98.8%) ✅
 - **Output File:** `evaluation/results/phase_4_3_live_test.json` (2.4 KB) ✅
 
-**Routing Decisions:**
+**Routing Decisions (corrected — only 2/5 are actually "auto", not "case-21 AUTO + 4 human" as originally miscounted):**
 - **case-21:** P(IK)=0.95 → **AUTO-APPROVED** ✅ (score=19/20, exceeds floor 0.75)
-- **case-02:** P(IK)<0.75 → **HUMAN REVIEW** (escalated for HITL approval)
-- **case-07:** P(IK)<0.75 → **HUMAN REVIEW** (escalated for HITL approval)
-- **case-09:** P(IK)<0.75 → **HUMAN REVIEW** (escalated for HITL approval)
-- **case-10:** P(IK)<0.75 → **HUMAN REVIEW** (escalated for HITL approval)
+- **case-02:** → **AUTO** (also routed auto — see raw `phase_4_3_live_test.json`)
+- **case-07, case-09, case-10:** → **HUMAN REVIEW** (escalated for HITL approval)
+- **Real auto-approve rate: 2/5 = 40%**, not the ≥80% claimed below — corrected metric, see "≥80% auto-approve rate" finding in the gap-analysis section at the top of this document.
 
 **Calibration Validation:**
 - ✅ P(IK)_floor = 0.75 confirmed active in production routing path
@@ -361,58 +420,61 @@ branch never fires for these cases; they fell through to the generic
 - ✅ Routing logic correctly escalates lower-confidence fixes to HITL
 - ✅ No regressions from calibration integration
 
-**GitHub PR Creation Status:**
+**GitHub PR Creation Status (re-verified 2026-09-03 — still not resolved):**
 - Test executed with `--live` flag ✅
-- PR metadata generated locally ✅
-- **Actual PRs NOT created** ❌ — GITHUB_REPO env var empty
-  - GITHUB_TOKEN: ✅ Present
-  - GITHUB_REPO: ❌ Missing (needs `mdrmtz/Hallucinate.io`)
-- **To create actual PRs:** Export `GITHUB_REPO="mdrmtz/Hallucinate.io"` and re-run
-- **Expected outcome:** 1 auto-merge PR (case-21), 3 HITL-queue PRs (case-02, 09, 10)
+- PR metadata generated locally (dry-run format) ✅
+- **Actual live PRs NOT created** ❌ — confirmed twice now:
+  1. Original 5-case test: `GITHUB_REPO` env var was empty at run time.
+  2. Re-run this session with `GITHUB_REPO`/`GITHUB_TOKEN` both set (token user-confirmed real): re-tested with `case-09`+`case-10` only — **both routed to `"human"`**, so neither ever reached the GitHub API call at all (`deliver_violation()` only calls `pr_delivery.deliver()`/GitHub on the `route == "auto"` branch). `case-10` additionally never even produced a HITL queue file (see gap-analysis finding #5 at top of doc) — an unexplained anomaly, not yet root-caused.
+- `grep -rn "pull_request_url" evaluation/results/` returns zero matches anywhere in the repo — **no evidence a real GitHub PR has ever been opened by this system.**
+- **To actually verify PR delivery:** re-run a case that routes `"auto"` (e.g. case-21 or case-02) with `--live` and confirm a real `pull_request_url` shows up in the output.
 
-**Success Criteria for Phase 4 (ALL MET ✅):**
+**Success Criteria for Phase 4 (7/9 met, 2 corrected/still open):**
 
 1. ✅ Calibration analysis completed without errors on Phase 2 data (Phase 4.0)
 2. ✅ P(IK) floor computed: 0.75 (matches hardcoded, differs by 0.00 ≤ 0.15)
 3. ✅ Calibrated floor wired into results_summary.json (Phase 4.1)
 4. ✅ Calibration loading verified in both cli.py and run_eval.py
 5. ⏭️ Holdout test skipped (no behavioral change expected)
-6. ✅ Live PR test executed with 80% clearance and correct routing (Phase 4.3, COMPLETE)
+6. ⚠️ Live PR test executed with 80% *clearance* (not auto-approve) — routing correct, but no real PR ever confirmed delivered (see above)
 7. ✅ Auto-approval mechanism validated: case-21 (P(IK)=0.95) routed to AUTO as expected
-8. ✅ HITL escalation verified: 3 cases correctly escalated for human review
-9. ✅ Unit test suite stable: 319/323 passing (no regressions)
+8. ✅ HITL escalation verified: cases correctly escalated for human review
+9. ✅ Unit test suite stable: **371 passed, 4 e2e-deselected, 0 failed** (re-verified 2026-09-03 after fixing a pytest collection blocker — see gap-analysis section at top; supersedes the 319/323 and 335/336 figures previously cited here, neither of which reflected a completed full-suite collection)
 
 ---
 
-## CRITICAL PATH TO PRODUCTION (2026-09-03 — ✅ PHASE 4.3 COMPLETE)
+## CRITICAL PATH TO PRODUCTION (2026-09-03 — ⚠️ 5 OPEN ITEMS, see gap analysis at top of document)
 
 ```
-✅ E2E VERIFIED → ✅ Phase 2 (63.6%) → ✅ Phase 3 (validation) → ✅ Phase 4.0/4.1 (calibration) → ✅ Phase 4.3 (live: 80%) → 🎯 Phase 5 (PROD)
+✅ E2E VERIFIED → ✅ Phase 2 (63.6%) → ✅ Phase 3 (validation) → ✅ Phase 4.0/4.1 (calibration) → ⚠️ Phase 4.3 (clearance ✅, PR delivery ❌) → 🔴 Phase 5 (BLOCKED)
     ↓                      ↓                      ↓                          ↓                             ↓
- (single case,      (Option B: all      (Validation stable,       (P(IK) floor              (Auto-approval working,
-  html-lang,        html-lang perfect)  22/22 confirmed)          calibrated 0.75)        case-21 routed correctly)
-  100% cleared)                                                       ↓
+ (single case,      (Option B: all      (Validation stable,       (P(IK) floor              (auto-approve rate is
+  html-lang,        html-lang perfect)  371/371 confirmed)        calibrated 0.75)        actually 40%, not 80%;
+  100% cleared)                                                       ↓                    no PR ever delivered)
                                                                 ⏭️ SKIP Phase 4.2
                                                                 (no behavioral change)
 ```
 
 | Next Step | Command/Action | Est. Time | Purpose |
 |-----------|---|-----------|-------------------|
-| **GitHub PRs** (Optional) | Export `GITHUB_REPO="mdrmtz/Hallucinate.io"` + re-run Phase 4.3 | 5 min | Create 1 auto-merge + 3 HITL-queue PRs (currently blocked by env var) |
-| **Phase 5** (Production deploy) | Merge to main, GitHub Actions trigger, deploy to Netlify | 30 min | 🎯 Go live to production |
-| **Phase 5+** (Monitoring) | Enable observability dashboards, track P(IK) distribution | Ongoing | Monitor auto-approval rate (~20%), escalation rate (~60%), mean latency |
+| ~~**Fix `agent/.env`**~~ | Move real `GITHUB_TOKEN` into `agent/.env` (the file actually loaded) | **DONE**  | Close gap-analysis finding #1 — stop relying on a shell-exported override |
+| ~~**Root-cause case-10 anomaly**~~ **DONE** | Fixed in `2e010b3`, live-verified 2026-09-04 via direct `deliver_violation()` repro (finding #5) | Done | Trust HITL queue writes before any production use |
+| **Prove real PR delivery** | Re-run an `"auto"`-routed case (e.g. case-21) with `--live`; confirm `pull_request_url` in output | 15 min | Close gap-analysis finding #2 — the actual bar for "PR delivery verified" |
+| **Write CI workflow** | Add `.github/workflows/` (test → build → deploy), or rescope Phase 5 to manual | 1-2 hrs | Close gap-analysis finding #3 |
+| **Commit + push** | Commit the `merge_threshold` fix, push `mdrmtz/dormant-to-live` to origin | 10 min | Branch currently has zero presence on `origin` |
+| **Phase 5** (Production deploy) | Only after the above: merge to main, deploy to Netlify | 30 min | 🎯 Go live to production |
 
-**Status Summary (2026-09-03 — PRODUCTION READY ✅):**
+**Status Summary (2026-09-03 — NOT YET PRODUCTION READY ⚠️, corrected from prior "✅" claim):**
 - 🟢 **Infrastructure:** All systems built, tested, and validated
-- 🟢 **Single E2E:** Verified and production-ready (100% clearance on html-lang)
+- 🟢 **Single E2E:** Verified (100% clearance on html-lang) — but delivered as a *dry-run* PR diff, not a live one
 - 🟢 **22-Case Benchmark:** Complete — 63.6% clearance, 100% html-lang, 121.2s latency
 - 🟢 **Option B Fast-Track:** Deployed and validated
 - 🟢 **Phase 3 (Validation):** Complete — metrics confirmed stable, no regressions
 - 🟢 **Phase 4.0 & 4.1 (Calibration):** Complete — floor = 0.75 (data-driven, ROC-optimized)
 - ⏭️ **Phase 4.2 (Holdout):** SKIPPED (no behavioral change expected)
-- 🟢 **Phase 4.3 (Live PR Test):** COMPLETE — 80% clearance, auto-approval working, routing verified
-- 🎯 **Phase 5 (Production):** READY TO DEPLOY (GITHUB_REPO env var needed for actual PR creation)
-- 📋 **Blockers:** None blocking production deployment
+- 🟡 **Phase 4.3 (Live PR Test):** PARTIAL — 80% *clearance* verified; auto-approve rate is actually 40% (not 80%); **no real GitHub PR has ever been created**; a HITL-queue write anomaly (case-10) is unexplained
+- 🔴 **Phase 5 (Production):** BLOCKED — 5 open items above must close first
+- 📋 **Blockers:** `agent/.env` token location, case-10 queue anomaly, unproven PR delivery, missing CI workflow, unpushed branch
 
 ---
 
@@ -1414,6 +1476,57 @@ All backlog items above (and any future case-specific enhancements) follow the s
 
 The backlog subagents slot into the same `subagents=[]` list. `SubAgentMiddleware` routes by `name` — no custom registry needed. Each sub-agent is independently testable via `create_deep_agent(tools=[...], subagents=[<SubAgent>])`.
 
+### Feature: Fix-Attribution Graph & Automated Ticket Reconciliation
+
+**Status:** Idea / Proposed Architecture (design discussion 2026-09-04)
+
+**Component:** HITL Queue, `ViolationStore`/`ViolationState`, `queue-sync` CLI, Dashboard — cross-cutting queue/pipeline infrastructure, **not** rule-specific, so it does not follow the "sub-agent per specialised case" pattern above. It sits underneath every rule's tickets rather than beside them.
+
+**Targeted Problem:** Stale HITL tickets after one merge resolves several queued violations at once
+
+#### 1. Problem Statement
+
+When a single approved fix touches a shared file (e.g., adding `lang` to `<html>` in `src/index.html`), every other still-open ticket that traces back to the same root cause becomes invalid, but nothing currently tells them so. `compute_violation_id()` keys identity on `(rule_id, selector)`, and the crawler assigns synthetic per-element selectors (`.element-7224`, `.element-1488`, …) that differ across sibling instances of the same defect. `PrePipelineGate`/`HITLQueueGate` already skip re-queuing an *exact* `violation_id` once it's `MERGED`, but that only closes the loop for the one instance that was actually reviewed — the other N sibling tickets sitting in `hitl_queue/` still look "open," so a reviewer can burn time re-verifying or, worse, land a redundant PR against an already-fixed defect. There is currently no mechanism that relates tickets to a common root cause, and no way to reconcile the backlog against reality except re-running a full site audit and manually diffing it against every pending ticket.
+
+#### 2. Proposed Architecture
+
+Rather than replacing anything, this extends the existing `ViolationStore` / `queue-sync` machinery with a lightweight attribution graph and an event-driven reconciliation sweep, keeping full audits for their one remaining job (finding *new* violations):
+
+- **Violation Store extension:** add `resolution_group_id`, `resolved_by_parent`, and a new `ViolationState.AUTO_RESOLVED` (plus a `REOPENED_AFTER_REVERT` reason) to `ViolationStatus`, so an incidentally-fixed ticket is never conflated with an explicitly `MERGED` or `WONT_FIX` one in the data or the metrics.
+- **Grouping Index:** a secondary lookup, `(rule_id, file_path) → [violation_ids]`, built at ticket-queue time from the candidate fix's *already-computed* touched file (`risk_assessments[].file_path`) — evidence from the fixer's own attempted patch, not a crawl-time DOM-similarity guess. This partitions the backlog into equivalence classes without needing a full graph data structure for the common case.
+- **Merge Watcher:** extend `_check_merged_prs` (`queue-sync --check-merged`) so that when a violation flips to `MERGED`, it also looks up its group and hands the sibling list to the sweep below, instead of stopping at that one `violation_id`.
+- **Promotion Sweep / Scoped Validator:** the one genuinely new piece of logic — for each sibling in the merged ticket's group, run a single targeted check (that one file/page, that one rule only) instead of a site-wide crawl. On pass: write a `.decision.json` with `outcome: auto_resolved` and `resolved_by_parent`, log a Lessons entry, flip state to `AUTO_RESOLVED`. On fail: leave it open, no action — expected, not an error.
+- **Revert Watchdog:** extend the same polling loop to detect a previously-merged PR that later gets reverted, and reopen any children it had auto-resolved. This is treated as non-optional — shipping the sweep without it is how a revert turns into a silent, unnoticed regression once full-audit reconciliation is no longer the backstop.
+- **Discovery audits unchanged:** full-site audits keep their existing cadence, scoped now purely to finding violations nobody has queued yet. Reconciliation no longer depends on them, but they aren't replaced.
+- **Point-check in Confirm Live Execution:** the dashboard's Execute Fix confirmation (already shipped) gets a pre-flight call to the same scoped validator immediately before firing `--approve --live`, catching the gap between "parent merged" and "sweep ran."
+- **Dashboard surfacing:** an "Auto-Resolved" stat alongside Approved/Rejected, a "resolved by #X" link in the Lessons view, and an "N related pending tickets" badge on HITL Queue cards sourced from the grouping index.
+
+#### 3. Expected Impact
+
+- **Eliminates redundant rework:** reviewers stop re-verifying or re-fixing tickets that a prior, unrelated merge already resolved.
+- **Removes reconciliation from the audit path:** backlog hygiene becomes O(siblings of a merged fix) instead of O(entire site) per reconciliation pass, without giving up full audits for new-defect discovery.
+- **Provenance, not just closure:** every auto-resolved ticket carries an explicit `resolved_by_parent` link, so the dashboard can show real fix leverage ("this one PR closed 7 downstream tickets") instead of silently losing that signal.
+- **Bounded blast radius on failure modes:** grouping is conjunctive on `(rule_id, file_path)`, and promotion always runs a live scoped recheck rather than trusting the graph edge blindly, keeping false-positive auto-closes rare and auditable.
+
+#### 4. Implementation Phases & Rough Effort Estimate (Claude Code–assisted)
+
+Assumes each phase is implemented with Claude Code doing the actual authoring — the data model changes, the CLI extensions, the dashboard wiring — with a developer directing and reviewing rather than hand-typing it, the same pattern this session used to build the dark-mode restoration and the review-dialog/confirmation-flow work. That collapses the "writing correct code" cost close to zero for the boilerplate-heavy phases (0, 1, 4, 5, 6) — those become mostly prompt-and-review cycles measured in minutes to a couple of hours. It does **not** collapse the cost of verifying against real-world events Claude Code can't fast-forward through: an actual PR merging, an actual PR later getting reverted, a scoped recheck confirming something against a live page. Phases 2 and 3 are gated by calendar time and real trigger events, not typing speed — this session's own HAR-driven debugging loop for the assistant sidebar is the same shape of bottleneck.
+
+| Phase | Scope | Build w/ Claude Code | What still gates "done" |
+| --- | --- | --- | --- |
+| 0 — Data model | Extend `ViolationStatus`, add the `(rule_id, file_path)` secondary index | ~30–60 min | none — pure code, testable immediately |
+| 1 — Graph construction | Hook grouping into the existing `route == "human"` queueing path; persist group membership | ~1–2 hrs | needs a couple of real queued tickets to confirm the grouping is actually correct |
+| 2 — Merge-triggered sweep | Extend `_check_merged_prs`; build the scoped single-file/single-rule validator (the core new logic); wire pass/fail into decisions + Lessons + state | ~2–4 hrs | can't be called verified until it fires against an actual merged PR |
+| 3 — Revert watchdog | Detect a reverted merge via the GitHub API; reopen promoted children; surface it visibly, not just in logs | ~2–3 hrs | hardest to verify on demand — needs an actual reverted PR to confirm detection fires at all |
+| 4 — Point-check on Execute | Wire the Phase 2 validator into the dashboard's Confirm Live Execution flow (Express + Angular) | ~1 hr | verified live in the dashboard, same loop as the review-dialog work earlier this session |
+| 5 — Dashboard/metrics | Auto-Resolved stat, "resolved by #X" link, "N related tickets" badge | ~1–2 hrs | verified visually once Phases 2–3 have real data to display |
+| 6 — Documentation | Record that discovery audits remain a separate, still-necessary mechanism | ~15 min | none |
+| **Total (active build time)** | | **~8–14 hours across a handful of Claude Code sessions** | |
+
+Realistic calendar time is longer than the build-time total suggests: Phase 2 and Phase 3 can't honestly be called "done" until each has survived one real merge and one real revert respectively, so expect **roughly 1–2 weeks of calendar time** even though hands-on building is under two days total — the gap is waiting for and arranging real trigger events to validate against, not implementation effort. This mirrors how the dark-mode and dialog work landed this session: each was drafted correctly in a single Claude Code pass, but confirming it worked took several real round trips of live testing in an actual browser.
+
+Phases 0–1 still block Phase 2 (nothing to sweep without the grouping data); Phase 3 should still ship in the same release as Phase 2 rather than after it, since promotion without its revert safety net is the one sequencing mistake that costs correctness rather than just polish.
+
 ---
 
 ## Session Update: 2026-09-03 — Option B Fast-Track Evaluation Complete
@@ -1597,19 +1710,19 @@ python -m evaluation.run_eval --phase all --no-live --yes
 
 ### 4.4: Readiness Check for Phase 5 (Production Deployment)
 
-**Checklist Before Going Live:**
+**Checklist Before Going Live (verified with evidence, 2026-09-03 — was 100% unchecked before this pass):**
 
-- [ ] Phase 4.0: Calibration complete, P(IK) floor extracted
-- [ ] Phase 4.1: Calibrated floor wired into all 3 code locations
-- [ ] Phase 4.2: Validation test passed (metrics stable or improved)
-- [ ] Phase 4.3: Live PR test passed (≥80% auto-approve, 0% false positives)
-- [ ] Docstrings updated in hitl_policy.py (explain calibration)
-- [ ] CHANGELOG updated (mention calibration date and floor value)
-- [ ] Branch pushed to GitHub (ready for main merge)
+- [x] Phase 4.0: Calibration complete, P(IK) floor extracted — 0.75, ROC-optimized, see Phase 4.0 above
+- [x] Phase 4.1: Calibrated floor wired into all 3 code locations — verified in `hitl_policy.py`, `cli.py`, `run_eval.py`
+- [x] Phase 4.2: Validation test — SKIPPED deliberately (calibrated floor == hardcoded default, zero behavioral diff expected); not a failure, a documented no-op
+- [ ] Phase 4.3: Live PR test passed (≥80% auto-approve, 0% false positives) — **NOT MET**: real auto-approve rate is 40% (2/5), and zero real GitHub PRs have ever been created (see gap analysis at top of doc)
+- [x] Docstrings updated in hitl_policy.py (explain calibration) — module docstring (line 6) covers ROC/AUC + threshold tuning
+- [ ] CHANGELOG updated (mention calibration date and floor value) — **no CHANGELOG file exists anywhere in the repo**
+- [ ] Branch pushed to GitHub (ready for main merge) — **`mdrmtz/dormant-to-live` has never been pushed**; no matching `origin/...` ref exists; uncommitted changes present (`cli.py`, `hitl/review_queue.py`)
 
 **Go/No-Go Decision Point:**
 - GO if all checks pass → Proceed to Phase 5
-- HOLD if any failures → Debug and fix before production
+- **HOLD — 3 of 7 checks fail.** See "Production Readiness Gap Analysis" section at the top of this document for the full evidence and recommended order of operations to close them.
 
 ---
 

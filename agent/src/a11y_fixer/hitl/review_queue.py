@@ -39,12 +39,21 @@ from typing import Any, Literal
 
 from a11y_fixer import config
 from a11y_fixer.adapters.pr import delivery as pr_delivery
+from a11y_fixer.adapters.pr.github_pr_manager import GitHubPRManager
 from a11y_fixer.adapters.retrieval import wiki_pipeline
 from a11y_fixer.domain.hitl_policy import DEFAULT_P_IK_FLOOR
+from a11y_fixer.domain.violations import compute_violation_id
 
 Decision = Literal["approve", "reject"]
 
 DECISION_SUFFIX = ".decision.json"
+
+# Same threshold `cli.py::deliver_violation()` uses for the fully-automated
+# pipeline's auto-merge (Task 3.2) - kept in sync so a human clicking
+# "Approve" from the HITL dashboard gets the same auto-merge behavior the
+# dashboard's own confirm() dialog already promises ("auto-merges if score
+# >= 18"), instead of that promise being dead UI copy.
+AUTO_MERGE_THRESHOLD = 18.0
 
 
 def roc_auc(labels: list[int], scores: list[float]) -> float:
@@ -255,11 +264,48 @@ class ReviewQueue:
                     changes=changes,
                 )
                 result["delivered"] = True
-                result["result"] = vars(
-                    pr_delivery.deliver(
-                        plan, config=self._pr_config, output_dir=self._output_dir
-                    )
+                delivery_result = pr_delivery.deliver(
+                    plan, config=self._pr_config, output_dir=self._output_dir
                 )
+                result["result"] = vars(delivery_result)
+
+                # Auto-merge, mirroring cli.py::deliver_violation()'s Task 3.2-3.3
+                # (only possible once a real PR exists, i.e. live delivery succeeded).
+                if (
+                    self._pr_config.live
+                    and self._pr_config.github_token
+                    and self._pr_config.github_repo
+                    and isinstance(delivery_result, pr_delivery.LiveResult)
+                ):
+                    score = item.get("response", {}).get("score", 0)
+                    pr_number = delivery_result.pull_request_number
+                    try:
+                        pr_mgr = GitHubPRManager(
+                            github_token=self._pr_config.github_token,
+                            github_repo=self._pr_config.github_repo,
+                        )
+                        merge_result = pr_mgr.auto_merge_pr(
+                            pr_number, score, merge_threshold=AUTO_MERGE_THRESHOLD
+                        )
+                        result["auto_merge"] = vars(merge_result)
+
+                        if merge_result.success:
+                            violation_id = compute_violation_id(
+                                violation["rule"], violation["selector"]
+                            )
+                            dup_results = pr_mgr.cleanup_duplicate_prs(
+                                violation_id, kept_pr_number=pr_number
+                            )
+                            if dup_results:
+                                result["duplicate_cleanup"] = [
+                                    vars(dup) for dup in dup_results
+                                ]
+                    except Exception as exc:  # noqa: BLE001
+                        result["auto_merge"] = {
+                            "success": False,
+                            "pr_number": pr_number,
+                            "reason": f"error: {exc}",
+                        }
         else:
             msg = f"decision must be 'approve' or 'reject', got {decision!r}"
             raise ValueError(msg)
