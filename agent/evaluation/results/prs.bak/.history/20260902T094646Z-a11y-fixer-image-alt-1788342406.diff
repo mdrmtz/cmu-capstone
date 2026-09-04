@@ -1,0 +1,5 @@
+--- a/about.component.html
++++ b/about.component.html
+@@ -1 +1 @@
+-<img>
++<img alt="logo">

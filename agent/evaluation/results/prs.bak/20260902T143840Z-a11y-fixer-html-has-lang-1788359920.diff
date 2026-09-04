@@ -1,0 +1,9 @@
+--- a/src/index.html
++++ b/src/index.html
+@@ -1,5 +1,5 @@
+ <!doctype html>
+-<html>
++<html lang="en">
+ <head>
+   <meta charset="utf-8">
+   <title>Hallucinate.io</title>

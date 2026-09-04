@@ -348,16 +348,18 @@ def deliver_violation(
         config.hitl_queue_dir().mkdir(parents=True, exist_ok=True)
 
         # NEW: Deduplication gate for HITL queue (Phase 3 feature)
-        store = ViolationStore(status_file=config.agent_root() / ".violation_status.json")
+        store = ViolationStore(
+            status_file=config.agent_root() / ".violation_status.json"
+        )
         queue_gate = HITLQueueGate(store)
-        
+
         # Determine action: ADD, SKIP, or REPLACE
         action, reason, old_queue_path = queue_gate.should_queue(
             rule_id=violation["rule"],
             selector=violation["selector"],
             score=response.score,
         )
-        
+
         if action == "SKIP":
             # Already queued with adequate or better solution
             return {
@@ -365,7 +367,7 @@ def deliver_violation(
                 "reason": f"hitl_queue_dedup: {reason}",
                 "route": route,
             }
-        
+
         # ADD or REPLACE: Write new queue entry
         queue_path = _hitl_queue_path(violation)
         queue_path.write_text(
@@ -383,7 +385,7 @@ def deliver_violation(
             ),
             encoding="utf-8",
         )
-        
+
         # Record in violation store
         queue_gate.record_queue_entry(
             rule_id=violation["rule"],
@@ -391,13 +393,13 @@ def deliver_violation(
             queue_path=str(queue_path),
             score=response.score,
         )
-        
+
         # Clean up old queue entry if replacing
         if action == "REPLACE" and old_queue_path:
             old_path = Path(old_queue_path)
             if old_path.exists():
                 old_path.unlink()  # Delete old file
-        
+
         return {
             "delivered": False,
             "queue_path": str(queue_path),
@@ -463,7 +465,9 @@ def deliver_violation(
                 # already handled this correctly (`if merge_result.success:`)
                 # - this mirrors that proven pattern.
                 if merge_result.success:
-                    print(f"  ✅ Auto-merged PR {pr_number}: {merge_result.reason}")  # noqa: T201
+                    print(
+                        f"  ✅ Auto-merged PR {pr_number}: {merge_result.reason}"
+                    )  # noqa: T201
 
                     # Task 3.3: Close duplicate PRs if merge succeeded.
                     # cleanup_duplicate_prs() returns list[PRCloseResult], not a dict.
@@ -648,14 +652,18 @@ async def _acmd_run(args: argparse.Namespace) -> int:
             p_ik_floor = results_data.get("calibrated_p_ik_floor")
         except Exception:  # noqa: BLE001
             pass  # Ignore if results file malformed
-    
+
     # Phase 4: If no pre-computed calibration, compute it from phase results
     if p_ik_floor is None:
         # Try full Phase 3 results first (results_phase_all.json)
-        phase_results_path = config.agent_root() / "evaluation" / "results" / "results_phase_all.json"
+        phase_results_path = (
+            config.agent_root() / "evaluation" / "results" / "results_phase_all.json"
+        )
         if phase_results_path.exists():
             try:
-                calibration = calibrate_from_results(phase_results_path, target_fpr=0.05)
+                calibration = calibrate_from_results(
+                    phase_results_path, target_fpr=0.05
+                )
                 if calibration.calibrated:
                     p_ik_floor = calibration.p_ik_floor
                     print(
@@ -709,7 +717,9 @@ async def _acmd_run(args: argparse.Namespace) -> int:
 
         # action == "CREATE" or "REPLACE" — check for html-lang fast-track
         if is_html_lang_violation(violation):
-            print(f"🎯 [HTML-LANG] {violation_id}: Fast-track html-has-lang fix")  # noqa: T201
+            print(
+                f"🎯 [HTML-LANG] {violation_id}: Fast-track html-has-lang fix"
+            )  # noqa: T201
             html_lang_fix = get_html_lang_fix()
             apply_result = await apply_html_lang(fixture)
 
@@ -732,7 +742,7 @@ async def _acmd_run(args: argparse.Namespace) -> int:
                 )
 
                 try:
-                    delivered = await deliver_violation(
+                    delivered = deliver_violation(
                         violation,
                         html_lang_response,
                         fixture=fixture,
@@ -740,8 +750,10 @@ async def _acmd_run(args: argparse.Namespace) -> int:
                         output_dir=output_dir,
                         p_ik_floor=p_ik_floor,
                     )
-                    print(f"  📤 Delivered: {delivered['route']} (auto-merge PR)")  # noqa: T201
-                    
+                    print(
+                        f"  📤 Delivered: {delivered['route']} (auto-merge PR)"
+                    )  # noqa: T201
+
                     # Record as MERGED in violation store for deduplication
                     store.mark_merged(
                         violation_id=violation_id,
@@ -749,7 +761,7 @@ async def _acmd_run(args: argparse.Namespace) -> int:
                         selector=violation["selector"],
                         pr_number=delivered.get("pr_number"),
                     )
-                    
+
                     metrics["created"] += 1
                 except Exception as e:  # noqa: BLE001
                     print(f"  ❌ Delivery failed: {e}")  # noqa: T201
@@ -757,7 +769,9 @@ async def _acmd_run(args: argparse.Namespace) -> int:
 
                 continue  # Skip full pipeline, move to next violation
             else:
-                print(f"  ⚠️  Fast-track failed: {apply_result.get('error')}")  # noqa: T201
+                print(
+                    f"  ⚠️  Fast-track failed: {apply_result.get('error')}"
+                )  # noqa: T201
                 print("  🔄 Falling back to full pipeline...")  # noqa: T201
                 # Fall through to normal pipeline
 
@@ -953,7 +967,9 @@ def _cmd_queue_sync(args: argparse.Namespace) -> int:
 
     # Show summary
     print(f"\n📊 HITL Queue Status")  # noqa: T201
-    print(f"   Pending: {stats['pending']} | Reviewed: {stats['reviewed']} | Total: {stats['total']}")
+    print(
+        f"   Pending: {stats['pending']} | Reviewed: {stats['reviewed']} | Total: {stats['total']}"
+    )
 
     if not pending:
         print("   ✅ Queue is empty")  # noqa: T201
@@ -969,13 +985,15 @@ def _cmd_queue_sync(args: argparse.Namespace) -> int:
             score = response.get("score", 0)
             rule = violation.get("rule", "unknown")
             selector = violation.get("selector", "?")
-            items_by_score.append({
-                "path": path,
-                "filename": path.name,
-                "score": score,
-                "rule": rule,
-                "selector": selector,
-            })
+            items_by_score.append(
+                {
+                    "path": path,
+                    "filename": path.name,
+                    "score": score,
+                    "rule": rule,
+                    "selector": selector,
+                }
+            )
         except Exception as e:  # noqa: BLE001
             print(f"   ⚠️  Failed to parse {path.name}: {e}")  # noqa: T201
 
@@ -984,7 +1002,9 @@ def _cmd_queue_sync(args: argparse.Namespace) -> int:
     # Show detailed list
     print(f"\n📋 Pending Queue Items (sorted by score):")  # noqa: T201
     for i, item in enumerate(items_by_score, 1):
-        score_emoji = "🟢" if item["score"] >= 18 else "🟡" if item["score"] >= 15 else "🔴"
+        score_emoji = (
+            "🟢" if item["score"] >= 18 else "🟡" if item["score"] >= 15 else "🔴"
+        )
         print(
             f"   {i}. [{score_emoji} {item['score']}/20] {item['rule']:20} | {item['selector'][:40]}"
         )  # noqa: T201
@@ -997,7 +1017,9 @@ def _cmd_queue_sync(args: argparse.Namespace) -> int:
             print(f"\n   No items with score ≥ 18.0 to auto-approve")  # noqa: T201
             return 0
 
-        print(f"\n✅ Auto-approving {len(high_score_items)} high-scoring item(s):")  # noqa: T201
+        print(
+            f"\n✅ Auto-approving {len(high_score_items)} high-scoring item(s):"
+        )  # noqa: T201
         for item in high_score_items:
             try:
                 result = queue.review(
@@ -1062,11 +1084,15 @@ def _check_merged_prs(pr_config: config.PRDeliveryConfig, live: bool | None) -> 
             try:
                 pr_resp = client.get(f"/repos/{owner}/{repo}/pulls/{pr_num}")
                 if pr_resp.status_code != 200:  # noqa: PLR2004
-                    print(f"   ⚠️  PR #{pr_num}: API error {pr_resp.status_code}")  # noqa: T201
+                    print(
+                        f"   ⚠️  PR #{pr_num}: API error {pr_resp.status_code}"
+                    )  # noqa: T201
                     continue
 
                 pr_data = pr_resp.json()
-                is_merged = pr_data.get("merged", False) or pr_data.get("merged_at") is not None
+                is_merged = (
+                    pr_data.get("merged", False) or pr_data.get("merged_at") is not None
+                )
                 state = pr_data.get("state")
 
                 if is_merged:
@@ -1092,9 +1118,13 @@ def _check_merged_prs(pr_config: config.PRDeliveryConfig, live: bool | None) -> 
 
     if live:
         store.save()
-        print(f"\n✅ Updated violation store: {merged_count} PR(s) marked as MERGED")  # noqa: T201
+        print(
+            f"\n✅ Updated violation store: {merged_count} PR(s) marked as MERGED"
+        )  # noqa: T201
     else:
-        print(f"\n📋 DRY-RUN: Would update {merged_count} PR(s) to MERGED state")  # noqa: T201
+        print(
+            f"\n📋 DRY-RUN: Would update {merged_count} PR(s) to MERGED state"
+        )  # noqa: T201
         print(f"   Run with --live to persist changes")  # noqa: T201
 
     return 0

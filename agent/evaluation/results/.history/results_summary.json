@@ -1,14 +1,30 @@
 {
   "summary": {
-    "total_cases": 1,
-    "violation_clearance_rate": 0.0,
-    "human_escalation_rate": 1.0,
-    "error_rate": 1.0,
-    "mean_latency_seconds": 2.804758000005677,
+    "total_cases": 22,
+    "violation_clearance_rate": 0.6363636363636364,
+    "human_escalation_rate": 0.8636363636363636,
+    "error_rate": 0.2727272727272727,
+    "mean_latency_seconds": 121.22516168359356,
     "brier_score": 0.0,
     "expected_calibration_error": 0.0,
     "by_rule": {
+      "html-has-lang": {
+        "total": 7,
+        "cleared": 7
+      },
+      "color-contrast": {
+        "total": 4,
+        "cleared": 3
+      },
+      "link-name": {
+        "total": 6,
+        "cleared": 3
+      },
       "image-alt": {
+        "total": 4,
+        "cleared": 1
+      },
+      "button-name": {
         "total": 1,
         "cleared": 0
       }
@@ -16,14 +32,313 @@
   },
   "cases": [
     {
-      "case_id": "test-image-alt",
+      "case_id": "case-01",
+      "rule": "html-has-lang",
+      "page": "/about",
+      "route": "human",
+      "rubric_score": 20.0,
+      "cleared": true,
+      "latency_seconds": 5.43160420798813,
+      "error": null,
+      "scoring_details": {
+        "build_error": null,
+        "ast_error": null,
+        "wcag_judge_confidence": 100,
+        "visual_error": null,
+        "fast_track": "html_lang_applier"
+      }
+    },
+    {
+      "case_id": "case-02",
+      "rule": "color-contrast",
+      "page": "/about",
+      "route": "auto",
+      "rubric_score": 15.0,
+      "cleared": true,
+      "latency_seconds": 243.4976464160136,
+      "error": null,
+      "scoring_details": null
+    },
+    {
+      "case_id": "case-03",
+      "rule": "html-has-lang",
+      "page": "/contact",
+      "route": "human",
+      "rubric_score": 20.0,
+      "cleared": true,
+      "latency_seconds": 5.335640542005422,
+      "error": null,
+      "scoring_details": {
+        "build_error": null,
+        "ast_error": null,
+        "wcag_judge_confidence": 100,
+        "visual_error": null,
+        "fast_track": "html_lang_applier"
+      }
+    },
+    {
+      "case_id": "case-04",
+      "rule": "html-has-lang",
+      "page": "/pricing",
+      "route": "human",
+      "rubric_score": 20.0,
+      "cleared": true,
+      "latency_seconds": 5.124345584015828,
+      "error": null,
+      "scoring_details": {
+        "build_error": null,
+        "ast_error": null,
+        "wcag_judge_confidence": 100,
+        "visual_error": null,
+        "fast_track": "html_lang_applier"
+      }
+    },
+    {
+      "case_id": "case-05",
+      "rule": "link-name",
+      "page": "/about",
+      "route": "human",
+      "rubric_score": 0.0,
+      "cleared": true,
+      "latency_seconds": 199.44201249998878,
+      "error": null,
+      "scoring_details": null
+    },
+    {
+      "case_id": "case-06",
+      "rule": "link-name",
+      "page": "/contact",
+      "route": "human",
+      "rubric_score": 11.0,
+      "cleared": false,
+      "latency_seconds": 325.46032237500185,
+      "error": null,
+      "scoring_details": null
+    },
+    {
+      "case_id": "case-07",
       "rule": "image-alt",
+      "page": "/blog",
+      "route": "human",
+      "rubric_score": 0.0,
+      "cleared": false,
+      "latency_seconds": 58.51255879100063,
+      "error": "Request blocked: PII detected (invalid_json_after_redaction)",
+      "scoring_details": null
+    },
+    {
+      "case_id": "case-08",
+      "rule": "image-alt",
+      "page": "/features",
+      "route": "auto",
+      "rubric_score": 0.0,
+      "cleared": true,
+      "latency_seconds": 257.5531600420072,
+      "error": null,
+      "scoring_details": null
+    },
+    {
+      "case_id": "case-09",
+      "rule": "html-has-lang",
+      "page": "/",
+      "route": "human",
+      "rubric_score": 20.0,
+      "cleared": true,
+      "latency_seconds": 5.268582499993499,
+      "error": null,
+      "scoring_details": {
+        "build_error": null,
+        "ast_error": null,
+        "wcag_judge_confidence": 100,
+        "visual_error": null,
+        "fast_track": "html_lang_applier"
+      }
+    },
+    {
+      "case_id": "case-10",
+      "rule": "link-name",
+      "page": "/features",
+      "route": "human",
+      "rubric_score": 19.0,
+      "cleared": true,
+      "latency_seconds": 84.43851954099955,
+      "error": null,
+      "scoring_details": {
+        "build_pass": true,
+        "ast_valid": true,
+        "wcag_compliance_score": 0.8,
+        "cls": 0.03,
+        "box_drift": 1.5
+      }
+    },
+    {
+      "case_id": "case-11",
+      "rule": "html-has-lang",
+      "page": "/blog",
+      "route": "human",
+      "rubric_score": 20.0,
+      "cleared": true,
+      "latency_seconds": 5.1897331250074785,
+      "error": null,
+      "scoring_details": {
+        "build_error": null,
+        "ast_error": null,
+        "wcag_judge_confidence": 100,
+        "visual_error": null,
+        "fast_track": "html_lang_applier"
+      }
+    },
+    {
+      "case_id": "case-12",
+      "rule": "link-name",
+      "page": "/features",
+      "route": "human",
+      "rubric_score": 0.0,
+      "cleared": false,
+      "latency_seconds": 86.83922870800598,
+      "error": "Request blocked: PII detected (invalid_json_after_redaction)",
+      "scoring_details": null
+    },
+    {
+      "case_id": "case-13",
+      "rule": "html-has-lang",
+      "page": "/contact",
+      "route": "human",
+      "rubric_score": 20.0,
+      "cleared": true,
+      "latency_seconds": 5.609554166003363,
+      "error": null,
+      "scoring_details": {
+        "build_error": null,
+        "ast_error": null,
+        "wcag_judge_confidence": 100,
+        "visual_error": null,
+        "fast_track": "html_lang_applier"
+      }
+    },
+    {
+      "case_id": "case-14",
+      "rule": "color-contrast",
+      "page": "/",
+      "route": "human",
+      "rubric_score": 15.0,
+      "cleared": true,
+      "latency_seconds": 55.514170040987665,
+      "error": null,
+      "scoring_details": null
+    },
+    {
+      "case_id": "case-15",
+      "rule": "image-alt",
+      "page": "/pricing",
+      "route": "human",
+      "rubric_score": 0.0,
+      "cleared": false,
+      "latency_seconds": 77.57731687498745,
+      "error": "Request blocked: PII detected (invalid_json_after_redaction)",
+      "scoring_details": null
+    },
+    {
+      "case_id": "case-16",
+      "rule": "image-alt",
+      "page": "/about",
+      "route": "human",
+      "rubric_score": 16.0,
+      "cleared": false,
+      "latency_seconds": 218.7942735000106,
+      "error": null,
+      "scoring_details": null
+    },
+    {
+      "case_id": "case-17",
+      "rule": "color-contrast",
+      "page": "/blog",
+      "route": "human",
+      "rubric_score": 17.5,
+      "cleared": true,
+      "latency_seconds": 178.70488170802128,
+      "error": null,
+      "scoring_details": null
+    },
+    {
+      "case_id": "case-18",
+      "rule": "link-name",
+      "page": "/features",
+      "route": "auto",
+      "rubric_score": 19.0,
+      "cleared": true,
+      "latency_seconds": 193.4874952500104,
+      "error": null,
+      "scoring_details": {
+        "build_pass": true,
+        "ast_valid": true,
+        "wcag_compliance": 0.8,
+        "visual_stability": 3
+      }
+    },
+    {
+      "case_id": "case-19",
+      "rule": "html-has-lang",
+      "page": "/about",
+      "route": "human",
+      "rubric_score": 20.0,
+      "cleared": true,
+      "latency_seconds": 9.043597583018709,
+      "error": null,
+      "scoring_details": {
+        "build_error": null,
+        "ast_error": null,
+        "wcag_judge_confidence": 100,
+        "visual_error": null,
+        "fast_track": "html_lang_applier"
+      }
+    },
+    {
+      "case_id": "case-20",
+      "rule": "color-contrast",
+      "page": "/",
+      "route": "human",
+      "rubric_score": 0.0,
+      "cleared": false,
+      "latency_seconds": 300.9856202919909,
+      "error": "unhandled errors in a TaskGroup (1 sub-exception)",
+      "scoring_details": null
+    },
+    {
+      "case_id": "case-21",
+      "rule": "button-name",
+      "page": "/pricing",
+      "route": "human",
+      "rubric_score": 0.0,
+      "cleared": false,
+      "latency_seconds": 150.29161012501572,
+      "error": "axe-core cli failed (exit 1):\n                      0x0000000100ee5c54 chromedriver + 220244\\n' +\n    '4   chromedriver                        0x0000000100ee7638 chromedriver + 226872\\n' +\n    '5   chromedriver                        0x0000000100ee60bc chromedriver + 221372\\n' +\n    '6   chromedriver                        0x0000000100ee5864 chromedriver + 219236\\n' +\n    '7   chromedriver                        0x0000000100ee5590 chromedriver + 218512\\n' +\n    '8   chromedriver                        0x0000000100ee32e4 chromedriver + 209636\\n' +\n    '9   chromedriver                        0x0000000100ee3db0 chromedriver + 212400\\n' +\n    '10  chromedriver                        0x0000000100ef8a88 chromedriver + 297608\\n' +\n    '11  chromedriver                        0x0000000100f7dd64 chromedriver + 843108\\n' +\n    '12  chromedriver                        0x0000000100f7d2b0 chromedriver + 840368\\n' +\n    '13  chromedriver                        0x0000000100f33abc chromedriver + 539324\\n' +\n    '14  chromedriver                        0x00000001011ccc8c chromedriver + 3263628\\n' +\n    '15  chromedriver                        0x00000001011cfcc4 chromedriver + 3275972\\n' +\n    '16  chromedriver                        0x00000001011b68c8 chromedriver + 3172552\\n' +\n    '17  chromedriver                        0x00000001011d0594 chromedriver + 3278228\\n' +\n    '18  chromedriver                        0x00000001011aa6b4 chromedriver + 3122868\\n' +\n    '19  chromedriver                        0x00000001011ebde8 chromedriver + 3390952\\n' +\n    '20  chromedriver                        0x00000001011ebf48 chromedriver + 3391304\\n' +\n    '21  chromedriver                        0x00000001011fced0 chromedriver + 3460816\\n' +\n    '22  libsystem_pthread.dylib             0x000000018f4dbc54 _pthread_start + 132\\n' +\n    '23  libsystem_pthread.dylib             0x000000018f4d6c18 thread_start + 4\\n'\n}\u001b[22m\u001b[39m\nPlease report the problem to: \u001b[4m\u001b[34mhttps://github.com/dequelabs/axe-core-npm/issues/\u001b[39m\u001b[24m\n\n",
+      "scoring_details": null
+    },
+    {
+      "case_id": "case-22",
+      "rule": "link-name",
       "page": "/about",
       "route": "human",
       "rubric_score": 0.0,
       "cleared": false,
-      "latency_seconds": 2.804758000005677,
-      "error": "no structured response produced after retries"
+      "latency_seconds": 194.851683166984,
+      "error": "axe-core cli failed (exit 1):\n                      0x0000000104bb1c54 chromedriver + 220244\\n' +\n    '4   chromedriver                        0x0000000104bb3638 chromedriver + 226872\\n' +\n    '5   chromedriver                        0x0000000104bb20bc chromedriver + 221372\\n' +\n    '6   chromedriver                        0x0000000104bb1864 chromedriver + 219236\\n' +\n    '7   chromedriver                        0x0000000104bb1590 chromedriver + 218512\\n' +\n    '8   chromedriver                        0x0000000104baf2e4 chromedriver + 209636\\n' +\n    '9   chromedriver                        0x0000000104bafdb0 chromedriver + 212400\\n' +\n    '10  chromedriver                        0x0000000104bc4a88 chromedriver + 297608\\n' +\n    '11  chromedriver                        0x0000000104c49d64 chromedriver + 843108\\n' +\n    '12  chromedriver                        0x0000000104c492b0 chromedriver + 840368\\n' +\n    '13  chromedriver                        0x0000000104bffabc chromedriver + 539324\\n' +\n    '14  chromedriver                        0x0000000104e98c8c chromedriver + 3263628\\n' +\n    '15  chromedriver                        0x0000000104e9bcc4 chromedriver + 3275972\\n' +\n    '16  chromedriver                        0x0000000104e828c8 chromedriver + 3172552\\n' +\n    '17  chromedriver                        0x0000000104e9c594 chromedriver + 3278228\\n' +\n    '18  chromedriver                        0x0000000104e766b4 chromedriver + 3122868\\n' +\n    '19  chromedriver                        0x0000000104eb7de8 chromedriver + 3390952\\n' +\n    '20  chromedriver                        0x0000000104eb7f48 chromedriver + 3391304\\n' +\n    '21  chromedriver                        0x0000000104ec8ed0 chromedriver + 3460816\\n' +\n    '22  libsystem_pthread.dylib             0x000000018f4dbc54 _pthread_start + 132\\n' +\n    '23  libsystem_pthread.dylib             0x000000018f4d6c18 thread_start + 4\\n'\n}\u001b[22m\u001b[39m\nPlease report the problem to: \u001b[4m\u001b[34mhttps://github.com/dequelabs/axe-core-npm/issues/\u001b[39m\u001b[24m\n\n",
+      "scoring_details": null
     }
-  ]
+  ],
+  "calibrated_p_ik_floor": 0.75,
+  "calibration_metadata": {
+    "date": "2026-09-03",
+    "phase": "4.0",
+    "method": "ROC threshold analysis on 14 cleared cases",
+    "cleared_cases": 14,
+    "mean_p_ik": 0.805,
+    "median_p_ik": 1.0,
+    "false_escalation_rate_at_floor": 0.143,
+    "auto_approve_rate": 0.857,
+    "target_fpr": 0.05,
+    "achieved_fpr": 0.143,
+    "notes": "Floor 0.75 matches current hardcoded value. No improvement found; 2 cleared cases have score=0 which prevent FPR < 5%."
+  }
 }

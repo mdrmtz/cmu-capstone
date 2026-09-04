@@ -14,17 +14,17 @@
 # diffs instead.
 
 sites:
-  - repo: https://github.com/acme/marketing-site.git
+  - repo: https://github.com/mdrmtz/Hallucinate.io.git
     # Optional: audit this live URL instead of building/serving `repo`
     # locally. Fixes are still written to `repo` and PRs opened against it.
-    url: https://marketing.acme.com
+    url: https://hallucinate.netlify.app/
 
     # Optional: a short id for this site, used in log/status output.
     # Defaults to the derived "owner/repo" (or the local path's basename
     # for a checkout with no GitHub-shaped remote).
-    site_id: acme-marketing
+    site_id: hallucinate.io
 
     # Optional: NAME of the env var holding this site's GitHub token.
     # Defaults to GITHUB_TOKEN. Useful when different sites need different
     # tokens/scopes (e.g. one token per organization).
-    github_token_env: ACME_GITHUB_TOKEN
+    github_token_env: GITHUB_TOKEN #HALLUCINATE_IO_GITHUB_TOKEN
