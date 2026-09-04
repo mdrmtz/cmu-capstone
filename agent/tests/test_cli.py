@@ -902,3 +902,184 @@ def test_apply_repo_override_without_repo_arg_leaves_github_repo_untouched(
     cli._apply_repo_override(None)
 
     assert os.environ["GITHUB_REPO"] == "mdrmtz/Hallucinate.io"
+
+
+def test_build_parser_fleet_requires_config() -> None:
+    parser = cli.build_parser()
+    with pytest.raises(SystemExit):
+        parser.parse_args(["fleet"])
+
+
+def test_build_parser_fleet_defaults_to_live_dry_run_false() -> None:
+    """`fleet` inverts `run`'s default: no `--dry-run` flag means live."""
+    parser = cli.build_parser()
+    args = parser.parse_args(["fleet", "--config", "sites.yaml"])
+    assert args.dry_run is False
+    assert args.config == "sites.yaml"
+
+
+def test_build_parser_fleet_accepts_dry_run_flag() -> None:
+    parser = cli.build_parser()
+    args = parser.parse_args(["fleet", "--config", "sites.yaml", "--dry-run"])
+    assert args.dry_run is True
+
+
+def _write_manifest(tmp_path: Path, text: str) -> Path:
+    manifest = tmp_path / "sites.yaml"
+    manifest.write_text(text, encoding="utf-8")
+    return manifest
+
+
+def test_cmd_fleet_invalid_manifest_returns_2(
+    tmp_path: Path, capsys: pytest.CaptureFixture
+) -> None:
+    parser = cli.build_parser()
+    args = parser.parse_args(
+        ["fleet", "--config", str(tmp_path / "does-not-exist.yaml")]
+    )
+
+    exit_code = cli._cmd_fleet(args)  # noqa: SLF001
+
+    assert exit_code == 2
+    assert "not found" in capsys.readouterr().out
+
+
+def test_cmd_fleet_rejects_more_than_one_site(
+    tmp_path: Path, capsys: pytest.CaptureFixture
+) -> None:
+    manifest = _write_manifest(
+        tmp_path,
+        "sites:\n"
+        "  - repo: https://github.com/acme/one.git\n"
+        "  - repo: https://github.com/acme/two.git\n",
+    )
+    parser = cli.build_parser()
+    args = parser.parse_args(["fleet", "--config", str(manifest)])
+
+    exit_code = cli._cmd_fleet(args)  # noqa: SLF001
+
+    assert exit_code == 2
+    assert "one site per invocation" in capsys.readouterr().out
+
+
+def test_cmd_fleet_live_without_token_fails_fast_and_does_not_run(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture
+) -> None:
+    monkeypatch.setenv("ACME_GITHUB_TOKEN", "")
+    fake_acmd_run = AsyncMock(return_value=0)
+    monkeypatch.setattr(cli, "_acmd_run", fake_acmd_run)
+
+    manifest = _write_manifest(
+        tmp_path,
+        "sites:\n"
+        "  - repo: https://github.com/acme/one.git\n"
+        "    github_token_env: ACME_GITHUB_TOKEN\n",
+    )
+    parser = cli.build_parser()
+    args = parser.parse_args(["fleet", "--config", str(manifest)])
+
+    exit_code = cli._cmd_fleet(args)  # noqa: SLF001
+
+    assert exit_code == 2
+    out = capsys.readouterr().out
+    assert "ACME_GITHUB_TOKEN" in out
+    assert "--dry-run" in out
+    fake_acmd_run.assert_not_called()
+
+
+def test_cmd_fleet_dry_run_does_not_require_a_token(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("ACME_GITHUB_TOKEN", "")
+    fake_acmd_run = AsyncMock(return_value=0)
+    monkeypatch.setattr(cli, "_acmd_run", fake_acmd_run)
+
+    manifest = _write_manifest(
+        tmp_path,
+        "sites:\n"
+        "  - repo: https://github.com/acme/one.git\n"
+        "    github_token_env: ACME_GITHUB_TOKEN\n",
+    )
+    parser = cli.build_parser()
+    args = parser.parse_args(["fleet", "--config", str(manifest), "--dry-run"])
+
+    exit_code = cli._cmd_fleet(args)  # noqa: SLF001
+
+    assert exit_code == 0
+    fake_acmd_run.assert_called_once()
+    called_ns = fake_acmd_run.call_args[0][0]
+    assert called_ns.live is False
+
+
+def test_cmd_fleet_live_success_builds_expected_namespace_and_restores_token(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture
+) -> None:
+    """A live fleet run: prints the LIVE banner, temporarily exports the
+    site's token as GITHUB_TOKEN for the duration of `_acmd_run` only, and
+    calls `_acmd_run` with a Namespace equivalent to what `run --repo <repo>
+    --url <url> --live --yes` would produce.
+    """
+    monkeypatch.setenv("ACME_GITHUB_TOKEN", "secret-token-value")
+    monkeypatch.setenv("GITHUB_TOKEN", "previous-unrelated-token")
+
+    observed_token_during_run: list[str | None] = []
+
+    async def _fake_acmd_run(ns: object) -> int:
+        observed_token_during_run.append(os.environ.get("GITHUB_TOKEN"))
+        return 0
+
+    monkeypatch.setattr(cli, "_acmd_run", _fake_acmd_run)
+
+    manifest = _write_manifest(
+        tmp_path,
+        "sites:\n"
+        "  - repo: https://github.com/acme/one.git\n"
+        "    url: https://one.acme.com\n"
+        "    site_id: acme-one\n"
+        "    github_token_env: ACME_GITHUB_TOKEN\n",
+    )
+    parser = cli.build_parser()
+    args = parser.parse_args(["fleet", "--config", str(manifest)])
+
+    exit_code = cli._cmd_fleet(args)  # noqa: SLF001
+
+    assert exit_code == 0
+    assert "LIVE: acme-one -> https://github.com/acme/one.git" in capsys.readouterr().out
+    assert observed_token_during_run == ["secret-token-value"]
+    # The site's real token must never leak into the process env after the
+    # run - GITHUB_TOKEN must be restored to whatever it was before.
+    assert os.environ["GITHUB_TOKEN"] == "previous-unrelated-token"
+
+
+def test_cmd_fleet_passes_repo_and_url_through_to_acmd_run(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("GITHUB_TOKEN", "tok")
+    captured: list[object] = []
+
+    async def _fake_acmd_run(ns: object) -> int:
+        captured.append(ns)
+        return 0
+
+    monkeypatch.setattr(cli, "_acmd_run", _fake_acmd_run)
+
+    manifest = _write_manifest(
+        tmp_path,
+        "sites:\n"
+        "  - repo: https://github.com/acme/one.git\n"
+        "    url: https://one.acme.com\n",
+    )
+    parser = cli.build_parser()
+    args = parser.parse_args(["fleet", "--config", str(manifest)])
+
+    exit_code = cli._cmd_fleet(args)  # noqa: SLF001
+
+    assert exit_code == 0
+    assert len(captured) == 1
+    ns = captured[0]
+    assert ns.repo == "https://github.com/acme/one.git"
+    assert ns.url == "https://one.acme.com"
+    assert ns.audit is None
+    assert ns.case_ids is None
+    assert ns.live is True
+    assert ns.yes is True

@@ -34,6 +34,7 @@ from a11y_fixer.adapters.audit_runner import AxeAuditRunner, flatten_violation_i
 from a11y_fixer.adapters.pr import delivery as pr_delivery
 from a11y_fixer.adapters.pr.github_pr_manager import GitHubPRManager
 from a11y_fixer.adapters.repo_source import derive_github_repo, resolve_repo_source
+from a11y_fixer.fleet_config import FleetManifestError, load_manifest
 from a11y_fixer.adapters.violation_store import (
     PrePipelineGate,
     HITLQueueGate,
@@ -1071,6 +1072,81 @@ def _check_merged_prs(pr_config: config.PRDeliveryConfig, live: bool | None) -> 
     return 0
 
 
+def _cmd_fleet(args: argparse.Namespace) -> int:
+    """Fleet entry point: run `run` against the one site declared in a YAML
+    manifest (`--config`), instead of a single `--repo` passed on the
+    command line.
+
+    Deliberately limited to exactly one site per manifest/invocation for
+    now: the HITL queue, `.violation_status.json`, and audit-output paths
+    (see `config.hitl_queue_dir()` et al.) are all global/unnamespaced, so
+    running more than one site through the same process risks one site's
+    state corrupting another's. Revisit this limit once that state is
+    per-site-namespaced.
+
+    `--live` is the default here, unlike `run` (which defaults to a safe
+    dry-run) - a fleet run is meant to be unattended, so opting into a
+    dry-run is the explicit choice (`--dry-run`) rather than the default.
+    Because that default flips the usual safety direction, the `LIVE: ...`
+    banner below is printed unconditionally before anything live happens,
+    so a human skimming the output can't miss it.
+
+    The site's GitHub token is resolved from the environment variable named
+    by its `github_token_env` (default `GITHUB_TOKEN`) - never written in
+    the manifest itself - and temporarily exported as `GITHUB_TOKEN` for
+    the duration of the run (mirroring how `_apply_repo_override` scopes
+    its own env overrides), then restored on the way out.
+    """
+    try:
+        sites = load_manifest(args.config)
+    except FleetManifestError as exc:
+        print(f"fleet: {exc}")  # noqa: T201
+        return 2
+
+    if len(sites) != 1:
+        print(  # noqa: T201
+            "fleet currently supports one site per invocation "
+            f"(manifest has {len(sites)})"
+        )
+        return 2
+
+    site = sites[0]
+    live = not args.dry_run
+
+    token_env = site.github_token_env
+    token_value = os.environ.get(token_env)
+    if live and not token_value:
+        print(  # noqa: T201
+            f"fleet: {site.site_id} needs a GitHub token for live delivery - "
+            f"set the {token_env} environment variable (see github_token_env "
+            "in the manifest) or pass --dry-run."
+        )
+        return 2
+
+    target = derive_github_repo(site.repo) or site.repo
+    mode = "LIVE" if live else "dry-run"
+    print(f"{mode}: {site.site_id} -> {site.repo} (PR target: {target})")  # noqa: T201
+
+    previous_token = os.environ.get("GITHUB_TOKEN")
+    if token_value is not None:
+        os.environ["GITHUB_TOKEN"] = token_value
+    try:
+        run_args = argparse.Namespace(
+            repo=site.repo,
+            url=site.url,
+            audit=None,
+            case_ids=None,
+            live=live,
+            yes=True,
+        )
+        return asyncio.run(_acmd_run(run_args))
+    finally:
+        if previous_token is None:
+            os.environ.pop("GITHUB_TOKEN", None)
+        else:
+            os.environ["GITHUB_TOKEN"] = previous_token
+
+
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="a11y-fixer")
     subparsers = parser.add_subparsers(dest="command", required=True)
@@ -1207,6 +1283,22 @@ def build_parser() -> argparse.ArgumentParser:
         help="Force dry-run delivery for auto-approved items",
     )
     queue_sync_parser.set_defaults(func=_cmd_queue_sync)
+
+    fleet_parser = subparsers.add_parser(
+        "fleet",
+        help="Run `run` against the one site declared in a YAML manifest (see sites.example.yaml)",
+    )
+    fleet_parser.add_argument(
+        "--config",
+        required=True,
+        help="Path to a fleet manifest YAML file (see sites.example.yaml)",
+    )
+    fleet_parser.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="Write diffs instead of opening PRs (fleet defaults to LIVE delivery, unlike `run`)",
+    )
+    fleet_parser.set_defaults(func=_cmd_fleet)
 
     return parser
 
