@@ -1,28 +1,227 @@
 {
   "phase": "phase_all",
-  "timestamp": "2026-09-02T08:38:15.773158+00:00",
-  "total_cases": 1,
+  "timestamp": "2026-09-02T16:18:39.059861+00:00",
+  "total_cases": 22,
   "cases": [
     {
       "case_id": "case-01",
+      "rule": "html-has-lang",
+      "page": "/about",
+      "rubric_score": 0.0,
+      "cleared": false,
+      "route": "human",
+      "latency_seconds": 429.22496966598555,
+      "error": "Command '['/Users/dks0721706/.nvm/versions/node/v24.19.0/bin/npx', '@axe-core/cli', 'http://127.0.0.1:4200/about', '--tags', 'wcag2a,wcag2aa', '--stdout']' timed out after 300.0 seconds"
+    },
+    {
+      "case_id": "case-02",
+      "rule": "color-contrast",
+      "page": "/about",
+      "rubric_score": 0.0,
+      "cleared": false,
+      "route": "human",
+      "latency_seconds": 421.3049465419899,
+      "error": "Command '['/Users/dks0721706/.nvm/versions/node/v24.19.0/bin/npx', '@axe-core/cli', 'http://127.0.0.1:4200/about', '--tags', 'wcag2a,wcag2aa', '--stdout']' timed out after 300.0 seconds"
+    },
+    {
+      "case_id": "case-03",
+      "rule": "html-has-lang",
+      "page": "/contact",
+      "rubric_score": 0.0,
+      "cleared": false,
+      "route": "human",
+      "latency_seconds": 120.03837929200381,
+      "error": "case timed out after 120s"
+    },
+    {
+      "case_id": "case-04",
+      "rule": "html-has-lang",
+      "page": "/pricing",
+      "rubric_score": 0.0,
+      "cleared": false,
+      "route": "human",
+      "latency_seconds": 524.3094117919973,
+      "error": "Command '['/Users/dks0721706/.nvm/versions/node/v24.19.0/bin/npx', '@axe-core/cli', 'http://127.0.0.1:4200/', 'http://127.0.0.1:4200/home', 'http://127.0.0.1:4200/product', 'http://127.0.0.1:4200/case-studies', 'http://127.0.0.1:4200/docs', 'http://127.0.0.1:4200/careers', 'http://127.0.0.1:4200/blog', 'http://127.0.0.1:4200/pricing', 'http://127.0.0.1:4200/about', 'http://127.0.0.1:4200/contact', 'http://127.0.0.1:4200/status', '--tags', 'wcag2a,wcag2aa', '--stdout']' timed out after 300.0 seconds"
+    },
+    {
+      "case_id": "case-05",
+      "rule": "link-name",
+      "page": "/about",
+      "rubric_score": 0.0,
+      "cleared": false,
+      "route": "human",
+      "latency_seconds": 120.00871900000493,
+      "error": "case timed out after 120s"
+    },
+    {
+      "case_id": "case-06",
+      "rule": "link-name",
+      "page": "/contact",
+      "rubric_score": 0.0,
+      "cleared": false,
+      "route": "human",
+      "latency_seconds": 120.02772024998558,
+      "error": "case timed out after 120s"
+    },
+    {
+      "case_id": "case-07",
+      "rule": "image-alt",
+      "page": "/blog",
+      "rubric_score": 0.0,
+      "cleared": false,
+      "route": "human",
+      "latency_seconds": 120.02802087500459,
+      "error": "case timed out after 120s"
+    },
+    {
+      "case_id": "case-08",
+      "rule": "image-alt",
+      "page": "/features",
+      "rubric_score": 0.0,
+      "cleared": false,
+      "route": "human",
+      "latency_seconds": 120.02113424998242,
+      "error": "case timed out after 120s"
+    },
+    {
+      "case_id": "case-09",
       "rule": "html-has-lang",
       "page": "/",
       "rubric_score": 0.0,
       "cleared": false,
       "route": "human",
-      "latency_seconds": 45.3,
-      "error": null,
-      "scoring_details": {
-        "criteria_breakdown": [
-          {
-            "name": "Build Pass",
-            "max_points": 8.0,
-            "awarded": 0.0,
-            "passed": false,
-            "reason": "Missing import"
-          }
-        ]
-      }
+      "latency_seconds": 120.01659729098901,
+      "error": "case timed out after 120s"
+    },
+    {
+      "case_id": "case-10",
+      "rule": "link-name",
+      "page": "/features",
+      "rubric_score": 0.0,
+      "cleared": false,
+      "route": "human",
+      "latency_seconds": 378.4266140840191,
+      "error": "Command '['/Users/dks0721706/.nvm/versions/node/v24.19.0/bin/npx', '@axe-core/cli', 'http://127.0.0.1:4200/features', '--tags', 'wcag2a,wcag2aa', '--stdout']' timed out after 300.0 seconds"
+    },
+    {
+      "case_id": "case-11",
+      "rule": "html-has-lang",
+      "page": "/blog",
+      "rubric_score": 0.0,
+      "cleared": false,
+      "route": "human",
+      "latency_seconds": 120.02525408400106,
+      "error": "case timed out after 120s"
+    },
+    {
+      "case_id": "case-12",
+      "rule": "link-name",
+      "page": "/features",
+      "rubric_score": 0.0,
+      "cleared": false,
+      "route": "human",
+      "latency_seconds": 120.01963387499563,
+      "error": "case timed out after 120s"
+    },
+    {
+      "case_id": "case-13",
+      "rule": "html-has-lang",
+      "page": "/contact",
+      "rubric_score": 0.0,
+      "cleared": false,
+      "route": "human",
+      "latency_seconds": 66.28898425001535,
+      "error": "Request blocked: PII detected (invalid_json_after_redaction)"
+    },
+    {
+      "case_id": "case-14",
+      "rule": "color-contrast",
+      "page": "/",
+      "rubric_score": 0.0,
+      "cleared": false,
+      "route": "human",
+      "latency_seconds": 120.02022474998375,
+      "error": "case timed out after 120s"
+    },
+    {
+      "case_id": "case-15",
+      "rule": "image-alt",
+      "page": "/pricing",
+      "rubric_score": 0.0,
+      "cleared": false,
+      "route": "human",
+      "latency_seconds": 464.4085398330062,
+      "error": "Command '['/Users/dks0721706/.nvm/versions/node/v24.19.0/bin/npx', '@axe-core/cli', 'http://127.0.0.1:4200/pricing', '--tags', 'wcag2a,wcag2aa', '--stdout']' timed out after 300.0 seconds"
+    },
+    {
+      "case_id": "case-16",
+      "rule": "image-alt",
+      "page": "/about",
+      "rubric_score": 0.0,
+      "cleared": false,
+      "route": "human",
+      "latency_seconds": 120.02746212499915,
+      "error": "case timed out after 120s"
+    },
+    {
+      "case_id": "case-17",
+      "rule": "color-contrast",
+      "page": "/blog",
+      "rubric_score": 0.0,
+      "cleared": false,
+      "route": "human",
+      "latency_seconds": 120.0115680420131,
+      "error": "case timed out after 120s"
+    },
+    {
+      "case_id": "case-18",
+      "rule": "link-name",
+      "page": "/features",
+      "rubric_score": 0.0,
+      "cleared": false,
+      "route": "human",
+      "latency_seconds": 395.59025020801346,
+      "error": "Command '['/Users/dks0721706/.nvm/versions/node/v24.19.0/bin/npx', '@axe-core/cli', 'http://127.0.0.1:4200/features', '--tags', 'wcag2a,wcag2aa', '--stdout']' timed out after 300.0 seconds"
+    },
+    {
+      "case_id": "case-19",
+      "rule": "html-has-lang",
+      "page": "/about",
+      "rubric_score": 0.0,
+      "cleared": false,
+      "route": "human",
+      "latency_seconds": 120.03925454200362,
+      "error": "case timed out after 120s"
+    },
+    {
+      "case_id": "case-20",
+      "rule": "color-contrast",
+      "page": "/",
+      "rubric_score": 0.0,
+      "cleared": false,
+      "route": "human",
+      "latency_seconds": 416.1889419160143,
+      "error": "Command '['/Users/dks0721706/.nvm/versions/node/v24.19.0/bin/npx', '@axe-core/cli', 'http://127.0.0.1:4200/', '--tags', 'wcag2a,wcag2aa', '--stdout']' timed out after 300.0 seconds"
+    },
+    {
+      "case_id": "case-21",
+      "rule": "button-name",
+      "page": "/pricing",
+      "rubric_score": 0.0,
+      "cleared": false,
+      "route": "human",
+      "latency_seconds": 120.02018370802398,
+      "error": "case timed out after 120s"
+    },
+    {
+      "case_id": "case-22",
+      "rule": "link-name",
+      "page": "/about",
+      "rubric_score": 0.0,
+      "cleared": false,
+      "route": "human",
+      "latency_seconds": 120.03031358300359,
+      "error": "case timed out after 120s"
     }
   ]
 }

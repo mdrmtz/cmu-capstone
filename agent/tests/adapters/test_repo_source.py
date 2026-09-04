@@ -5,7 +5,12 @@ from pathlib import Path
 
 import pytest
 
-from a11y_fixer.adapters.repo_source import RepoSourceError, is_url, resolve_repo_source
+from a11y_fixer.adapters.repo_source import (
+    RepoSourceError,
+    derive_github_repo,
+    is_url,
+    resolve_repo_source,
+)
 
 
 @pytest.mark.parametrize(
@@ -78,3 +83,48 @@ def test_resolve_repo_source_raises_on_clone_failure(tmp_path: Path) -> None:
     not_a_repo = "/definitely/not/a/real/repo.git"
     with pytest.raises(RepoSourceError, match="git clone failed"):
         resolve_repo_source(not_a_repo, cache_dir=tmp_path / "cache")
+
+
+
+@pytest.mark.parametrize(
+    ("source", "expected"),
+    [
+        ("https://github.com/mdrmtz/Hallucinate.io", "mdrmtz/Hallucinate.io"),
+        ("https://github.com/mdrmtz/Hallucinate.io.git", "mdrmtz/Hallucinate.io"),
+        ("https://github.com/mdrmtz/Hallucinate.io/", "mdrmtz/Hallucinate.io"),
+        ("git@github.com:mdrmtz/Hallucinate.io.git", "mdrmtz/Hallucinate.io"),
+        ("ssh://git@github.com/mdrmtz/Hallucinate.io.git", "mdrmtz/Hallucinate.io"),
+        ("https://github.com/ACME/their-app", "ACME/their-app"),
+    ],
+)
+def test_derive_github_repo_parses_github_url(source: str, expected: str) -> None:
+    assert derive_github_repo(source) == expected
+
+
+def test_derive_github_repo_returns_none_for_non_github_url() -> None:
+    assert derive_github_repo("https://gitlab.com/mdrmtz/Hallucinate.io.git") is None
+
+
+def test_derive_github_repo_returns_none_for_local_path_without_origin(tmp_path: Path) -> None:
+    local_repo = tmp_path / "no-remote-checkout"
+    local_repo.mkdir()
+    subprocess.run(["git", "init", "-q"], cwd=local_repo, check=True)  # noqa: S603, S607
+
+    assert derive_github_repo(str(local_repo), resolved_path=local_repo) is None
+
+
+def test_derive_github_repo_returns_none_when_no_resolved_path_given() -> None:
+    assert derive_github_repo("/some/local/checkout") is None
+
+
+def test_derive_github_repo_falls_back_to_origin_remote_for_local_path(tmp_path: Path) -> None:
+    local_repo = tmp_path / "checkout-with-remote"
+    local_repo.mkdir()
+    subprocess.run(["git", "init", "-q"], cwd=local_repo, check=True)  # noqa: S603, S607
+    subprocess.run(  # noqa: S603, S607
+        ["git", "remote", "add", "origin", "https://github.com/ACME/their-app.git"],
+        cwd=local_repo,
+        check=True,
+    )
+
+    assert derive_github_repo(str(local_repo), resolved_path=local_repo) == "ACME/their-app"

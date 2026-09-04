@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import os
 import subprocess
 from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock
@@ -757,3 +758,84 @@ def test_deliver_violation_auto_merge_failure_skips_cleanup_without_crashing(
     captured = capsys.readouterr()
     assert "merge_failed" in captured.out
     assert "Auto-merge/cleanup failed" not in captured.out
+
+
+
+def test_apply_repo_override_derives_github_repo_from_url(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    """`--repo` pointed at a GitHub URL should also target PR delivery there.
+
+    Regression test for the GITHUB_REPO-not-derived-from---repo gap: before
+    this fix, `_apply_repo_override()` only ever set `A11Y_FIXTURE_PATH`, so
+    `config.resolve_pr_delivery()` kept reading whatever static `GITHUB_REPO`
+    happened to be exported - unrelated to the repo actually being fixed.
+    """
+    monkeypatch.setenv("GITHUB_REPO", "mdrmtz/Hallucinate.io")
+    monkeypatch.delenv("A11Y_FIXTURE_PATH", raising=False)
+    cloned = tmp_path / "cache" / "their-app"
+    cloned.mkdir(parents=True)
+    monkeypatch.setattr(
+        cli,
+        "resolve_repo_source",
+        lambda repo_arg, cache_dir: cloned,  # noqa: ARG005
+    )
+
+    cli._apply_repo_override("https://github.com/ACME/their-app.git")
+
+    assert os.environ["GITHUB_REPO"] == "ACME/their-app"
+    assert os.environ["A11Y_FIXTURE_PATH"] == str(cloned)
+
+
+def test_apply_repo_override_derives_github_repo_from_local_checkout_remote(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    local_repo = tmp_path / "local-checkout"
+    local_repo.mkdir()
+    subprocess.run(["git", "init", "-q"], cwd=local_repo, check=True)  # noqa: S603, S607
+    subprocess.run(  # noqa: S603, S607
+        ["git", "remote", "add", "origin", "https://github.com/ACME/their-app.git"],
+        cwd=local_repo,
+        check=True,
+    )
+    monkeypatch.delenv("GITHUB_REPO", raising=False)
+    monkeypatch.delenv("A11Y_FIXTURE_PATH", raising=False)
+    monkeypatch.setattr(
+        cli,
+        "resolve_repo_source",
+        lambda repo_arg, cache_dir: local_repo,  # noqa: ARG005
+    )
+
+    cli._apply_repo_override(str(local_repo))
+
+    assert os.environ["GITHUB_REPO"] == "ACME/their-app"
+
+
+def test_apply_repo_override_leaves_github_repo_untouched_when_not_derivable(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """A --repo that isn't GitHub-shaped (and has no derivable origin) must not
+    clobber a GITHUB_REPO value that may still be valid.
+    """
+    monkeypatch.setenv("GITHUB_REPO", "mdrmtz/Hallucinate.io")
+    monkeypatch.delenv("A11Y_FIXTURE_PATH", raising=False)
+    local_repo = tmp_path / "no-remote-checkout"
+    local_repo.mkdir()
+    subprocess.run(["git", "init", "-q"], cwd=local_repo, check=True)  # noqa: S603, S607
+    monkeypatch.setattr(
+        cli,
+        "resolve_repo_source",
+        lambda repo_arg, cache_dir: local_repo,  # noqa: ARG005
+    )
+
+    cli._apply_repo_override(str(local_repo))
+
+    assert os.environ["GITHUB_REPO"] == "mdrmtz/Hallucinate.io"
+
+
+def test_apply_repo_override_without_repo_arg_leaves_github_repo_untouched(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("GITHUB_REPO", "mdrmtz/Hallucinate.io")
+
+    cli._apply_repo_override(None)
+
+    assert os.environ["GITHUB_REPO"] == "mdrmtz/Hallucinate.io"

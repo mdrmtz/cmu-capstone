@@ -5,6 +5,7 @@ This document shows what Phase 2 observability logs would look like with self-he
 ## Scenario
 
 After Phase 2 run with Tier 1 instrumentation, we want to understand:
+
 1. Why 0% clearance rate?
 2. Which failures can be auto-retried?
 3. What should we optimize first?
@@ -17,18 +18,22 @@ After Phase 2 run with Tier 1 instrumentation, we want to understand:
   "phase": "all",
   "timestamp": "2026-09-02T01:25:00+00:00",
   "schema_version": "1.0",
-  
+
   "failure_analysis": {
     "by_category": {
       "code_generation": {
         "occurrence_count": 16,
         "percentage_of_failures": 0.727,
         "severity": "critical",
-        "top_subcategories": ["missing_import", "syntax_error", "type_mismatch"],
+        "top_subcategories": [
+          "missing_import",
+          "syntax_error",
+          "type_mismatch"
+        ],
         "systemic_indicator": true,
         "remediation_focus": "Improve LLM code generation guardrails - add import validation"
       },
-      
+
       "llm_reasoning": {
         "occurrence_count": 17,
         "percentage_of_failures": 0.773,
@@ -37,7 +42,7 @@ After Phase 2 run with Tier 1 instrumentation, we want to understand:
         "systemic_indicator": true,
         "remediation_focus": "Better violation enumeration and multi-pass violation fixing"
       },
-      
+
       "timeout": {
         "occurrence_count": 9,
         "percentage_of_failures": 0.409,
@@ -46,7 +51,7 @@ After Phase 2 run with Tier 1 instrumentation, we want to understand:
         "remediation_focus": "Implement caching and parallel execution"
       }
     },
-    
+
     "cascade_failures": [
       {
         "trigger": "build_pass fails",
@@ -64,7 +69,7 @@ After Phase 2 run with Tier 1 instrumentation, we want to understand:
       }
     ]
   },
-  
+
   "optimization_recommendations": [
     {
       "rank": 1,
@@ -106,14 +111,18 @@ After Phase 2 run with Tier 1 instrumentation, we want to understand:
       ]
     }
   ],
-  
+
   "self_healing_readiness": {
     "can_auto_retry": 0.59,
     "can_auto_fix_with_strategy": 0.82,
     "can_escalate_to_human": 1.0,
     "estimated_auto_fix_success_rate": 0.35,
     "manual_intervention_required": true,
-    "human_expertise_needed": ["llm_prompting", "angular_codegen", "wcag_standards"]
+    "human_expertise_needed": [
+      "llm_prompting",
+      "angular_codegen",
+      "wcag_standards"
+    ]
   }
 }
 ```
@@ -132,7 +141,7 @@ After Phase 2 run with Tier 1 instrumentation, we want to understand:
   "route": "human",
   "latency_seconds": 45.3,
   "error": null,
-  
+
   "scoring_details": {
     "criteria_breakdown": [
       {
@@ -143,7 +152,7 @@ After Phase 2 run with Tier 1 instrumentation, we want to understand:
         "passed": false,
         "severity": "critical",
         "reason": "ng build failed: Cannot find module 'CommonModule'",
-        
+
         "root_cause": {
           "category": "code_generation",
           "subcategory": "missing_import",
@@ -155,7 +164,7 @@ After Phase 2 run with Tier 1 instrumentation, we want to understand:
           "is_deterministic": false,
           "is_recoverable": true
         },
-        
+
         "remediation": {
           "strategy": "regenerate_with_imports_focus",
           "priority": "high",
@@ -188,7 +197,7 @@ After Phase 2 run with Tier 1 instrumentation, we want to understand:
           ],
           "prevention": "Add Angular import checklist to code generation prompt"
         },
-        
+
         "diagnostics": {
           "llm_attempt": 1,
           "llm_model": "anthropic/claude-3-haiku",
@@ -204,6 +213,7 @@ After Phase 2 run with Tier 1 instrumentation, we want to understand:
 ```
 
 **Self-Healing Decision: RETRY**
+
 - `is_recoverable`: true
 - `confidence`: 0.95 (high confidence in diagnosis)
 - `suggested_actions[0].expected_success_rate`: 0.75 (>70% success likely)
@@ -223,7 +233,7 @@ After Phase 2 run with Tier 1 instrumentation, we want to understand:
   "route": "human",
   "latency_seconds": 109.7,
   "error": null,
-  
+
   "scoring_details": {
     "criteria_breakdown": [
       {
@@ -243,7 +253,7 @@ After Phase 2 run with Tier 1 instrumentation, we want to understand:
         "passed": false,
         "severity": "high",
         "reason": "LLM judge confidence: 50% - only fixed 2/4 violations",
-        
+
         "root_cause": {
           "category": "llm_reasoning",
           "subcategory": "incomplete_solution",
@@ -257,7 +267,7 @@ After Phase 2 run with Tier 1 instrumentation, we want to understand:
           },
           "is_deterministic": false,
           "is_recoverable": true,
-          
+
           "root_factors": [
             {
               "factor": "insufficient_violation_enumeration",
@@ -276,7 +286,7 @@ After Phase 2 run with Tier 1 instrumentation, we want to understand:
             }
           ]
         },
-        
+
         "remediation": {
           "strategy": "improved_violation_enumeration",
           "priority": "high",
@@ -309,12 +319,17 @@ After Phase 2 run with Tier 1 instrumentation, we want to understand:
           ],
           "prevention": "Implement violation enumeration in prompt template + use larger model for multi-violation cases"
         },
-        
+
         "diagnostics": {
           "llm_attempt": 1,
           "llm_model": "anthropic/claude-3-haiku",
           "judge_confidence": 0.5,
-          "violations_detected_by_axe": ["image-alt[0]", "image-alt[1]", "image-alt[2]", "image-alt[3]"],
+          "violations_detected_by_axe": [
+            "image-alt[0]",
+            "image-alt[1]",
+            "image-alt[2]",
+            "image-alt[3]"
+          ],
           "violations_in_solution": ["image-alt[0]", "image-alt[1]"],
           "solution_diff_lines": 45,
           "violations_per_fix_attempt": 2.0
@@ -326,6 +341,7 @@ After Phase 2 run with Tier 1 instrumentation, we want to understand:
 ```
 
 **Self-Healing Decision: ESCALATE (but with high retry potential)**
+
 - `estimated_auto_fix_success`: ~72% (but requires model upgrade)
 - Action: Escalate to human with recommendation: "Retry with Claude-Opus or split violations into 2 passes"
 
@@ -343,7 +359,7 @@ After Phase 2 run with Tier 1 instrumentation, we want to understand:
   "route": "human",
   "latency_seconds": 125.3,
   "error": "LLM request timeout after 120s",
-  
+
   "scoring_details": {
     "criteria_breakdown": [
       {
@@ -354,7 +370,7 @@ After Phase 2 run with Tier 1 instrumentation, we want to understand:
         "passed": false,
         "severity": "critical",
         "reason": "LLM timeout - code generation never completed",
-        
+
         "root_cause": {
           "category": "timeout",
           "subcategory": "llm_api_latency",
@@ -365,7 +381,7 @@ After Phase 2 run with Tier 1 instrumentation, we want to understand:
           "is_deterministic": false,
           "is_recoverable": true
         },
-        
+
         "remediation": {
           "strategy": "reduce_context_size",
           "priority": "high",
@@ -376,7 +392,7 @@ After Phase 2 run with Tier 1 instrumentation, we want to understand:
                 "context_limit_tokens": 2000,
                 "include_partial_solution_history": false
               },
-              "expected_success_rate": 0.70
+              "expected_success_rate": 0.7
             },
             {
               "action": "use_faster_model",
@@ -384,7 +400,7 @@ After Phase 2 run with Tier 1 instrumentation, we want to understand:
                 "model": "anthropic/claude-3-haiku",
                 "tradeoff": "may have lower accuracy"
               },
-              "expected_success_rate": 0.50
+              "expected_success_rate": 0.5
             },
             {
               "action": "implement_caching",
@@ -397,7 +413,7 @@ After Phase 2 run with Tier 1 instrumentation, we want to understand:
           ],
           "prevention": "Implement request timeout handling and context size optimization"
         },
-        
+
         "diagnostics": {
           "llm_attempt": 1,
           "llm_model": "anthropic/claude-3-haiku",
@@ -413,6 +429,7 @@ After Phase 2 run with Tier 1 instrumentation, we want to understand:
 ```
 
 **Self-Healing Decision: ESCALATE (infrastructure change needed)**
+
 - `is_deterministic`: false (might succeed on retry due to random backend variance)
 - `is_recoverable`: true (but requires infrastructure changes)
 - Immediate action: Add exponential backoff retry
@@ -465,6 +482,7 @@ python -m a11y_fixer.observability
 ```
 
 Output:
+
 ```
 📊 Analyzing observability logs for self-healing...
 
@@ -518,6 +536,7 @@ for case in affected_cases:
 ### Step 4: Measure Impact
 
 Compare new Phase 2 results to baseline:
+
 - Clearance rate before: 0%
 - Clearance rate after: ???
 - Cases fixed: 13/18 (72% of affected cases)?
@@ -525,6 +544,7 @@ Compare new Phase 2 results to baseline:
 ### Step 5: Update Observability
 
 Log learnings in `wiki/lessons/Phase-3-Optimization-Results.md`:
+
 - What actually worked
 - What didn't (and why)
 - Which optimization had best ROI

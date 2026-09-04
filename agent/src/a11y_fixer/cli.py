@@ -33,7 +33,7 @@ from a11y_fixer import config
 from a11y_fixer.adapters.audit_runner import AxeAuditRunner, flatten_violation_instances
 from a11y_fixer.adapters.pr import delivery as pr_delivery
 from a11y_fixer.adapters.pr.github_pr_manager import GitHubPRManager
-from a11y_fixer.adapters.repo_source import resolve_repo_source
+from a11y_fixer.adapters.repo_source import derive_github_repo, resolve_repo_source
 from a11y_fixer.adapters.violation_store import (
     PrePipelineGate,
     HITLQueueGate,
@@ -74,10 +74,30 @@ def _apply_repo_override(repo_arg: str | None) -> None:
     about `--repo` at all. Prints the resolved path unconditionally so the
     target repo is always visible to whoever runs the command, not a hidden
     default.
+
+    Also derives `GITHUB_REPO` from the same `--repo` value and exports it,
+    so `config.resolve_pr_delivery()` targets PR delivery at the repo
+    actually being fixed instead of whatever static `GITHUB_REPO` happens to
+    be set in the environment - without this, a dynamically-targeted repo
+    (a URL or local checkout of ACME/ABC/etc., not the bundled Hallucinate.io
+    fixture) would have its fixes delivered as PRs against the wrong repo.
+    Leaves `GITHUB_REPO` untouched when nothing github.com-shaped can be
+    derived (e.g. a non-GitHub remote, or a local path with no `origin`),
+    rather than clearing a value that may still be valid.
     """
     if repo_arg:
         resolved = resolve_repo_source(repo_arg, cache_dir=config.repo_cache_dir())
         os.environ["A11Y_FIXTURE_PATH"] = str(resolved)
+
+        github_repo = derive_github_repo(repo_arg, resolved_path=resolved)
+        if github_repo:
+            os.environ["GITHUB_REPO"] = github_repo
+            print(f"target GitHub repo (for PR delivery): {github_repo}")  # noqa: T201
+        else:
+            print(  # noqa: T201
+                "target GitHub repo: could not derive from --repo "
+                f"(GITHUB_REPO stays {os.environ.get('GITHUB_REPO') or 'unset'})"
+            )
     print(f"target repo: {config.fixture_path()}")  # noqa: T201
 
 
