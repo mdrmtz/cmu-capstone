@@ -1730,13 +1730,18 @@ python -m evaluation.run_eval --phase all --no-live --yes
 
 ### 4.5: CI/CD Remediation Plan (Finding #3) — 2026-09-04
 
-**Why this stayed unwired:** Phase 5's own "merge to main → GitHub Actions → deploy to Netlify" language is about the *fixture app* (`Hallucinate.io`) going live, not the agent's own Python/dashboard code — conflating the two into one imagined pipeline is part of why neither ever got built. This plan treats them as two separate repos with two separate workflows.
+**Why this stayed unwired:** Phase 5's own "merge to main → GitHub Actions → deploy to Netlify" language is about the *fixture app* (`Hallucinate.io`) going live, not the agent's own Python/dashboard code — conflating the two into one imagined pipeline is part of why neither ever got built. This plan treats them as three separate repos with three separate workflows (corrected 2026-09-04 — see below).
 
-**CI workflow — `cmu-capstone/.github/workflows/`:**
+**CI workflow — `cmu-capstone/.github/workflows/ci.yml`** ✅ **DRAFTED 2026-09-04**:
 - Trigger on push and pull_request against `main` and the active working branch.
-- Job 1: Python 3.11+, `pip install -e ".[dev]"`, run the full pytest suite — the exact safety net that would have caught finding #4 (`merge_threshold=` TypeError, silently swallowed) and finding #5 (case-10's dropped HITL queue entry) before either shipped, instead of both being found by hand in a later session.
-- Job 2: `dashboard-app` — `npm ci` + `ng build`, fails the build on any Angular compile error.
+- Job: Python 3.11+, `pip install -e ".[dev]"`, run the full pytest suite (`submodules: recursive` on checkout, needed for the public `Hallucinate.io` submodule) — the exact safety net that would have caught finding #4 (`merge_threshold=` TypeError, silently swallowed) and finding #5 (case-10's dropped HITL queue entry) before either shipped, instead of both being found by hand in a later session.
 - No secrets required — never touches GitHub's live API or Netlify, so this is the lowest-risk piece and lands first.
+- **Corrected 2026-09-04 (operator-flagged):** originally also had a second `dashboard-app` build job here, since `dashboard-app` is a submodule of this repo. Removed — `dashboard-app` is `mdrmtz/dashboard-app`, a fully separate (and **private**) repo; building it from here only ever validates whatever commit this repo's submodule pointer happens to be pinned to (not dashboard-app's actual latest commits/PRs), and required a cross-repo PAT (`DASHBOARD_APP_PAT`) just to check out the private submodule content — real, unwanted coupling and secret-management overhead for no real benefit over building it in its own repo. See below.
+
+**CI workflow — `mdrmtz/dashboard-app/.github/workflows/ci.yml`** ✅ **DRAFTED 2026-09-04**:
+- Trigger on push and pull_request against `main`.
+- Job: Node 22 (matches `@netlify/angular-runtime` v4's requirement), `npm ci` + `npm run build` (`ng build`), fails on any Angular compile error.
+- Runs in dashboard-app's own repo context — its own default `GITHUB_TOKEN` is sufficient (fully scoped to itself), no cross-repo PAT needed. Validates dashboard-app's actual latest commits directly, not a pinned submodule snapshot.
 
 **CD workflow — `mdrmtz/Hallucinate.io/.github/workflows/`:**
 - Trigger on push to `main`.
