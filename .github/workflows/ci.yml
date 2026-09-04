@@ -4,9 +4,9 @@ name: CI
 # from these lists once merged to main.
 on:
   push:
-    branches: [main, mdrmtz/dormant-to-live]
+    branches: [main]
   pull_request:
-    branches: [main, mdrmtz/dormant-to-live]
+    branches: [main]
 
 jobs:
   test-agent:
@@ -32,9 +32,28 @@ jobs:
       # own `addopts = "-m 'not e2e'"` - this runs the same fast suite as local dev.
       - run: pytest
 
-# dashboard-app is its own separate repo (mdrmtz/dashboard-app, submodule
-# here) - its build lives in that repo's own .github/workflows/ci.yml, not
-# here, so it runs against dashboard-app's actual latest commits (not just
-# whatever commit this repo's submodule pointer happens to be pinned to)
-# and needs no cross-repo PAT.
+  build-dashboard-app:
+    name: dashboard-app build (Angular SSR)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: dashboard-app
+    steps:
+      # dashboard-app is a private submodule (mdrmtz/dashboard-app) - the
+      # default GITHUB_TOKEN is scoped to this repo only and can't check out
+      # a *different* private repo's submodule content, so a PAT with read
+      # access to mdrmtz/dashboard-app must be supplied here. See DASHBOARD_APP_PAT
+      # setup notes.
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+          token: ${{ secrets.DASHBOARD_APP_PAT }}
 
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: dashboard-app/package-lock.json
+
+      - run: npm ci
+      - run: npm run build
