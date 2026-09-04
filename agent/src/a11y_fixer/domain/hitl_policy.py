@@ -11,11 +11,16 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Literal
 
-# axe-core rules where even a passing candidate should still see a human:
-# color-contrast is judgment-heavy (gradients/images defeat static analysis,
-# see agent-plan.md's "Vision-Assisted Contrast Validation" backlog item) and
-# html-has-lang is site-wide - one template edit fans out to every page.
-HIGH_RISK_RULES: frozenset[str] = frozenset({"color-contrast", "html-has-lang"})
+# axe-core rules where even a passing candidate should still see a human,
+# regardless of score. Empty for now: color-contrast and html-has-lang were
+# removed (2026-09) once ViolationState.HITL_QUEUED started tracking escalated
+# violations properly across runs - keeping them here was papering over
+# should_process()'s unknown_state_fallback gap rather than routing on actual
+# risk. color-contrast's judgment-heavy cases still get caught by
+# low_confidence (a bad contrast fix scores low); html-has-lang's site-wide
+# blast radius can be reinstated here (or added to
+# HIGH_BLAST_RADIUS_PATH_FRAGMENTS) if real-world routing shows it's needed.
+HIGH_RISK_RULES: frozenset[str] = frozenset()
 
 # Path fragments whose edits are shared across more than one page/component.
 HIGH_BLAST_RADIUS_PATH_FRAGMENTS: tuple[str, ...] = ("index.html", "app.html", "app.ts")

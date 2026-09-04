@@ -4,8 +4,8 @@ import pytest
 from pathlib import Path
 from tempfile import TemporaryDirectory
 
-from a11y_fixer.adapters.violation_store import HITLQueueGate, ViolationStore
-from a11y_fixer.domain.violations import ViolationState
+from a11y_fixer.adapters.violation_store import HITLQueueGate, PrePipelineGate, ViolationStore
+from a11y_fixer.domain.violations import ViolationState, compute_violation_id
 
 
 class TestHITLQueueGate:
@@ -27,6 +27,20 @@ class TestHITLQueueGate:
             assert action == "ADD"
             assert old_path is None
             assert "new_violation" in reason
+
+    def test_should_queue_new_violation_stamps_hitl_queued_state(self):
+        """First-time escalation must land in HITL_QUEUED, not NEW - that's
+        what lets PrePipelineGate.should_process() recognize it on a later
+        run instead of falling through to unknown_state_fallback."""
+        with TemporaryDirectory() as tmpdir:
+            store_path = Path(tmpdir) / "violations.json"
+            store = ViolationStore(status_file=store_path)
+            gate = HITLQueueGate(store)
+
+            gate.should_queue(rule_id="image-alt", selector="img:nth-child(2)", score=15.0)
+
+            violation_id = compute_violation_id("image-alt", "img:nth-child(2)")
+            assert store.get(violation_id).state == ViolationState.HITL_QUEUED
 
     def test_should_queue_identical_solution(self):
         """Same score should SKIP."""
@@ -137,14 +151,29 @@ class TestHITLQueueGate:
             )
 
             # Verify it's stored
-            from a11y_fixer.domain.violations import compute_violation_id
-
             violation_id = compute_violation_id("image-alt", "img")
             status = store.get(violation_id)
 
             assert status is not None
             assert status.hitl_queue_path == queue_path
             assert status.hitl_queue_score == 16.0
+            assert status.state == ViolationState.HITL_QUEUED
+
+    def test_record_queue_entry_restamps_hitl_queued_over_prior_state(self):
+        """record_queue_entry() must always set HITL_QUEUED, even when a
+        prior (non-terminal) status already exists - it's the only write
+        path that marks a violation as escalated, so it can't silently keep
+        whatever state was there before (e.g. NEW)."""
+        with TemporaryDirectory() as tmpdir:
+            store_path = Path(tmpdir) / "violations.json"
+            store = ViolationStore(status_file=store_path)
+            gate = HITLQueueGate(store)
+
+            gate.should_queue("image-alt", "img", score=10.0)
+            gate.record_queue_entry("image-alt", "img", "/hitl_queue/1.json", 10.0)
+
+            violation_id = compute_violation_id("image-alt", "img")
+            assert store.get(violation_id).state == ViolationState.HITL_QUEUED
 
     def test_mark_reviewed_approve(self):
         """Approving a queued item should mark it as MERGED."""
@@ -165,8 +194,6 @@ class TestHITLQueueGate:
             gate.mark_reviewed("image-alt", "img", "approve")
 
             # Verify state changed
-            from a11y_fixer.domain.violations import compute_violation_id
-
             violation_id = compute_violation_id("image-alt", "img")
             status = store.get(violation_id)
 
@@ -198,8 +225,6 @@ class TestHITLQueueGate:
             )
 
             # Verify state changed
-            from a11y_fixer.domain.violations import compute_violation_id
-
             violation_id = compute_violation_id("image-alt", "img")
             status = store.get(violation_id)
 
@@ -261,11 +286,72 @@ class TestHITLQueueGate:
             assert action_dup == "SKIP"
 
             # Verify all are independent
-            from a11y_fixer.domain.violations import compute_violation_id
-
             v1_id = compute_violation_id("image-alt", "img:first")
             v2_id = compute_violation_id("image-alt", "img:last")
             v3_id = compute_violation_id("color-contrast", "p")
             assert store.get(v1_id) is not None
             assert store.get(v2_id) is not None
             assert store.get(v3_id) is not None
+
+
+class TestHitlQueuedRecognizedByPrePipelineGate:
+    """Reproduces the real bug: a violation escalated to HITL via
+    HITLQueueGate used to come back as `state=NEW`, so the very next run's
+    `PrePipelineGate.should_process()` pre-scoring check (called with
+    `new_score=None, new_solution_hash=None`, exactly as `cli.py`'s fleet/
+    run loop does before qa_critic even runs) fell through every explicit
+    case straight to `unknown_state_fallback` - a generic "skip, no idea
+    why" instead of "already escalated, awaiting a human decision"."""
+
+    def test_rerun_after_escalation_is_not_unknown_state_fallback(self):
+        with TemporaryDirectory() as tmpdir:
+            store = ViolationStore(status_file=Path(tmpdir) / "violations.json")
+            queue_gate = HITLQueueGate(store)
+            pipeline_gate = PrePipelineGate(store)
+
+            # Run 1: violation is escalated to the HITL queue.
+            queue_gate.should_queue("html-has-lang", "html", score=20.0)
+            queue_gate.record_queue_entry(
+                "html-has-lang", "html", "/hitl_queue/1.json", 20.0
+            )
+
+            # Run 2: cli.py's pre-scoring gate check on the same violation.
+            action, reason, _ = pipeline_gate.should_process(
+                "html-has-lang", "html", new_score=None, new_solution_hash=None
+            )
+
+            assert action == "SKIP"
+            assert reason == "escalated_to_human_awaiting_review"
+            assert reason != "unknown_state_fallback"
+
+    def test_rerun_with_significantly_better_score_creates_a_new_attempt(self):
+        with TemporaryDirectory() as tmpdir:
+            store = ViolationStore(status_file=Path(tmpdir) / "violations.json")
+            queue_gate = HITLQueueGate(store)
+            pipeline_gate = PrePipelineGate(store)
+
+            queue_gate.should_queue("image-alt", "img", score=10.0)
+            queue_gate.record_queue_entry("image-alt", "img", "/hitl_queue/1.json", 10.0)
+
+            action, reason, _ = pipeline_gate.should_process(
+                "image-alt", "img", new_score=15.0, new_solution_hash="sol_better"
+            )
+
+            assert action == "CREATE"
+            assert "better_solution_ready_for_escalated_violation" in reason
+
+    def test_rerun_with_marginal_score_still_skips_as_adequate(self):
+        with TemporaryDirectory() as tmpdir:
+            store = ViolationStore(status_file=Path(tmpdir) / "violations.json")
+            queue_gate = HITLQueueGate(store)
+            pipeline_gate = PrePipelineGate(store)
+
+            queue_gate.should_queue("image-alt", "img", score=10.0)
+            queue_gate.record_queue_entry("image-alt", "img", "/hitl_queue/1.json", 10.0)
+
+            action, reason, _ = pipeline_gate.should_process(
+                "image-alt", "img", new_score=10.5, new_solution_hash="sol_marginal"
+            )
+
+            assert action == "SKIP"
+            assert "existing_hitl_queue_entry_adequate" in reason
