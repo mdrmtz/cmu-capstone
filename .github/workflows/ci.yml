@@ -17,6 +17,8 @@ jobs:
         working-directory: agent
     steps:
       - uses: actions/checkout@v4
+        with:
+          submodules: recursive
 
       - uses: actions/setup-python@v5
         with:
@@ -37,7 +39,15 @@ jobs:
       run:
         working-directory: dashboard-app
     steps:
+      # dashboard-app is a private submodule (mdrmtz/dashboard-app) - the
+      # default GITHUB_TOKEN is scoped to this repo only and can't check out
+      # a *different* private repo's submodule content, so a PAT with read
+      # access to mdrmtz/dashboard-app must be supplied here. See DASHBOARD_APP_PAT
+      # setup notes.
       - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+          token: ${{ secrets.DASHBOARD_APP_PAT }}
 
       - uses: actions/setup-node@v4
         with:
