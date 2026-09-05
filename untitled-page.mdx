@@ -1,0 +1,101 @@
+---
+title: " Module 7: Capstone Project — Self-Study Checkpoint Activity 7.1"
+---
+
+```markdown
+## Final Capstone Report Planning
+
+**Author:** mdrmtz **Date:** September 4, 2026
+
+---
+
+### 1. Project title
+
+**The A11y Fixer: An Autonomous Multi-Agent System for WCAG 2.2 AA Remediation in Angular Single-Page Applications**
+
+---
+
+### 2. Problem and user
+
+Automated tools like `axe-core` and Lighthouse are excellent at *finding* WCAG 2.2 AA accessibility violations in Angular single-page applications — missing `aria-label`s, poor color contrast, unlabeled buttons — but they cannot fix them. Remediation still requires a developer to trace a browser-rendered DOM node back to the exact template and TypeScript source, write a correct patch, and confirm nothing else broke: a slow, repetitive, error-prone bottleneck at scale.
+
+The A11y Fixer automates that execution layer for **front-end developers, QA automation engineers, and DevOps teams** who need to drive down accessibility debt across a repository — or a fleet of repositories — without personally triaging every violation, and who need a system they can trust not to silently ship a broken or non-compliant "fix." This matters because WCAG compliance is an evolving legal and contractual requirement, and every unresolved violation is a real barrier for a screen-reader or keyboard-only user.
+
+---
+
+### 3. System goal and scope
+
+**Goal:** given an Angular repo (local path or git URL) and, optionally, a live URL, crawl the app, run a real `axe-core` audit across every discovered page, and for each violation run a bounded, verified remediation loop — retrieve WCAG guidance, generate a patch, compile/test it in isolation, score it, then deliver it as a PR (auto-merging when confident) or escalate it to a human.
+
+**Evaluation criteria for success:** a cleared violation means (1) the target rule shows zero instances on re-audit, (2) the Angular build and unit tests pass with zero new failures, and (3) visual layout shift stays within a 2% bounding-box tolerance. A routed-to-human case is a success if the system correctly recognized it lacked confidence, not a failure of automation.
+
+**Design constraints:** code edits are restricted to `*.component.{html,ts,scss}` — build config, environment files, and root modules are write-protected outright. Candidate search is bounded (depth 3, branching 3→5, 15-node cap per violation) so the agent fails safe into escalation rather than looping. Auto-merge requires a composite score ≥18/20 *and* a passing build/test run. `fleet` currently supports one site per invocation — state isn't namespaced per site yet, a deliberate current limit.
+
+---
+
+### 4. Final system architecture
+
+The system runs as one `deepagents` graph (`create_deep_agent()`) rather than a hand-rolled loop, with role separation enforced by named sub-agents and middleware (Skills → Filesystem → SubAgent → Rubric → Memory → HumanInTheLoop).
+
+**Pipeline:** a deterministic, LLM-free breadth-first crawl (direct Playwright MCP calls) discovers every page, then a real `axe-core` subprocess audits them → the **Compliance Planner** (live `wcag-mcp`, MMR-reranked λ=0.5 top-3) produces a remediation manifest → the **Codebase Compiler** (official `angular-cli` MCP + AST-scoped edits) proposes a patch → **RubricMiddleware** scores it 0–20 (compile safety 8, AST validity 4, WCAG compliance via LLM judge 5, layout stability 3), retrying up to 3 times → a persisted **`ViolationState`** state machine (`NEW → PR_OPEN/HITL_QUEUED → MERGED`) makes delivery idempotent → a **risk-calibrated router** sends score ≥18 + verified builds to automatic PR delivery (a real GitHub PR plus a genuine `auto_merge_pr()` call) and everything else to a persisted `hitl_queue/` ticket, reviewed through **`dashboard-app`** (Angular + Express), with rejections written to `wiki/lessons/` as long-term memory feeding future Compliance Planner runs.
+
+Guardrails layer the full pipeline — pre-generation schema/path validation, during-generation epistemic gating, post-generation ARIA-lexicon and AST checks, sandboxed git-worktree execution, and an unconditional `interrupt_on` pause on every file write, independent of the score-based router.
+
+---
+
+### 5. Design evolution across the program
+
+Checkpoints 1–2 scoped a six-phase ReAct loop with dual memory and MCP-grounded tools to close the "Static-to-Dynamic Compilation Gap." Checkpoint 3 added retrieval as a hard requirement (live `wcag-mcp`, MMR reranking), since frozen weights can't track WCAG drift or Angular's binding syntax. Checkpoint 4 replaced linear Chain-of-Thought with a bounded Tree-of-Thought DFS to let the agent backtrack instead of committing early. Checkpoint 5 split the agent into three roles (Compliance Planner / Codebase Compiler / QA Critic). Checkpoint 6 added a defense-in-depth guardrail stack and a risk-calibrated, Bounded-Decider HITL router.
+
+**What actually changed during implementation, and why:**
+
+- **One SDK, not three frameworks.** The plan mapped the three roles onto CrewAI + LangChain + LangGraph separately; the built system runs all three as `SubAgent` specs inside one `deepagents` graph — same role separation, one integration surface.
+- **Live ToT search became `RubricMiddleware`.** The DFS algorithm is built and used for offline eval scoring, but the *live* loop is `RubricMiddleware`'s iterate-and-grade retry, which proved sufficient without a separate backtracking controller.
+- **The audit crawler moved from LLM-driven to fully deterministic**, after real evidence showed the LLM-driven version could silently audit only one page. It's now a plain BFS over direct Playwright MCP calls with a live per-page crawl log — no model call — applied to both `--repo` and `--url` audit modes.
+- **The state machine grew two cases after two real production incidents:** a violation could be escalated without a queue ticket, and a dry-run could permanently mark a violation "merged," blocking future delivery. Both were found via live evidence, fixed, and regression-tested.
+
+---
+
+### 6. Implementation overview
+
+Orchestration: `deepagents` (`create_deep_agent`, `SubAgent`, Rubric/Memory/HumanInTheLoop middleware) over `langchain`/`langgraph`/`langchain-mcp-adapters`, with pluggable backends (Ollama default; Anthropic, OpenAI, OpenRouter via env var). Auditing: `@axe-core/cli` with a pinned ChromeDriver against a real Angular 22 + Vitest fixture. Discovery: direct Playwright MCP tool calls. Knowledge: the live `wcag-mcp` and official `angular-cli` MCP servers. Isolation: `git worktree` by default, with a built-and-tested Docker backend as a drop-in upgrade. Delivery: the GitHub REST API via a `GitHubPRManager` that both opens and genuinely auto-merges PRs. Review surface: `dashboard-app` (Angular + Express). CLI: `a11y-fixer audit / run / fleet / review`, with `fleet` driven by a declarative `sites.yaml` manifest for unattended, multi-repo use. Testing: `pytest` + `pytest-asyncio`, with GitHub Actions CI running the full suite (minus git/npm/Docker-dependent e2e tests) on every push and PR.
+
+---
+
+### 7. Evaluation and results
+
+**Test suite:** 456 tests pass, 4 e2e tests deselected in CI, 0 failures, verified against the current working tree. **Benchmark:** a real `axe-core` run against the `Hallucinate.io` fixture produced 22 ground-truth violation instances across 6 rules and 11 pages.
+
+**Live production evidence, not simulation:** two real pull requests were delivered against `mdrmtz/Hallucinate.io`. PR #21 (`html-has-lang`) was routed to a human, approved via the dashboard, and genuinely auto-merged (score 20.0 ≥ 18.0). PR #22 was delivered end to end through `fleet`'s own live pipeline with no human step — the first fully agent-driven live delivery, and direct evidence the autonomy claim in Section 3 is real. Two production bugs (an invisible escalation gap; a dry-run permanently blocking real delivery) were found via this evidence, root-caused, and closed with regression tests — a meaningful reliability result in its own right.
+
+**Honest limitations:** a 5-case live subset measured a 40% auto-approve rate and 80% clearance rate, below the original ≥80% target (which had conflated approve-rate with clearance-rate). The full HELM-aligned calibration suite (ECE, Brier, AUROC, CLS) is implemented but not yet run across the complete 22-case benchmark under live delivery.
+
+---
+
+### 8. Safety and reliability considerations
+
+Defense-in-depth spans the pipeline: pre-generation schema/file-path validation; during-generation epistemic confidence gating (P(IK) ≥ 0.75) with negative-constraint injection from failed attempts; post-generation ARIA-lexicon and Tree-sitter/AST verification before any write; sandboxed, least-privilege git execution (ephemeral branch, no push to protected branches) with circuit breakers on search depth, node count, and wall-clock time. Two independent human-oversight layers exist: an unconditional `interrupt_on` pause on every file write, and a persisted `hitl_queue/` ticket on any of four risk triggers (low confidence, high blast radius, circuit-breaker exhaustion, visual regression), reviewed through a Bounded Decider UI rather than raw execution logs, to avoid rubber-stamping. The `ViolationState` machine makes delivery idempotent, and — per Section 7 — this layer has already caught and closed two real production gaps, not just theoretical ones.
+
+---
+
+### 9. Limitations and next steps
+
+Docker sandboxing is built and tested but not yet the default execution backend. The full HELM-aligned metric suite hasn't been run across the complete benchmark under live delivery. `fleet` handles one site per run, state not yet namespaced for concurrent sites. An unattended CI trigger (audit lands → agent runs automatically) is drafted but not deployed; only unit-test CI is live today. The newest crawler rewrite passes its unit-test suite but hasn't been exercised against a real `@playwright/mcp` instance due to sandbox network limits — the most immediate next step. `pip install a11y-fixer` is wheel-verified locally but not published. Near-term priorities: verify the crawler live, run the full benchmark for real calibration metrics, deploy the CI trigger, extend `fleet` to multiple namespaced sites, and promote Docker to the default sandbox before publishing.
+
+---
+
+### 10. Public GitHub repository
+
+| Repository | Role | Link |
+| --- | --- | --- |
+| **`a11y-fixer`** | The agent itself — CLI, domain logic, sub-agents, adapters, tests, evaluation harness. Primary repository for technical review. | `https://github.com/mdrmtz/a11y-fixer` |
+| **`cmu-capstone`** | Umbrella project; links `a11y-fixer` and `dashboard-app` as real git submodules; hosts checkpoint docs and this report; runs unit-test CI on every push/PR. | `https://github.com/mdrmtz/cmu-capstone` |
+| **`dashboard-app`** | The HITL review and observability UI (Angular + Express) that reads the agent's real output files. | `https://github.com/mdrmtz/dashboard-app` |
+| **`Hallucinate.io`** | The Angular benchmark fixture used for development, evaluation, and the two real merged PRs in Section 7; cloned at runtime rather than bundled. | `https://github.com/mdrmtz/Hallucinate.io` |
+
+`a11y-fixer/README.md` is the entry point for review: it explains the project and architecture, documents setup (`pip install -e ".[dev]"`, `.env` configuration, LLM backend selection), and gives concrete CLI usage. Sample evaluation artifacts (`benchmark_cases.json`, `audit.json`, `results_summary.json`) and the two real merged pull requests from Section 7 are directly inspectable, alongside the passing CI run on `cmu-capstone`'s `main` branch.
+
+---
+
+*Assembled from the six prior capstone checkpoints, cross-checked against the current codebase — test results, commit history, and two real production incidents — as of 2026-09-04. Where the built system diverged from an earlier checkpoint's plan, Section 5 states the change and the reason for it directly.*
+```

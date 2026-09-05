@@ -3,9 +3,9 @@
   "theme": "mint",
   "name": "The A11y Fixer",
   "colors": {
-    "primary": "#16A34A",
-    "light": "#07C983",
-    "dark": "#15803D"
+    "primary": "#1516a3",
+    "light": "#062dc9",
+    "dark": "#144d80"
   },
   "favicon": "/favicon.svg",
   "navigation": {
@@ -48,7 +48,39 @@
           "icon": "newspaper"
         }
       ]
-    }
+    },
+    "groups": [
+      {
+        "group": "Capstone Project",
+        "pages": [
+          "untitled-page"
+        ]
+      },
+      {
+        "group": "Getting Started",
+        "pages": [
+          "index",
+          "quickstart"
+        ]
+      },
+      {
+        "group": "Capstone Checkpoints",
+        "pages": [
+          "checkpoints/checkpoint-1-agent-scoping",
+          "checkpoints/checkpoint-2-agent-design",
+          "checkpoints/checkpoint-3-rag-retrieval",
+          "checkpoints/checkpoint-4-tree-of-thought",
+          "checkpoints/checkpoint-5-multi-agent-architecture"
+        ]
+      },
+      {
+        "group": "Demos",
+        "pages": [
+          "demos/rag-basic-retrieval",
+          "demos/rag-hybrid-retrieval"
+        ]
+      }
+    ]
   },
   "logo": {
     "light": "/logo/light.svg",
