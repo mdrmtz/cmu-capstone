@@ -1,5 +1,5 @@
 ---
-title: "Quickstart"
+title: "Capstone"
 description: "Understand The A11y Fixer in five minutes — what it does, how the agents interact, and where to go next."
 ---
 
@@ -9,22 +9,21 @@ description: "Understand The A11y Fixer in five minutes — what it does, how th
 
 <Steps>
   <Step title="Audit — detect violations">
-    Run `axe-core` against your Angular app to generate a structured JSON violation report. The A11y Fixer reads this report to identify the failing DOM node, its CSS selector, and the specific WCAG criterion it violates.
+    The A11y Fixer runs a real `axe-core` audit itself — point it at a repo or a live URL and it builds the structured JSON violation report internally, no separate manual audit step required. Each record captures the failing DOM node, its CSS selector, and the specific WCAG criterion it violates.
 
     ```bash
-    npx axe --save audit.json https://localhost:4200
+   source agent/.venv/bin/activate && python -m a11y_fixer.cli audit --config agent/sites.yaml
+    # or, against an already-running site:
+   source agent/.venv/bin/activate && python -m a11y_fixer.cli fleet --config agent/sites.yaml
     ```
   </Step>
   <Step title="Retrieve — fetch authoritative context">
-    The **Compliance Planner Agent** routes each violation through the Hybrid RAG pipeline:
+    The **Compliance Planner Agent** resolves every violation with a **live `wcag-mcp` call** — never from static training data. Given the rule id, selector, and failing DOM node, it queries `wcag-mcp`'s 20 tools for the matching WCAG success criterion, sufficient/advisory techniques, and known failure patterns, then validates the candidate against framework-specific anti-patterns.
 
-    - **Known `axe-core` error codes** (e.g. `button-name`, `color-contrast`) → deterministic LLM Wiki lookup — zero vector search, zero hallucination risk
-    - **Exploratory queries** → Stateless Semantic Search with MMR reranking (λ=0.5, k=3 diverse chunks)
-
-    Output: a structured compliance manifest with exact ARIA attributes, Angular template patterns, and remediation constraints.
+    A separate, file-backed memory loop feeds past HITL rejections back in: every "reject + constraint" decision is appended to `wiki/AGENTS.md`, loaded as static context on every run, so the agent never repeats a fix a human already rejected for the same reason.
   </Step>
   <Step title="Remediate — patch, verify, and deliver">
-    The **Codebase Compiler Agent** applies Tree-of-Thought DFS search (k=3 branches, depth T=3) to generate candidate AST patches. Each patch is scored by the **QA Critic Agent** on a 0–20 rubric:
+    The **Codebase Compiler Agent** locates the exact component file deterministically (selector + hint-text matching, not an LLM guess), applies a minimal patch, and hands it to **`RubricMiddleware`** — a grader loop (max 3 iterations) that re-scores and requests a revision until the rubric is satisfied or iterations run out. Each candidate is scored by the **QA Critic Agent** on a 0–20 rubric:
 
     | Metric | Weight |
     |---|---|
@@ -33,7 +32,7 @@ description: "Understand The A11y Fixer in five minutes — what it does, how th
     | WCAG semantic compliance | 5 pts |
     | Visual layout stability (≤2% shift) | 3 pts |
 
-    Patches scoring >5 with clean compilation are merged into a Pull Request. Patches scoring ≤5 trigger Adaptive Sibling Inflation (k→5) and contrastive backtracking.
+    Patches scoring ≥15/20 (P(IK) ≥ 0.75) may route to "auto"; ≥18/20 auto-merges immediately. Everything else — lower scores, high-risk rules, or the model's own uncertainty — lands in a persisted `hitl_queue/` ticket for human review via the Bounded Decider dashboard. A full Tree-of-Thought DFS search (`domain/tot_search.py`, k=3 siblings with adaptive inflation to k=5) is real, tested code, but today it scores the **offline evaluation harness's** benchmark, not this live remediation loop.
   </Step>
 </Steps>
 
@@ -59,11 +58,11 @@ description: "Understand The A11y Fixer in five minutes — what it does, how th
 | Term | Meaning |
 |---|---|
 | `axe-core` | Open-source accessibility auditing engine — produces the violation report the agent consumes |
-| LLM Wiki | Deterministic, pre-vetted markdown registry indexed by `axe-core` error code |
-| Stateless Semantic Search | Stateless vector RAG — identical queries always return identical chunks |
-| Tree-of-Thought (ToT) | Search strategy that proposes, evaluates, and backtracks across k=3 AST patch branches |
+| `wcag-mcp` | Live WCAG 2.2 knowledge server — sole source of truth for success criteria/techniques, queried fresh on every violation, never cached |
+| RubricMiddleware | The live grader loop (max 3 iterations) that re-scores and requests revisions on the Codebase Compiler's single working candidate |
+| Tree-of-Thought (ToT) | `domain/tot_search.py` — a real, unit-tested k=3-sibling DFS search, wired into the **offline evaluation harness only**, not the live agent |
 | Angular Ivy compiler | The compilation target used to validate every patch before scoring |
-| Git transactional sandbox | Each ToT branch runs in a pristine workspace (`git checkout -f && git clean -fd`) |
+| Git reset between violations | `_capture_and_reset_git_changes()` diffs the fixture against `HEAD`, then runs `git checkout -- .` + `git clean -fd` so each violation starts from a clean baseline |
 
 <Tip>
   To query this documentation from an AI agent, connect to `https://mdrmtz.mintlify.site/mcp`. The search MCP exposes all pages as searchable, readable Markdown — no auth required.
