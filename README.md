@@ -1,5 +1,35 @@
 # The A11y Fixer — CMU Agentic AI Capstone
 
+> ## 🅰️ The A11y Fixer — CMU Agentic AI Capstone (Module 7, Assignment 7.1)
+>
+> This repository is one of six that make up **The A11y Fixer**: an autonomous multi-agent system that crawls and audits Angular applications for WCAG 2.2 AA accessibility violations, and delivers verified, human-reviewable fixes as real pull requests — built for the CMU Agentic AI Program capstone.
+>
+> **This repo's role:** this is the umbrella project. It links `a11y-fixer`, `dashboard-app`, and `presentation` as real git submodules, hosts the six capstone checkpoint documents plus the final report, and publishes the documentation/chat site.
+
+| Repository | Role |
+| --- | --- |
+| [`a11y-fixer`](https://github.com/mdrmtz/a11y-fixer) | The autonomous agent itself — orchestration, sub-agents, CLI, guardrails, evaluation harness. **Start here for a technical review.** |
+| [`dashboard-app`](https://github.com/mdrmtz/dashboard-app) | Human-in-the-loop review dashboard (Angular + Express) — the Bounded Decider UI. |
+| [`presentation`](https://github.com/mdrmtz/presentation) | Markdown-authored Astro slide deck for the final capstone presentation video (Assignment 7.1). |
+| [`cmu-capstone`](https://github.com/mdrmtz/cmu-capstone) | Umbrella project: links `a11y-fixer`, `dashboard-app`, and `presentation` as real git submodules, hosts the capstone checkpoints and final report, and publishes the docs/chat site. |
+| [`wcag-mcp`](https://github.com/mdrmtz/wcag-mcp) | Live WCAG 2.2 knowledge server (MCP) — queried at runtime, never a static cache. |
+| [`Hallucinate.io`](https://github.com/mdrmtz/Hallucinate.io) | Deliberately-broken Angular fixture used as the benchmark/target site. |
+
+**Final report & evaluation results:** see the final capstone report in [`cmu-capstone`](https://github.com/mdrmtz/cmu-capstone). **Live docs & project chat:** https://mdrmtz.mintlify.site
+
+### Architecture: Module 1-6 concepts applied
+
+![The A11y Fixer -- Module 1-6 concepts applied](agent/architecture-module-concepts.png)
+
+Every mapping in this diagram is cited directly from the agent's own source
+docstrings, cross-referenced against this checkout's `Module-01` through `Module-06`
+folders -- not inferred after the fact. Full legend, the concept-to-code table, and
+diagram source: [`agent/2-Architecture-Module-1-6-Concepts.md`](agent/2-Architecture-Module-1-6-Concepts.md).
+For the pipeline architecture itself (not the course mapping), see
+[`agent/1-Architecture-High-Level.md`](agent/1-Architecture-High-Level.md) and
+[`agent/ARCHITECTURE.md`](agent/ARCHITECTURE.md).
+---
+
 Documentation site for **The A11y Fixer**: an autonomous multi-agent system for WCAG 2.2 AA remediation in Angular Single Page Applications.
 
 **Live site:** https://mdrmtz.mintlify.site
