@@ -19,12 +19,12 @@
 
 ### Architecture: Module 1-6 concepts applied
 
-![The A11y Fixer -- Module 1-6 concepts applied](agent/architecture-module-concepts.png)
+![The A11y Fixer -- Module 1-6 concepts applied](architecture-module-concepts.png)
 
 Every mapping in this diagram is cited directly from the agent's own source
 docstrings, cross-referenced against this checkout's `Module-01` through `Module-06`
 folders -- not inferred after the fact. Full legend, the concept-to-code table, and
-diagram source: [`agent/2-Architecture-Module-1-6-Concepts.md`](agent/2-Architecture-Module-1-6-Concepts.md).
+diagram source: [`2-Architecture-Module-1-6-Concepts.md`](2-Architecture-Module-1-6-Concepts.md).
 For the pipeline architecture itself (not the course mapping), see
 [`agent/1-Architecture-High-Level.md`](agent/1-Architecture-High-Level.md) and
 [`agent/ARCHITECTURE.md`](agent/ARCHITECTURE.md).
